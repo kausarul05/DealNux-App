@@ -926,4 +926,24 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
+
+    recommendedSection: {
+        marginBottom: 20,
+    },
+    recommendedHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 12,
+    },
+    seeAllText: {
+        color: '#2563EB',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    recommendedList: {
+        paddingHorizontal: 16,
+        gap: 12,
+    },
 })
