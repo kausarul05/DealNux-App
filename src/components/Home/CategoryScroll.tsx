@@ -138,7 +138,7 @@ export const CategoryScroll: React.FC<CategoryScrollProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
+    // marginVertical: 8,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -149,12 +149,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    minHeight: 44,
-    gap: 8,
+    minHeight: 35,
+    gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   categoryText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#475569',
     fontWeight: '600',
     flexShrink: 1,

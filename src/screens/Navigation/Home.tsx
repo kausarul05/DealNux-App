@@ -567,7 +567,7 @@ const Home = () => {
                 style={styles.searchContainer}
                 onPress={() => navigation.navigate('SearchProduct' as never)}
             >
-                <EvilIcons name="search" size={40} color="#94A3B8" />
+                <EvilIcons name="search" size={26} color="#94A3B8" />
                 <Text style={styles.searchInput}>Search products, brands....</Text>
             </Pressable>
 
@@ -756,11 +756,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E5E7EB',
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
+        borderRadius: 8,
         flexDirection: 'row',
         paddingVertical: 6,
-        paddingHorizontal: 10,
-        marginHorizontal: 20,
+        paddingHorizontal: 6,
+        marginHorizontal: 16,
         marginBottom: 8,
         alignItems: 'center',
     },
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 16,
         color: '#636F85',
-        paddingHorizontal: 8,
+        paddingHorizontal: 4,
     },
     categoryContainer: {
         paddingHorizontal: 20,
