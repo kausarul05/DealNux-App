@@ -1,0 +1,15 @@
+All Platform API need Amazon, walmart, ebay etc.
+
+1. Play Console $25
+2. Apple Developer $90
+3. RevenueCat Free
+4. VPS Hosting (Ram, 8GB, )
+5. Expo Premium $20
+6. OpenAI API 
+
+Everything make sure on gmail account. Give us full gmail access.
+
+
+eas build -p android --profile preview
+eas build -p android --profile preview --clear-cache
+

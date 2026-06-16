@@ -1,0 +1,90 @@
+{
+  "expo": {
+    "name": "DEALNUX",
+    "slug": "savvy-shopper",
+    "version": "1.0.0",
+    "scheme": "savvyshopper",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+
+    "ios": {
+      "supportsTablet": true,
+      "usesAppleSignIn": true,
+      "bundleIdentifier": "com.ahmedrefu.savvyshopper",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs camera access to scan product barcodes and QR codes.",
+        "NSPhotoLibraryUsageDescription": "This app needs photo library access to upload product images.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
+          }
+        ]
+      }
+    },
+
+    "android": {
+      "package": "com.ahmedrefu.savvyshopper",
+      "softwareKeyboardLayoutMode": "pan",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+
+    "plugins": [
+      "expo-document-picker",
+
+      [
+        "expo-apple-authentication"
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan product barcodes and QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to set profile picture."
+        }
+      ],
+      "expo-font",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "25870171595935078",
+          "clientToken": "dcb2b543991b7644bad597d84bec3e14",
+          "displayName": "DEALNUX",
+          "scheme": "fb25870171595935078"
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+
+    "extra": {
+      "eas": {
+        "projectId": "9f42c994-ba0b-4b26-91cd-aad2744d2851"
+      }
+    },
+
+    "owner": "ahmedrefu"
+  }
+}
