@@ -36,6 +36,10 @@ import PremiumModal from '../../components/PremiumModal'
 import ProductCard, { ProductSource, UiProduct } from '../../components/ProductCard'
 import { Toast, useToast } from '../../components/useToost'
 import { Images } from '../../constants'
+import { HomeHeader } from '../../components/Home/HomeHeader'
+import { CategoryScroll } from '../../components/Home/CategoryScroll'
+import { AdsModalSection } from '../../components/Home/AdsModalSection'
+import { PremiumCard } from '../../components/Home/PremiumCard'
 
 
 
@@ -71,7 +75,7 @@ type ApiProduct = {
     seller_shop?: string
     is_active?: boolean
     created_at?: string
-    rating?:number
+    rating?: number
     review_count?: number
     is_favorite?: boolean | string | null
     source?: ProductSource
@@ -549,18 +553,15 @@ const Home = () => {
 
     const renderHeader = () => (
         <>
-            <View style={styles.header}>
+            {/* <View style={styles.header}>
                 <View>
                     <Text className="text-[#2355B6] text-lg font-bold">
                         DealNux - Compare Faster Save Smarter
                     </Text>
                     <Text style={styles.userName}>{user?.name || 'User'}</Text>
                 </View>
-
-                {/* <Pressable onPress={() => navigation.navigate('Notification' as never)}>
-                    <Ionicons name="notifications" size={24} color="black" />
-                </Pressable> */}
-            </View>
+            </View> */}
+            <HomeHeader userName={user?.name || 'User'} />
 
             <Pressable
                 style={styles.searchContainer}
@@ -570,7 +571,7 @@ const Home = () => {
                 <Text style={styles.searchInput}>Search products, brands....</Text>
             </Pressable>
 
-            <ScrollView
+            {/* <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.categoryContainer}
@@ -589,35 +590,43 @@ const Home = () => {
                         </TouchableOpacity>
                     )
                 })}
-            </ScrollView>
-            <AdsCarousel
+            </ScrollView> */}
+            <CategoryScroll
+                categories={displayCategories}
+                selectedCategory={selectedCategory}
+                onCategoryPress={handleCategoryPress}
+            />
+            {/* <AdsCarousel
+                ads={ads}
+                buildImageUrl={buildImageUrl}
+                onPressAd={handleAds}
+            /> */}
+            <AdsModalSection
                 ads={ads}
                 buildImageUrl={buildImageUrl}
                 onPressAd={handleAds}
             />
             {/* Premium Card */}
-             <LinearGradient
+            {/* <LinearGradient
                 colors={['#0057FF', '#61B3FF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.premiumCard}
             >
-                {/* <Image source={Images.AngleIcon} style={styles.angleIcon} resizeMode="contain" /> */}
                 <Image source={Images.MoneyStraw} style={styles.moneyStraw} resizeMode="contain" />
                 <View style={styles.premiumIcon}>
                     <Text style={styles.premiumIconText}>✨</Text>
                     <Text style={styles.premiumTitle}>DEALNUX PREMIUM</Text>
                 </View>
                 <Text style={styles.premiumSubtitle}>Unlock smarter savings and{'\n'}auto-coupons!</Text>
-                {/* <Text style={styles.premiumDescription}>
-                    Experience ad-free browsing and exclusive{'\n'}price drop alerts.
-                </Text> */}
+                
                 <TouchableOpacity style={styles.premiumButton} onPress={() => setPremiumModalVisible(true)}>
                     <Text style={styles.premiumButtonText}>Start Free Trial</Text>
                 </TouchableOpacity>
-            </LinearGradient> 
+            </LinearGradient> */}
+            <PremiumCard onPress={() => setPremiumModalVisible(true)} />
 
-            
+
 
             {recommendedProducts.length > 0 && (
                 <View style={{ marginBottom: 20 }}>
