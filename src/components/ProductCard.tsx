@@ -22,7 +22,7 @@ export type UiProduct = {
     price: number
     originalPrice: number
     rating: number
-    review_count:number
+    review_count: number
     discount: string
     image: string
     seller: string
@@ -46,7 +46,7 @@ const ProductCard = ({
     onToggle,
     onPress,
 }: Props) => {
-    const cardWidth = size === 'medium' ? (width - 60) / 2 : (width - 50) / 2 - 8
+    const cardWidth = size === 'medium' ? (width - 60) / 2 : (width - 50) / 2 
 
     return (
         <Pressable
@@ -93,13 +93,13 @@ const ProductCard = ({
                         <Text style={styles.originalPrice}>${product.originalPrice}</Text>
                     )}
                 </View>
-                <View className='flex-row items-center justify-between'>
+                {/* <View className='flex-row items-center justify-between'>
                     <Text className='text-lg font-bold mb-2'>⭐ {product.rating}</Text>
-                     <View className='flex-row items-center gap-2 self-center'>
-                                                    <MaterialIcons name="reviews" size={24} color="#2355B6" />
-                                                    <Text className='text-xl font-bold'>{product?.review_count}</Text>
-                                                </View>
-                </View>
+                    <View className='flex-row items-center gap-2 self-center'>
+                        <MaterialIcons name="reviews" size={24} color="#2355B6" />
+                        <Text className='text-xl font-bold'>{product?.review_count}</Text>
+                    </View>
+                </View> */}
                 <View style={styles.sellerRow}>
                     <MaterialIcons name="storefront" size={16} color="#94A3B8" />
                     <Text style={styles.sellerText} numberOfLines={1}>
@@ -119,11 +119,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         borderRadius: 16,
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 4,
+        // shadowColor: '#000',
+        // shadowOffset: { width: 0, height: 2 },
+        // shadowOpacity: 0.08,
+        // shadowRadius: 8,
+        elevation: 1,
         marginBottom: 20,
     },
     imageContainer: {
@@ -159,10 +159,10 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        // shadowColor: '#000',
+        // shadowOffset: { width: 0, height: 2 },
+        // shadowOpacity: 0.1,
+        // shadowRadius: 4,
         elevation: 3,
     },
     productInfo: {
@@ -178,8 +178,8 @@ const styles = StyleSheet.create({
     priceRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        marginBottom: 2,
+        gap: 4,
+        marginBottom: 6,
     },
     price: {
         fontSize: 18,
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
         color: '#000',
     },
     originalPrice: {
-        fontSize: 14,
+        fontSize: 12,
         color: '#94A3B8',
         textDecorationLine: 'line-through',
     },

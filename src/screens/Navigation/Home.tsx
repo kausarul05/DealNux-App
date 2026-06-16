@@ -533,7 +533,18 @@ const Home = () => {
     const renderItem = useCallback(({ item }: { item: UiProduct }) => (
         <ProductCard
             product={item}
-            size="small"
+            size="small"  // Can be 'small', 'medium', or 'large'
+            isFavorite={isFav(item.id)}
+            isLoading={isFavLoad(item.id)}
+            onToggle={toggleFavorite}
+            onPress={handleNavigateProduct}
+        />
+    ), [toggleFavorite, handleNavigateProduct, favVersion, favLoadVersion])
+
+    const renderRecommendedItem = useCallback(({ item }: { item: UiProduct }) => (
+        <ProductCard
+            product={item}
+            size="medium"  // Medium size for horizontal scroll
             isFavorite={isFav(item.id)}
             isLoading={isFavLoad(item.id)}
             onToggle={toggleFavorite}
@@ -543,7 +554,6 @@ const Home = () => {
 
     const renderFooter = () => {
         if (!loadingMore) return <View style={{ height: 30 }} />
-
         return (
             <View style={{ paddingVertical: 16, alignItems: 'center' }}>
                 <ActivityIndicator size="small" color="#2563EB" />
@@ -629,34 +639,28 @@ const Home = () => {
 
 
             {recommendedProducts.length > 0 && (
-                <View style={{ marginBottom: 20 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <View style={styles.recommendedSection}>
+                    <View style={styles.recommendedHeader}>
                         <Text style={styles.sectionTitle}>Recommended for You</Text>
-                        <Entypo style={styles.sectionTitle} name="arrow-long-right" size={24} color="black" />
+                        <TouchableOpacity>
+                            <Text style={styles.seeAllText}>See All</Text>
+                        </TouchableOpacity>
                     </View>
                     <FlatList
                         horizontal
                         data={recommendedProducts.map(toUi)}
                         keyExtractor={item => `rec-${item.id}`}
                         showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-                        renderItem={({ item }) => (
-                            <ProductCard
-                                product={item}
-                                size="medium"
-                                isFavorite={isFav(item.id)}
-                                isLoading={isFavLoad(item.id)}
-                                onToggle={toggleFavorite}
-                                onPress={handleNavigateProduct}
-                            />
-                        )}
+                        contentContainerStyle={styles.recommendedList}
+                        renderItem={renderRecommendedItem}  // ✅ Use the new render function
+                    // Remove the inline renderItem and use the callback instead
                     />
                 </View>
             )}
 
+            {/* All Products Header */}
             <View style={styles.allProductsHeader}>
                 <Text style={styles.allProductsTitle}>All Products</Text>
-
                 {!productLoading && uiProducts.length > 0 && (
                     <View style={styles.itemsBadge}>
                         <Text style={styles.itemsBadgeText}>
@@ -682,8 +686,8 @@ const Home = () => {
                 data={uiProducts}
                 keyExtractor={item => item.id}
                 numColumns={2}
-                columnWrapperStyle={styles.recommendedGrid}
-                renderItem={renderItem}
+                columnWrapperStyle={styles.productGrid}
+                renderItem={renderItem}  // ✅ Use the new render function
                 ListHeaderComponent={renderHeader}
                 ListFooterComponent={renderFooter}
                 onEndReached={handleLoadMore}
@@ -691,10 +695,10 @@ const Home = () => {
                 onRefresh={onRefresh}
                 refreshing={refreshing}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 40 }}
+                contentContainerStyle={styles.contentContainer}
                 ListEmptyComponent={
                     !productLoading ? (
-                        <Text style={{ textAlign: 'center', color: '#64748B', marginTop: 20 }}>
+                        <Text style={styles.emptyText}>
                             No products found
                         </Text>
                     ) : null
@@ -732,12 +736,15 @@ export default Home
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F9F9FB' },
+    contentContainer: { 
+        paddingBottom: 40 
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
         color: '#1F2937',
-        paddingHorizontal: 20,
-        marginBottom: 12,
+        // paddingHorizontal: 20,
+        // marginBottom: 4,
     },
     header: {
         flexDirection: 'row',
@@ -945,5 +952,16 @@ const styles = StyleSheet.create({
     recommendedList: {
         paddingHorizontal: 16,
         gap: 12,
+    },
+    productGrid: {
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        gap: 12,
+    },
+     emptyText: {
+        textAlign: 'center',
+        color: '#64748B',
+        marginTop: 40,
+        fontSize: 16,
     },
 })
