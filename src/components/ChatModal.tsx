@@ -1,8 +1,7 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'
-import React from 'react'
+// components/ChatModal.tsx
+import React, { useState, useRef, useEffect } from 'react'
 import {
     Dimensions,
-    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -12,8 +11,15 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    Alert,
+    Linking,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useChat } from '../hooks/useChat'
+import ProductCard from './chat/ProductCard'
+import SuggestedReplies from './chat/SuggestedReplies'
 
 const { height } = Dimensions.get('window')
 
@@ -23,41 +29,62 @@ interface ChatBotModalProps {
 }
 
 const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
-    // ✅ FIX 1: Get safe area insets to pad above navigation bar
     const insets = useSafeAreaInsets()
+    const [inputText, setInputText] = useState('')
+    const scrollViewRef = useRef<ScrollView>(null)
+    
+    const {
+        messages,
+        isLoading,
+        isConnected,
+        error,
+        products,
+        suggestedReplies,
+        sendMessage,
+        initializeChat,
+    } = useChat()
 
-    const products = [
-        {
-            id: '1',
-            name: 'Bose QuietComfort..',
-            price: 252,
-            originalPrice: 420,
-            discount: '-45%',
-            image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=400',
-            seller: 'Amazon',
-        },
-    ]
+    // Initialize chat when modal opens
+    useEffect(() => {
+        if (visible) {
+            initializeChat()
+        }
+    }, [visible])
 
-    const runningShoes = [
-        {
-            id: '2',
-            name: 'Air Zoom Pegasus 39',
-            price: 299,
-            originalPrice: 399,
-            discount: '-40%',
-            image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
-            seller: 'Amazon',
-        },
-        {
-            id: '3',
-            name: 'Air Zoom Pegasus 40',
-            price: 99.5,
-            originalPrice: 199,
-            discount: '-50%',
-            image: 'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=400',
-            seller: 'Amazon',
-        },
-    ]
+    // Scroll to bottom when new messages arrive
+    useEffect(() => {
+        if (scrollViewRef.current && messages.length > 0) {
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true })
+            }, 100)
+        }
+    }, [messages])
+
+    const handleSend = () => {
+        if (inputText.trim()) {
+            sendMessage(inputText.trim())
+            setInputText('')
+        }
+    }
+
+    const handleSuggestedReply = (reply: string) => {
+        sendMessage(reply)
+    }
+
+    const handleProductPress = (url: string) => {
+        Linking.openURL(url).catch(() => {
+            Alert.alert('Error', 'Could not open the link')
+        })
+    }
+
+    const formatTime = () => {
+        const now = new Date()
+        return now.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+        })
+    }
 
     return (
         <Modal
@@ -67,17 +94,10 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                {/*
-                  ✅ FIX 2: KeyboardAvoidingView inside the modal container.
-                  - iOS: 'padding' pushes content up
-                  - Android: 'height' shrinks the view
-                  paddingBottom from insets ensures input is above the nav bar.
-                */}
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={[
                         styles.modalContainer,
-                        // ✅ FIX 3: Add bottom inset so input never hides behind nav bar
                         { paddingBottom: insets.bottom },
                     ]}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
@@ -88,144 +108,157 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                             <View style={styles.botIcon}>
                                 <Ionicons name="chatbubbles" size={24} color="#2563EB" />
                             </View>
-                            <Text style={styles.headerTitle}>ChatBot Assistant</Text>
+                            <View>
+                                <Text style={styles.headerTitle}>ChatBot Assistant</Text>
+                                <View style={styles.statusRow}>
+                                    <View style={[styles.statusDot, isConnected && styles.statusDotConnected]} />
+                                    <Text style={styles.statusText}>
+                                        {isConnected ? 'Online' : 'Connecting...'}
+                                    </Text>
+                                </View>
+                            </View>
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <Ionicons name="close" size={24} color="#6B7280" />
                         </TouchableOpacity>
                     </View>
 
+                    {/* Error Message */}
+                    {error && (
+                        <View style={styles.errorContainer}>
+                            <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                            <Text style={styles.errorText}>{error}</Text>
+                            <TouchableOpacity onPress={initializeChat}>
+                                <Text style={styles.retryText}>Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {/* Chat Messages */}
                     <ScrollView
+                        ref={scrollViewRef}
                         style={styles.chatContent}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={styles.chatContentContainer}
                     >
-                        <Text style={styles.timeText}>08:15 AM</Text>
-
-                        {/* Assistant Message 1 */}
-                        <View style={styles.messageContainer}>
-                            <View style={styles.assistantIcon}>
-                                <Ionicons name="chatbubbles" size={20} color="#2563EB" />
-                            </View>
-                            <View style={styles.messageContent}>
-                                <Text style={styles.assistantLabel}>Assistant</Text>
-                                <Text style={styles.messageText}>
-                                    Hi! I found some price drops on items similar to your recent searches.
+                        {messages.length === 0 && !isLoading ? (
+                            <View style={styles.welcomeContainer}>
+                                <View style={styles.welcomeIcon}>
+                                    <Ionicons name="chatbubbles" size={48} color="#2563EB" />
+                                </View>
+                                <Text style={styles.welcomeTitle}>Welcome to ChatBot!</Text>
+                                <Text style={styles.welcomeText}>
+                                    Ask me about products, prices, or anything else!
                                 </Text>
+                            </View>
+                        ) : (
+                            <>
+                                <Text style={styles.timeText}>{formatTime()}</Text>
 
-                                {products.map((product) => (
-                                    <View key={product.id} style={styles.productCard}>
-                                        <View style={styles.productImageContainer}>
-                                            <Image
-                                                source={{ uri: product.image }}
-                                                style={styles.productImage}
-                                                resizeMode="cover"
-                                            />
-                                            <View style={styles.discountBadge}>
-                                                <Text style={styles.discountText}>{product.discount}</Text>
+                                {messages.map((msg, index) => (
+                                    <View key={index}>
+                                        {/* Assistant Message */}
+                                        {msg.reply_text && !msg.products && !msg.suggested_replies && (
+                                            <View style={styles.messageContainer}>
+                                                <View style={styles.assistantIcon}>
+                                                    <Ionicons name="chatbubbles" size={20} color="#2563EB" />
+                                                </View>
+                                                <View style={styles.messageContent}>
+                                                    <Text style={styles.assistantLabel}>Assistant</Text>
+                                                    <Text style={styles.messageText}>{msg.reply_text}</Text>
+                                                </View>
                                             </View>
-                                            <TouchableOpacity style={styles.heartButton}>
-                                                <Ionicons name="heart-outline" size={18} color="#64748B" />
-                                            </TouchableOpacity>
-                                        </View>
-                                        <View style={styles.productInfo}>
-                                            <Text style={styles.productName}>{product.name}</Text>
-                                            <View style={styles.priceRow}>
-                                                <Text style={styles.price}>${product.price}</Text>
-                                                <Text style={styles.originalPrice}>${product.originalPrice}</Text>
+                                        )}
+
+                                        {/* User Message */}
+                                        {msg.reply_text && !msg.products && msg.suggested_replies?.length === 0 && (
+                                            <View style={styles.userMessageContainer}>
+                                                <View style={styles.userMessage}>
+                                                    <Text style={styles.userMessageText}>{msg.reply_text}</Text>
+                                                </View>
                                             </View>
-                                            <View style={styles.sellerRow}>
-                                                <MaterialIcons name="storefront" size={14} color="#94A3B8" />
-                                                <Text style={styles.sellerText}>{product.seller}</Text>
-                                                <MaterialIcons name="arrow-forward" size={14} color="#94A3B8" />
+                                        )}
+
+                                        {/* Message with Products */}
+                                        {msg.products && msg.products.length > 0 && (
+                                            <View style={styles.messageContainer}>
+                                                <View style={styles.assistantIcon}>
+                                                    <Ionicons name="chatbubbles" size={20} color="#2563EB" />
+                                                </View>
+                                                <View style={styles.messageContent}>
+                                                    <Text style={styles.assistantLabel}>Assistant</Text>
+                                                    <Text style={styles.messageText}>{msg.reply_text}</Text>
+                                                    
+                                                    {msg.products.map((product) => (
+                                                        <ProductCard
+                                                            key={product.id}
+                                                            product={product}
+                                                            onPress={handleProductPress}
+                                                        />
+                                                    ))}
+
+                                                    {msg.suggested_replies && msg.suggested_replies.length > 0 && (
+                                                        <SuggestedReplies
+                                                            replies={msg.suggested_replies}
+                                                            onPress={handleSuggestedReply}
+                                                        />
+                                                    )}
+                                                </View>
                                             </View>
-                                        </View>
+                                        )}
+
+                                        {/* Suggested Replies only */}
+                                        {msg.suggested_replies && msg.suggested_replies.length > 0 && !msg.products && (
+                                            <View style={styles.messageContainer}>
+                                                <View style={styles.assistantIcon}>
+                                                    <Ionicons name="chatbubbles" size={20} color="#2563EB" />
+                                                </View>
+                                                <View style={styles.messageContent}>
+                                                    <Text style={styles.assistantLabel}>Assistant</Text>
+                                                    <Text style={styles.messageText}>{msg.reply_text}</Text>
+                                                    <SuggestedReplies
+                                                        replies={msg.suggested_replies}
+                                                        onPress={handleSuggestedReply}
+                                                    />
+                                                </View>
+                                            </View>
+                                        )}
                                     </View>
                                 ))}
-                            </View>
-                        </View>
 
-                        {/* User Message */}
-                        <View style={styles.userMessageContainer}>
-                            <View style={styles.userMessage}>
-                                <Text style={styles.userMessageText}>Show me running shoes under $100</Text>
-                            </View>
-                        </View>
-
-                        {/* Assistant Message 2 */}
-                        <View style={styles.messageContainer}>
-                            <View style={styles.assistantIcon}>
-                                <Ionicons name="chatbubbles" size={20} color="#2563EB" />
-                            </View>
-                            <View style={styles.messageContent}>
-                                <Text style={styles.assistantLabel}>Assistant</Text>
-                                <Text style={styles.messageText}>
-                                    Here are top-rated running shoes under $100 currently on sale:
-                                </Text>
-
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    style={styles.horizontalScroll}
-                                    keyboardShouldPersistTaps="handled"
-                                >
-                                    {runningShoes.map((shoe) => (
-                                        <View key={shoe.id} style={styles.shoeCard}>
-                                            <View style={styles.shoeImageContainer}>
-                                                <Image
-                                                    source={{ uri: shoe.image }}
-                                                    style={styles.shoeImage}
-                                                    resizeMode="cover"
-                                                />
-                                                <View style={styles.discountBadge}>
-                                                    <Text style={styles.discountText}>{shoe.discount}</Text>
-                                                </View>
-                                                <TouchableOpacity style={styles.heartButton}>
-                                                    <Ionicons name="heart" size={18} color="#EF4444" />
-                                                </TouchableOpacity>
-                                            </View>
-                                            <View style={styles.shoeInfo}>
-                                                <Text style={styles.shoeName} numberOfLines={1}>{shoe.name}</Text>
-                                                <View style={styles.priceRow}>
-                                                    <Text style={styles.price}>${shoe.price}</Text>
-                                                    <Text style={styles.originalPrice}>${shoe.originalPrice}</Text>
-                                                </View>
-                                                <View style={styles.sellerRow}>
-                                                    <MaterialIcons name="storefront" size={12} color="#94A3B8" />
-                                                    <Text style={styles.sellerTextSmall}>{shoe.seller}</Text>
-                                                    <MaterialIcons name="arrow-forward" size={12} color="#94A3B8" />
-                                                </View>
-                                            </View>
-                                        </View>
-                                    ))}
-                                </ScrollView>
-
-                                <View style={styles.actionButtons}>
-                                    <TouchableOpacity style={styles.actionButton}>
-                                        <Text style={styles.actionButtonText}>Compare these 3</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.actionButton}>
-                                        <Text style={styles.actionButtonText}>Show cheaper options</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* ✅ FIX 4: Bottom spacer so last message isn't hidden behind input */}
-                        <View style={{ height: 16 }} />
+                                {isLoading && (
+                                    <View style={styles.loadingContainer}>
+                                        <ActivityIndicator size="small" color="#2563EB" />
+                                        <Text style={styles.loadingText}>Assistant is typing...</Text>
+                                    </View>
+                                )}
+                            </>
+                        )}
                     </ScrollView>
 
-                    {/* ✅ FIX 5: Input area — no absolute positioning, sits above keyboard naturally */}
+                    {/* Input Area */}
                     <View style={styles.inputContainer}>
                         <TextInput
                             style={styles.input}
                             placeholder="Type a message..."
                             placeholderTextColor="#9CA3AF"
+                            value={inputText}
+                            onChangeText={setInputText}
                             returnKeyType="send"
+                            onSubmitEditing={handleSend}
+                            editable={!isLoading}
                         />
-                        <TouchableOpacity style={styles.sendButton}>
-                            <Ionicons name="send" size={20} color="white" />
+                        <TouchableOpacity 
+                            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+                            onPress={handleSend}
+                            disabled={!inputText.trim() || isLoading}
+                        >
+                            <Ionicons 
+                                name="send" 
+                                size={20} 
+                                color={inputText.trim() ? 'white' : '#94A3B8'} 
+                            />
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
@@ -242,7 +275,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'flex-end',
     },
-    // ✅ FIX: No hardcoded paddingBottom:0 — padding is dynamic via insets
     modalContainer: {
         backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 24,
@@ -263,9 +295,9 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     botIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#EFF6FF',
         justifyContent: 'center',
         alignItems: 'center',
@@ -275,12 +307,80 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#2563EB',
     },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#9CA3AF',
+    },
+    statusDotConnected: {
+        backgroundColor: '#10B981',
+    },
+    statusText: {
+        fontSize: 11,
+        color: '#94A3B8',
+    },
     closeButton: {
         padding: 4,
     },
+    errorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#FEF2F2',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#FEE2E2',
+    },
+    errorText: {
+        flex: 1,
+        fontSize: 13,
+        color: '#DC2626',
+    },
+    retryText: {
+        fontSize: 13,
+        color: '#2563EB',
+        fontWeight: '600',
+    },
     chatContent: {
         flex: 1,
+    },
+    chatContentContainer: {
         padding: 16,
+        paddingBottom: 8,
+        flexGrow: 1,
+    },
+    welcomeContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+    },
+    welcomeIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#EFF6FF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    welcomeTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 8,
+    },
+    welcomeText: {
+        fontSize: 14,
+        color: '#6B7280',
+        textAlign: 'center',
     },
     timeText: {
         textAlign: 'center',
@@ -291,7 +391,7 @@ const styles = StyleSheet.create({
     messageContainer: {
         flexDirection: 'row',
         gap: 12,
-        marginBottom: 20,
+        marginBottom: 16,
     },
     assistantIcon: {
         width: 32,
@@ -309,97 +409,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#1F2937',
-        marginBottom: 6,
+        marginBottom: 4,
     },
     messageText: {
         fontSize: 14,
         color: '#4B5563',
         lineHeight: 20,
-        marginBottom: 12,
-    },
-    productCard: {
-        backgroundColor: '#F9FAFB',
-        borderRadius: 12,
-        overflow: 'hidden',
-        marginTop: 8,
-    },
-    productImageContainer: {
-        position: 'relative',
-        height: 140,
-        backgroundColor: '#E5E7EB',
-    },
-    productImage: {
-        width: '100%',
-        height: '100%',
-    },
-    discountBadge: {
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        backgroundColor: '#FCD34D',
-        paddingHorizontal: 6,
-        paddingVertical: 3,
-        borderRadius: 6,
-    },
-    discountText: {
-        fontSize: 11,
-        fontWeight: 'bold',
-        color: '#000',
-    },
-    heartButton: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: 'white',
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    productInfo: {
-        padding: 10,
-    },
-    productName: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#1F2937',
-        marginBottom: 4,
-    },
-    priceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 6,
-    },
-    price: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#2563EB',
-    },
-    originalPrice: {
-        fontSize: 12,
-        color: '#9CA3AF',
-        textDecorationLine: 'line-through',
-    },
-    sellerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    sellerText: {
-        fontSize: 12,
-        color: '#9CA3AF',
-        flex: 1,
-    },
-    sellerTextSmall: {
-        fontSize: 11,
-        color: '#9CA3AF',
-        flex: 1,
+        marginBottom: 8,
     },
     userMessageContainer: {
         alignItems: 'flex-end',
-        marginBottom: 20,
+        marginBottom: 16,
     },
     userMessage: {
         backgroundColor: '#DBEAFE',
@@ -412,54 +432,16 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#1F2937',
     },
-    horizontalScroll: {
-        marginTop: 8,
-    },
-    shoeCard: {
-        width: 160,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        marginRight: 12,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    shoeImageContainer: {
-        position: 'relative',
-        height: 120,
-        backgroundColor: '#F3F4F6',
-    },
-    shoeImage: {
-        width: '100%',
-        height: '100%',
-    },
-    shoeInfo: {
-        padding: 8,
-    },
-    shoeName: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#1F2937',
-        marginBottom: 4,
-    },
-    actionButtons: {
+    loadingContainer: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
+        alignItems: 'center',
         gap: 8,
-        marginTop: 12,
-    },
-    actionButton: {
-        backgroundColor: '#EFF6FF',
-        paddingHorizontal: 12,
         paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#DBEAFE',
+        paddingLeft: 44,
     },
-    actionButtonText: {
+    loadingText: {
         fontSize: 13,
-        color: '#2563EB',
-        fontWeight: '500',
+        color: '#94A3B8',
     },
     inputContainer: {
         flexDirection: 'row',
@@ -487,5 +469,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#2563EB',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    sendButtonDisabled: {
+        backgroundColor: '#E5E7EB',
     },
 })

@@ -10,7 +10,7 @@ import {
     REMOVE_FAVORITE,
     VIEW_ADS,
 } from '@env'
-import { Entypo, EvilIcons } from '@expo/vector-icons'
+import { Entypo, EvilIcons, Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation } from '@react-navigation/native'
 import axios from 'axios'
@@ -40,6 +40,7 @@ import { HomeHeader } from '../../components/Home/HomeHeader'
 import { CategoryScroll } from '../../components/Home/CategoryScroll'
 import { AdsModalSection } from '../../components/Home/AdsModalSection'
 import { PremiumCard } from '../../components/Home/PremiumCard'
+import ChatModal from '../../components/ChatModal'
 
 
 
@@ -154,6 +155,8 @@ const Home = () => {
     const [pageSize] = useState(50)
     const [hasNextPage, setHasNextPage] = useState(true)
     const [recommendedProducts, setRecommendedProducts] = useState<ApiProduct[]>([])
+
+    const [chatModalVisible, setChatModalVisible] = useState(false)
 
     //---ads
     const [ads, setAds] = useState<AdsItem[]>([])
@@ -719,6 +722,16 @@ const Home = () => {
                 </View>
             )}
 
+            {/* Chat Button */}
+            <TouchableOpacity onPress={() => setChatModalVisible(true)} style={styles.chatButton}>
+                <LinearGradient colors={['#FFC649', '#F59E0B']} style={styles.chatGradient}>
+                    <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
+                </LinearGradient>
+            </TouchableOpacity>
+
+            <ChatModal
+                visible={chatModalVisible} onClose={() => setChatModalVisible(false)} />
+
             <Toast
                 style={toast.style}
                 visible={toast.visible}
@@ -736,8 +749,8 @@ export default Home
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F9F9FB' },
-    contentContainer: { 
-        paddingBottom: 40 
+    contentContainer: {
+        paddingBottom: 40
     },
     sectionTitle: {
         fontSize: 18,
@@ -958,10 +971,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         gap: 12,
     },
-     emptyText: {
+    emptyText: {
         textAlign: 'center',
         color: '#64748B',
         marginTop: 40,
         fontSize: 16,
     },
+
+    // Chat Button
+    chatButton: { position: 'absolute', bottom: 100, right: 24, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+    chatGradient: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
 })
