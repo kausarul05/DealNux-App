@@ -1,4 +1,4 @@
-// ProductDetails.tsx
+// ProductDetails.tsx - Fixed Version
 import {
     ADD_CART,
     ADD_FAVORITE,
@@ -22,44 +22,33 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Animated,
+    Dimensions,
     Easing,
     FlatList,
     Image,
     ImageSourcePropType,
     Linking,
     Modal,
-    Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
+    Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import AppHeader from '../../components/AppHeader'
+import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
+
 import BackButton from '../../components/BackButton'
 import ChatModal from '../../components/ChatModal'
 import { Toast, useToast } from '../../components/useToost'
 import { Images } from '../../constants'
 import { AuthStackParamList } from '../../Navigation/types'
 
+const { width } = Dimensions.get('window')
 const API_BASE_URL = IPA_BASE
 
 type RouteParams = { productId: string | number }
-
-const KNOWN_PLATFORMS = [
-    'amazon',
-    'walmart',
-    'aliexpress',
-    'bestbuy',
-    'best buy',
-    'sephora',
-    'target',
-    'ebay',
-]
-
-const isKnownPlatform = (name: string) =>
-    KNOWN_PLATFORMS.some((p) => name?.toLowerCase().includes(p))
 
 type ProductListing = {
     id: number | string
@@ -130,358 +119,145 @@ const getPlatformLogo = (platformName: string): ImageSourcePropType | null => {
     return null
 }
 
-// ─── Skeleton Pulse Component ────────────────────────────────────────────────
-const SkeletonBox = ({
-    width,
-    height,
-    borderRadius = 8,
-    style,
-}: {
-    width?: number | string
-    height: number
-    borderRadius?: number
-    style?: any
-}) => {
-    const opacity = useRef(new Animated.Value(0.3)).current
+// ─── Skeleton Loader (FIXED) ────────────────────────────────────────────────
+const ProductDetailsSkeleton = () => {
+    const shimmerAnim = useRef(new Animated.Value(0)).current
 
     useEffect(() => {
-        const pulse = Animated.loop(
+        const shimmer = Animated.loop(
             Animated.sequence([
-                Animated.timing(opacity, {
+                Animated.timing(shimmerAnim, {
                     toValue: 1,
-                    duration: 800,
+                    duration: 1000,
                     easing: Easing.ease,
                     useNativeDriver: true,
                 }),
-                Animated.timing(opacity, {
-                    toValue: 0.3,
-                    duration: 800,
+                Animated.timing(shimmerAnim, {
+                    toValue: 0,
+                    duration: 1000,
                     easing: Easing.ease,
                     useNativeDriver: true,
                 }),
             ])
         )
-        pulse.start()
-        return () => pulse.stop()
+        shimmer.start()
+        return () => shimmer.stop()
     }, [])
 
-    return (
-        <Animated.View
-            style={[
-                {
-                    width: width ?? '100%',
-                    height,
-                    borderRadius,
-                    backgroundColor: '#E2E8F0',
-                    opacity,
-                },
-                style,
-            ]}
-        />
-    )
-}
+    // ✅ FIXED: Use number values for outputRange
+    const SkeletonItem = ({ w, h, rounded = 8 }: { w: number; h: number; rounded?: number }) => {
+        const translateX = shimmerAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [-w, w],
+        })
 
-// ─── Skeleton Screen ─────────────────────────────────────────────────────────
-const ProductDetailsSkeleton = () => {
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
-            {/* Header */}
-            <View style={skeletonStyles.header}>
-                <SkeletonBox width={36} height={36} borderRadius={18} />
-                <SkeletonBox width={140} height={20} borderRadius={6} style={{ marginLeft: 12 }} />
+        return (
+            <View style={[{ width: w, height: h, borderRadius: rounded, backgroundColor: '#E5E7EB', overflow: 'hidden' }]}>
+                <Animated.View
+                    style={[
+                        {
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: 'rgba(255,255,255,0.3)',
+                            transform: [{ translateX }],
+                        },
+                    ]}
+                />
             </View>
+        )
+    }
 
-            {/* Hero image */}
-            <SkeletonBox width="100%" height={300} borderRadius={0} />
-
-            <ScrollView style={{ paddingHorizontal: 20 }} scrollEnabled={false}>
-                {/* Title + platform row */}
-                <View style={skeletonStyles.row}>
-                    <View style={{ flex: 1, gap: 8 }}>
-                        <SkeletonBox width="90%" height={22} borderRadius={6} />
-                        <SkeletonBox width="60%" height={18} borderRadius={6} />
-                    </View>
-                    <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                        <SkeletonBox width={100} height={20} borderRadius={6} />
-                        <SkeletonBox width={90} height={32} borderRadius={999} />
-                    </View>
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <SkeletonItem w={40} h={40} rounded={20} />
+                <SkeletonItem w={120} h={20} rounded={6} />
+                <SkeletonItem w={40} h={40} rounded={20} />
+            </View>
+            <SkeletonItem w={width} h={280} rounded={0} />
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                <SkeletonItem w={width * 0.8} h={24} rounded={6} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+                    <SkeletonItem w={120} h={20} rounded={6} />
+                    <SkeletonItem w={80} h={20} rounded={6} />
                 </View>
-
-                {/* Price card */}
-                <View style={skeletonStyles.card}>
-                    <View style={skeletonStyles.row}>
-                        <SkeletonBox width={160} height={16} borderRadius={5} />
-                        <SkeletonBox width={80} height={30} borderRadius={10} />
-                    </View>
-                    <SkeletonBox width={140} height={40} borderRadius={8} style={{ marginTop: 14 }} />
-                    <SkeletonBox width={100} height={16} borderRadius={5} style={{ marginTop: 8 }} />
-                    <View style={[skeletonStyles.row, { marginTop: 20, gap: 12 }]}>
-                        <SkeletonBox width={80} height={56} borderRadius={12} />
-                        <SkeletonBox width={200} height={56} borderRadius={12} />
-                    </View>
+                <View style={{ marginTop: 16 }}>
+                    <SkeletonItem w={width - 40} h={160} rounded={16} />
                 </View>
-
-                {/* Description card */}
-                <View style={skeletonStyles.card}>
-                    <SkeletonBox width={120} height={22} borderRadius={6} style={{ marginBottom: 14 }} />
-                    <SkeletonBox height={14} borderRadius={5} style={{ marginBottom: 8 }} />
-                    <SkeletonBox width="92%" height={14} borderRadius={5} style={{ marginBottom: 8 }} />
-                    <SkeletonBox width="80%" height={14} borderRadius={5} style={{ marginBottom: 8 }} />
-                    <SkeletonBox width="70%" height={14} borderRadius={5} />
+                <View style={{ marginTop: 16 }}>
+                    <SkeletonItem w={width * 0.4} h={22} rounded={6} />
+                    <SkeletonItem w={width - 40} h={80} rounded={16} style={{ marginTop: 8 }} />
                 </View>
-
-                {/* Compare section */}
-                <View style={{ marginTop: 8 }}>
-                    <SkeletonBox width={160} height={22} borderRadius={6} style={{ marginBottom: 14 }} />
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                        {[1, 2, 3].map((i) => (
-                            <View key={i} style={skeletonStyles.compareCard}>
-                                <SkeletonBox height={138} borderRadius={0} />
-                                <View style={{ padding: 12, gap: 8 }}>
-                                    <SkeletonBox height={14} borderRadius={4} />
-                                    <SkeletonBox width="60%" height={14} borderRadius={4} />
-                                    <SkeletonBox width={80} height={28} borderRadius={6} />
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            </ScrollView>
+            </View>
         </SafeAreaView>
     )
 }
 
-const skeletonStyles = StyleSheet.create({
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderBottomWidth: 2,
-        borderBottomColor: '#E5E7EB',
-        marginBottom: 4,
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 16,
-    },
-    card: {
-        borderWidth: 2,
-        borderColor: '#E5E7EB',
-        padding: 20,
-        borderRadius: 16,
-        marginTop: 16,
-        backgroundColor: '#fff',
-    },
-    compareCard: {
-        width: 160,
-        borderRadius: 16,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        backgroundColor: '#fff',
-    },
-})
-
-// ─── Empty State Component ────────────────────────────────────────────────────
-const EmptyState = ({ onRetry }: { onRetry: () => void }) => (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
-        <View style={emptyStyles.header}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                <BackButton />
-                <Text style={emptyStyles.headerTitle}>Product Detail</Text>
+// ─── Empty State ──────────────────────────────────────────────────────────────
+const EmptyState = ({ onRetry }: { onRetry: () => void }) => {
+    const navigation = useNavigation()
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ width: 40, height: 40 }}>
+                    <Ionicons name="arrow-back" size={24} color="#1F2937" />
+                </TouchableOpacity>
             </View>
-        </View>
-        <View style={emptyStyles.container}>
-            <View style={emptyStyles.iconWrap}>
-                <MaterialIcons name="inventory-2" size={52} color="#CBD5E1" />
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 }}>
+                <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                    <MaterialIcons name="inventory-2" size={52} color="#CBD5E1" />
+                </View>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#1E293B', marginBottom: 10, textAlign: 'center' }}>Product Not Found</Text>
+                <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 28 }}>
+                    We couldn't load the product details.{'\n'}Please check your connection and try again.
+                </Text>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#2355B6', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 }} onPress={onRetry}>
+                    <MaterialIcons name="refresh" size={18} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Try Again</Text>
+                </TouchableOpacity>
             </View>
-            <Text style={emptyStyles.title}>Product Not Found</Text>
-            <Text style={emptyStyles.subtitle}>
-                We couldn't load the product details.{'\n'}Please check your connection and try again.
-            </Text>
-            <TouchableOpacity style={emptyStyles.retryBtn} onPress={onRetry} activeOpacity={0.8}>
-                <MaterialIcons name="refresh" size={18} color="#fff" />
-                <Text style={emptyStyles.retryText}>Try Again</Text>
-            </TouchableOpacity>
-        </View>
-    </SafeAreaView>
-)
+        </SafeAreaView>
+    )
+}
 
-const emptyStyles = StyleSheet.create({
-    header: {
-        paddingHorizontal: 20,
-        paddingBottom: 12,
-        marginBottom: 4,
-        borderBottomWidth: 2,
-        borderBottomColor: '#E5E7EB',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 40,
-    },
-    iconWrap: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#F1F5F9',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 20,
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#1E293B',
-        marginBottom: 10,
-        textAlign: 'center',
-    },
-    subtitle: {
-        fontSize: 14,
-        color: '#64748B',
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 28,
-    },
-    retryBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        backgroundColor: '#2355B6',
-        paddingHorizontal: 28,
-        paddingVertical: 14,
-        borderRadius: 14,
-    },
-    retryText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-})
-
-// ─── Action Loading Modal (3 dash lines) ─────────────────────────────────────
-const ActionLoadingModal = ({
-    visible,
-    message = 'Processing...',
-}: {
-    visible: boolean
-    message?: string
-}) => {
+// ─── Action Loading Modal ────────────────────────────────────────────────────
+const ActionLoadingModal = ({ visible, message = 'Processing...' }: { visible: boolean; message?: string }) => {
     const dash1 = useRef(new Animated.Value(0.3)).current
     const dash2 = useRef(new Animated.Value(0.3)).current
     const dash3 = useRef(new Animated.Value(0.3)).current
 
     useEffect(() => {
         if (!visible) return
-
         const animate = (val: Animated.Value, delay: number) =>
             Animated.loop(
                 Animated.sequence([
                     Animated.delay(delay),
-                    Animated.timing(val, {
-                        toValue: 1,
-                        duration: 400,
-                        easing: Easing.ease,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(val, {
-                        toValue: 0.3,
-                        duration: 400,
-                        easing: Easing.ease,
-                        useNativeDriver: true,
-                    }),
+                    Animated.timing(val, { toValue: 1, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+                    Animated.timing(val, { toValue: 0.3, duration: 400, easing: Easing.ease, useNativeDriver: true }),
                 ])
             )
-
         const a1 = animate(dash1, 0)
         const a2 = animate(dash2, 180)
         const a3 = animate(dash3, 360)
-
-        a1.start()
-        a2.start()
-        a3.start()
-
-        return () => {
-            a1.stop()
-            a2.stop()
-            a3.stop()
-            dash1.setValue(0.3)
-            dash2.setValue(0.3)
-            dash3.setValue(0.3)
-        }
+        a1.start(); a2.start(); a3.start()
+        return () => { a1.stop(); a2.stop(); a3.stop(); dash1.setValue(0.3); dash2.setValue(0.3); dash3.setValue(0.3) }
     }, [visible])
 
     return (
         <Modal transparent animationType="fade" visible={visible} statusBarTranslucent>
-            <View style={modalStyles.overlay}>
-                <View style={modalStyles.card}>
-                    {/* 3 animated dash lines */}
-                    <View style={modalStyles.dashRow}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 36, paddingVertical: 28, alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10, minWidth: 200 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                         {[dash1, dash2, dash3].map((anim, i) => (
-                            <Animated.View
-                                key={i}
-                                style={[
-                                    modalStyles.dash,
-                                    { opacity: anim },
-                                ]}
-                            />
+                            <Animated.View key={i} style={{ width: 48, height: 6, borderRadius: 99, backgroundColor: '#2355B6', opacity: anim }} />
                         ))}
                     </View>
-                    <Text style={modalStyles.message}>{message}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#475569', textAlign: 'center' }}>{message}</Text>
                 </View>
             </View>
         </Modal>
     )
 }
-
-const modalStyles = StyleSheet.create({
-    overlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.45)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    card: {
-        backgroundColor: '#fff',
-        borderRadius: 20,
-        paddingHorizontal: 36,
-        paddingVertical: 28,
-        alignItems: 'center',
-        gap: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-        elevation: 10,
-        minWidth: 200,
-    },
-    dashRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    dash: {
-        width: 48,
-        height: 6,
-        borderRadius: 99,
-        backgroundColor: '#2355B6',
-    },
-    message: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#475569',
-        textAlign: 'center',
-    },
-})
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ProductDetails = () => {
@@ -489,6 +265,7 @@ const ProductDetails = () => {
     const route = useRoute()
     const { productId } = route.params as RouteParams
     const toast = useToast()
+    const scrollY = useRef(new Animated.Value(0)).current
 
     const [chatModalVisible, setChatModalVisible] = useState(false)
     const [product, setProduct] = useState<ProductData | null>(null)
@@ -504,30 +281,32 @@ const ProductDetails = () => {
     const [compareData, setCompareData] = useState<CompareData | null>(null)
     const [compareLoading, setCompareLoading] = useState(false)
 
-    // Action lock: prevents View and Cart from conflicting
     const [actionLocked, setActionLocked] = useState(false)
     const [actionMessage, setActionMessage] = useState('Processing...')
 
+    // ── Header Animation ──────────────────────────────────────────────────────
+    const headerOpacity = scrollY.interpolate({
+        inputRange: [0, 80],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    })
+
+    const headerTranslateY = scrollY.interpolate({
+        inputRange: [0, 80],
+        outputRange: [-50, 0],
+        extrapolate: 'clamp',
+    })
+
+    // ── Fetch Functions ────────────────────────────────────────────────────────
     const fetchProductDetails = async () => {
-        if (!productId) {
-            setError('Product id missing')
-            return
-        }
-
+        if (!productId) { setError('Product id missing'); return }
         try {
-            setLoading(true)
-            setError('')
-
+            setLoading(true); setError('')
             const token = await AsyncStorage.getItem('vToken')
             const url = `${API_BASE_URL}${PRODUCT_DETAILS}${productId}/detail/`
-
             const response = await axios.get(url, {
-                headers: {
-                    Accept: 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
+                headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             })
-
             const productData: ProductData = response?.data?.data ?? response?.data
             setProduct(productData)
             setIsFavorite(productData?.is_favorite === true)
@@ -535,201 +314,96 @@ const ProductDetails = () => {
         } catch (err: any) {
             console.log('product details error', err?.response?.data || err?.message)
             setError('Failed to load product details')
-        } finally {
-            setLoading(false)
-        }
+        } finally { setLoading(false) }
     }
 
     const fetchCompare = async (slug: string) => {
         if (!slug) return
-
         try {
             setCompareLoading(true)
-
             const token = await AsyncStorage.getItem('vToken')
             const url = `${API_BASE_URL}${COMPARE_PRODUCT}${slug}/`
-
             const response = await axios.get(url, {
-                headers: {
-                    Accept: 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
+                headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             })
-
             const data: CompareData = response?.data?.data ?? response?.data
             setCompareData(data)
         } catch (err: any) {
             console.log('compare error', err?.response?.data || err?.message)
-        } finally {
-            setCompareLoading(false)
-        }
+        } finally { setCompareLoading(false) }
     }
 
-    useEffect(() => {
-        fetchProductDetails()
-    }, [productId])
+    useEffect(() => { fetchProductDetails() }, [productId])
+    useEffect(() => { if (product?.slug) fetchCompare(product.slug) }, [product?.slug])
 
-    useEffect(() => {
-        if (product?.slug) {
-            fetchCompare(product.slug)
-        }
-    }, [product?.slug])
-
+    // ── Toggle Favorite ──────────────────────────────────────────────────────
     const toggleFavorite = async () => {
         const token = await AsyncStorage.getItem('vToken')
-        if (!token) {
-            toast.show({ message: 'Token missing', type: 'error', style: 'top' })
-            return
-        }
-
+        if (!token) { toast.show({ message: 'Token missing', type: 'error', style: 'top' }); return }
         setFavLoading(true)
-
         try {
             if (isFavorite) {
                 await axios.delete(`${API_BASE_URL}${REMOVE_FAVORITE}`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
                     data: { product_id: Number(productId) },
                 })
                 setIsFavorite(false)
                 toast.show({ message: 'Removed from favorites', type: 'success', style: 'top' })
             } else {
-                await axios.post(
-                    `${API_BASE_URL}${ADD_FAVORITE}`,
-                    { product_id: Number(productId) },
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                )
+                await axios.post(`${API_BASE_URL}${ADD_FAVORITE}`, { product_id: Number(productId) }, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+                })
                 setIsFavorite(true)
                 toast.show({ message: 'Added to favorites', type: 'success', style: 'top' })
             }
         } catch (error: any) {
             const msg: string = error?.response?.data?.message || ''
             const status: number = error?.response?.status
-
-            if (status === 400 && msg.toLowerCase().includes('already in favorites')) {
-                setIsFavorite(true)
-                return
-            }
-
+            if (status === 400 && msg.toLowerCase().includes('already in favorites')) { setIsFavorite(true); return }
             toast.show({ message: msg || 'Favorite update failed', type: 'error', style: 'top' })
-        } finally {
-            setFavLoading(false)
-        }
+        } finally { setFavLoading(false) }
     }
 
-    // ── Add to Cart — with action lock ────────────────────────────────────────
+    // ── Add to Cart ──────────────────────────────────────────────────────────
     const handleAddToCart = async () => {
         if (isInCart || actionLocked) return
-
         const token = await AsyncStorage.getItem('vToken')
-        if (!token) {
-            toast.show({ message: 'Token missing', type: 'error', style: 'top' })
-            return
-        }
+        if (!token) { toast.show({ message: 'Token missing', type: 'error', style: 'top' }); return }
+        if (!mainListing?.id) { toast.show({ message: 'No listing available', type: 'error', style: 'top' }); return }
 
-        if (!mainListing?.id) {
-            toast.show({ message: 'No listing available', type: 'error', style: 'top' })
-            return
-        }
-
-        // Lock actions & show modal
-        setActionLocked(true)
-        setActionMessage('Adding to cart...')
-        setCartLoading(true)
-
+        setActionLocked(true); setActionMessage('Adding to cart...'); setCartLoading(true)
         try {
-            await axios.post(
-                `${API_BASE_URL}${ADD_CART}`,
-                { product_id: Number(productId) },
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                }
-            )
-
+            await axios.post(`${API_BASE_URL}${ADD_CART}`, { product_id: Number(productId) }, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+            })
             setIsInCart(true)
             toast.show({ message: 'Added to cart successfully', type: 'success', style: 'top' })
-
-            // fire purchase intent — don't await, non-blocking
-            axios
-                .post(
-                    `${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`,
-                    {},
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                )
-                .catch(() => {
-                    // silent — purchase intent failure should not affect UX
-                })
+            axios.post(`${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`, {}, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+            }).catch(() => {})
         } catch (error: any) {
             const msg: string = error?.response?.data?.message || ''
             toast.show({ message: msg || 'Failed to add to cart', type: 'error', style: 'top' })
-        } finally {
-            setCartLoading(false)
-            setActionLocked(false)
-        }
+        } finally { setCartLoading(false); setActionLocked(false) }
     }
 
-    // ── View / Open URL — with action lock ────────────────────────────────────
+    // ── View / Open URL ──────────────────────────────────────────────────────
     const viewControll = async () => {
         if (actionLocked) return
-
         const token = await AsyncStorage.getItem('vToken')
-        if (!token) {
-            toast.show({ message: 'Token missing', type: 'error', style: 'top' })
-            return
-        }
+        if (!token) { toast.show({ message: 'Token missing', type: 'error', style: 'top' }); return }
 
-        // Lock actions & show modal
-        setActionLocked(true)
-        setActionMessage('Opening product page...')
-
+        setActionLocked(true); setActionMessage('Opening product page...')
         try {
-            // fire purchase intent — non-blocking
-            axios
-                .post(
-                    `${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`,
-                    {},
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                )
-                .catch(() => { })
-
-            // open URL immediately — no need to await the API
+            axios.post(`${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`, {}, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+            }).catch(() => {})
             if (mainListing?.external_url) {
                 const supported = await Linking.canOpenURL(mainListing.external_url)
-                if (supported) {
-                    await Linking.openURL(mainListing.external_url)
-                } else {
-                    toast.show({ message: 'Cannot open this URL', type: 'error', style: 'top' })
-                }
+                if (supported) await Linking.openURL(mainListing.external_url)
+                else toast.show({ message: 'Cannot open this URL', type: 'error', style: 'top' })
             }
-        } finally {
-            // small delay so the modal doesn't flash
-            setTimeout(() => setActionLocked(false), 500)
-        }
+        } finally { setTimeout(() => setActionLocked(false), 500) }
     }
 
     const openUrl = async (url?: string) => {
@@ -739,15 +413,18 @@ const ProductDetails = () => {
         else toast.show({ message: 'Cannot open this URL', type: 'error', style: 'top' })
     }
 
+    const handleShare = async () => {
+        try {
+            await Share.share({
+                message: `Check out ${product?.title} on DealNux!`,
+                url: mainListing?.external_url || '',
+            })
+        } catch (error) {
+            console.log('Share error', error)
+        }
+    }
+
     const mainListing = useMemo(() => product?.listings?.[0], [product])
-
-    const sortedListings = useMemo(() => {
-        if (!product?.listings) return []
-        return [...product.listings].sort(
-            (a, b) => (a.total_price ?? Number(a.price)) - (b.total_price ?? Number(b.price))
-        )
-    }, [product])
-
     const sortedCompare = useMemo(() => {
         if (!compareData?.price_comparison) return []
         return [...compareData.price_comparison].sort((a, b) => a.total_price - b.total_price)
@@ -759,345 +436,206 @@ const ProductDetails = () => {
 
     const isAvailable = mainListing?.is_available === true
 
-    // ── Render: Skeleton ──────────────────────────────────────────────────────
-    if (loading) {
-        return <ProductDetailsSkeleton />
-    }
+    if (loading) return <ProductDetailsSkeleton />
+    if (error || !product) return <EmptyState onRetry={fetchProductDetails} />
 
-    // ── Render: Empty / Error state ───────────────────────────────────────────
-    if (error || !product) {
-        return <EmptyState onRetry={fetchProductDetails} />
-    }
-    console.log(mainListing?.external_url)
-    // ── Render: Main UI ───────────────────────────────────────────────────────
+    // ─── Render ──────────────────────────────────────────────────────────────
     return (
-        <SafeAreaView className="flex-1 bg-[#F9F9FB]">
-            {/* Action conflict modal */}
+        <SafeAreaView style={styles.container}>
             <ActionLoadingModal visible={actionLocked} message={actionMessage} />
 
-            <View className="px-5 pb-3 mb-4 border-b-2 border-[#E5E7EB]">
-                <View className="flex-row items-center gap-4">
-                    <AppHeader left={() => <BackButton />} />
-                    <Text className="text-lg font-bold text-gray-900">Product Detail</Text>
+            {/* Floating Header */}
+            <Animated.View style={[styles.floatingHeader, { opacity: headerOpacity, transform: [{ translateY: headerTranslateY }] }]}>
+                <BlurView intensity={80} tint="light" style={styles.blurHeader}>
+                    <View style={styles.headerContent}>
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+                        </TouchableOpacity>
+                        <Text numberOfLines={1} style={styles.headerTitle}>{product?.title || 'Product'}</Text>
+                        <TouchableOpacity onPress={toggleFavorite} disabled={favLoading} style={styles.headerBtn}>
+                            {favLoading ? <ActivityIndicator size="small" color="#EF4444" /> :
+                                <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={24} color={isFavorite ? '#EF4444' : '#1F2937'} />}
+                        </TouchableOpacity>
+                    </View>
+                </BlurView>
+            </Animated.View>
 
-                    <TouchableOpacity
-                        style={styles.favoriteButton}
-                        onPress={toggleFavorite}
-                        disabled={favLoading}
-                    >
-                        {favLoading ? (
-                            <ActivityIndicator size="small" color="#EF4444" />
-                        ) : (
-                            <Ionicons
-                                name={isFavorite ? 'heart' : 'heart-outline'}
-                                size={20}
-                                color="#EF4444"
-                            />
-                        )}
+            <Animated.ScrollView
+                showsVerticalScrollIndicator={false}
+                onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+                scrollEventThrottle={16}
+            >
+                {/* Hero Image */}
+                <View style={styles.imageContainer}>
+                    <Image source={imageSource} style={styles.heroImage} resizeMode="cover" />
+                    <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)']} style={styles.imageGradient} />
+                    
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backOverlay}>
+                        <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity onPress={toggleFavorite} disabled={favLoading} style={styles.favOverlay}>
+                        <BlurView intensity={60} tint="dark" style={styles.favBlur}>
+                            {favLoading ? <ActivityIndicator size="small" color="#EF4444" /> :
+                                <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? '#EF4444' : '#FFFFFF'} />}
+                        </BlurView>
                     </TouchableOpacity>
                 </View>
-            </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <Image
-                    style={{ width: '100%', height: 250 }}
-                    source={imageSource}
-                    resizeMode="contain"
-                />
-
-                <View className="px-5">
-                    <View className="flex-row justify-between my-4">
-
-                            <Text className="text-xl font-bold">
-                                {product?.title || 'No title found'}
-                            </Text>
-
-                    </View>
-
-                    <View className='flex-row items-center justify-between'>
-                        <View className='gap-2'>
-                            <View className="items-center flex-row gap-2">
-                                <Entypo name="shop" size={20} color="#2355B6" />
-                                <Text className="text-xl text-[#2355B6] font-bold self-center">
-                                    {product?.platform_name}
-                                </Text>
+                {/* Content */}
+                <View style={styles.content}>
+                    {/* Title & Meta */}
+                    <View style={styles.titleSection}>
+                        <Text style={styles.productTitle}>{product?.title}</Text>
+                        <View style={styles.metaRow}>
+                            <View style={styles.platformBadge}>
+                                <Entypo name="shop" size={14} color="#2355B6" />
+                                <Text style={styles.platformText}>{product?.platform_name}</Text>
                             </View>
-
-                            <View className="bg-[#27C8401A] p-2 rounded-full mt-2 flex-row items-center justify-center gap-2">
-                                <MaterialIcons name="verified" size={20} color="#137C0A" />
-                                <Text className="text-[#137C0A] text-xl font-bold">
-                                    {mainListing?.condition || 'N/A'}
-                                </Text>
-                            </View>
-                        </View>
-                        <View className='gap-2'>
-                            <View className='gap-2'>
-                                <Text className='text-xl font-bold self-center'> ⭐ {product?.rating}</Text>
-                            </View>
-                            <View className='flex-row items-center gap-2 self-center'>
-                                <MaterialIcons name="reviews" size={24} color="#2355B6" />
-                                <Text className='text-xl font-bold'>{product?.review_count}</Text>
+                            <View style={styles.ratingBadge}>
+                                <Ionicons name="star" size={14} color="#F59E0B" />
+                                <Text style={styles.ratingText}>{product?.rating?.toFixed(1) || '0'}</Text>
+                                <Text style={styles.reviewCount}>({product?.review_count || 0})</Text>
                             </View>
                         </View>
                     </View>
 
-                    <View className="border-2 border-[#E5E7EB] p-5 rounded-2xl my-5 bg-white">
-                        <View className="flex-row items-center justify-between">
-                            <Text className="text-[#636F85] text-xl">LOWEST PRICE FOUND</Text>
-                            <Text className="bg-[#FFC649] p-2 rounded-xl">BEST DEAL</Text>
-                        </View>
-
-                        <View className="flex-row items-end gap-2 my-2">
-                            <Text className="text-4xl text-[#2355B6] font-bold">
-                                ${product?.price ?? mainListing?.price ?? '0.00'}
-                            </Text>
-
-                            {!!mainListing?.original_price && Number(mainListing.original_price) > 0 && (
-                                <Text className="text-[#A1A8B3] text-xl line-through">
-                                    ${mainListing.original_price}
-                                </Text>
+                    {/* Price Card */}
+                    <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.priceCard}>
+                        <View style={styles.priceHeader}>
+                            <Text style={styles.priceLabel}>💰 BEST PRICE</Text>
+                            {mainListing?.discount_percentage && Number(mainListing.discount_percentage) > 0 && (
+                                <View style={styles.discountBadge}>
+                                    <Text style={styles.discountText}>-{Math.round(Number(mainListing.discount_percentage))}%</Text>
+                                </View>
                             )}
                         </View>
 
-                        {!!mainListing?.discount_percentage &&
-                            Number(mainListing.discount_percentage) > 0 && (
-                                <Text className="text-[#34C759] text-xl">
-                                    You save {Math.round(Number(mainListing.discount_percentage))}%
-                                </Text>
+                        <View style={styles.priceRow}>
+                            <Text style={styles.priceAmount}>${product?.price ?? mainListing?.price ?? '0.00'}</Text>
+                            {mainListing?.original_price && Number(mainListing.original_price) > 0 && (
+                                <Text style={styles.originalPrice}>${mainListing.original_price}</Text>
                             )}
+                        </View>
 
-                        <Text className="text-[#34C759] text-xl">
-                            {mainListing?.free_shipping
-                                ? 'Free Shipping Available'
-                                : mainListing?.shipping_cost
-                                    ? 'Shipping Cost: ' + mainListing?.shipping_cost
-                                    : ''}
-                        </Text>
+                        <View style={styles.shippingRow}>
+                            {mainListing?.free_shipping ? (
+                                <View style={styles.shippingBadge}>
+                                    <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                                    <Text style={styles.shippingText}>Free Shipping</Text>
+                                </View>
+                            ) : mainListing?.shipping_cost ? (
+                                <Text style={styles.shippingCost}>Shipping: ${mainListing.shipping_cost}</Text>
+                            ) : null}
+                            {mainListing?.condition && (
+                                <View style={styles.conditionBadge}>
+                                    <MaterialIcons name="verified" size={14} color="#16A34A" />
+                                    <Text style={styles.conditionText}>{mainListing.condition}</Text>
+                                </View>
+                            )}
+                        </View>
 
-                        <View className="mt-4 flex-row items-center gap-2">
-                            <Pressable className="bg-[#e1e6eb] px-6 py-4 rounded-xl">
-                                <MaterialCommunityIcons
-                                    name="open-in-new"
-                                    size={30}
-                                    color="#334155"
-                                />
-                                <Text className="text-[#636F85]">Share</Text>
-                            </Pressable>
-                            {/* amar akahne akta issue suru hoice add to cart button disabled hoy ace ki karone janao */}
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+                                <MaterialCommunityIcons name="share-variant" size={22} color="#64748B" />
+                                <Text style={styles.shareText}>Share</Text>
+                            </TouchableOpacity>
+
                             {mainListing?.external_url ? (
-                                <Pressable
-                                    onPress={viewControll}
-                                    disabled={actionLocked}
-                                    style={{
-                                        flex: 1,
-                                        backgroundColor: '#2355B6',
-                                        opacity: actionLocked ? 0.6 : 1,
-                                        borderRadius: 12,
-                                        paddingVertical: 16,
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        justifyContent: 'center', // ✅ centers content
-                                        gap: 8,
-                                    }}
-                                    className='py-7'
-                                >
-                                    <MaterialCommunityIcons name="open-in-new" size={26} color="white" />
-                                    <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold' }}>View</Text>
-                                </Pressable>
+                                <TouchableOpacity style={styles.viewButton} onPress={viewControll} disabled={actionLocked}>
+                                    <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.gradientBtn}>
+                                        <MaterialCommunityIcons name="open-in-new" size={22} color="#FFF" />
+                                        <Text style={styles.btnText}>View Deal</Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
                             ) : (
-                                <Pressable
-                                    onPress={handleAddToCart}
-                                        disabled={cartLoading || !isAvailable || isInCart || actionLocked}
-                                        style={{
-                                            flex: 1,
-                                            backgroundColor: isInCart ? '#16A34A' : '#2355B6',
-                                            opacity: cartLoading || !isAvailable || actionLocked ? 0.6 : 1,
-                                            borderRadius: 12,
-                                            paddingVertical: 16,
-                                            flexDirection: 'row',
-                                            alignItems: 'center',
-                                            justifyContent: 'center', // ✅ centers content
-                                            gap: 8,
-                                        }}
-                                        className='py-7'
-                                    >
-                                        {cartLoading ? (
-                                            <ActivityIndicator size="small" color="white" />
-                                        ) : (
-                                            <Feather
-                                                name={isInCart ? 'check-circle' : 'shopping-cart'}
-                                                size={26}
-                                                color="white"
-                                            />
-                                        )}
-                                        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }} >
-                                            {cartLoading ? 'Adding...' : isInCart ? 'In Cart' : 'Add to Cart'}
-                                        </Text>
-                                    </Pressable>
+                                <TouchableOpacity style={styles.viewButton} onPress={handleAddToCart} disabled={cartLoading || !isAvailable || isInCart || actionLocked}>
+                                    <LinearGradient colors={isInCart ? ['#16A34A', '#15803D'] : ['#2355B6', '#1A4D8F']} style={styles.gradientBtn}>
+                                        {cartLoading ? <ActivityIndicator size="small" color="#FFF" /> : <>
+                                            <Feather name={isInCart ? 'check-circle' : 'shopping-cart'} size={22} color="#FFF" />
+                                            <Text style={styles.btnText}>{cartLoading ? 'Adding...' : isInCart ? 'In Cart' : 'Add to Cart'}</Text>
+                                        </>}
+                                    </LinearGradient>
+                                </TouchableOpacity>
                             )}
                         </View>
+                    </LinearGradient>
+
+                    {/* Description */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>📝 Description</Text>
+                        <Text style={styles.description}>{product?.description?.trim() || 'No description available.'}</Text>
                     </View>
 
-                    <View className="border-2 border-[#E5E7EB] p-5 rounded-2xl my-5 bg-white">
-                        <Text className="text-2xl font-bold mb-3">Description</Text>
-                        <Text className="text-[#636F85] text-base leading-6">
-                            {product?.description?.trim()
-                                ? product.description
-                                : 'No description available for this product.'}
-                        </Text>
-                    </View>
-
+                    {/* Price Comparison */}
                     {(compareLoading || sortedCompare.length > 0) && (
-                        <>
-                            <View className="flex-row items-center justify-between my-4">
-                                <Text className="text-2xl font-bold">Price Comparison</Text>
-                                {sortedCompare.length > 0 && (
-                                    <Text className="text-sm text-[#636F85]">
-                                        {sortedCompare.length} stores
-                                    </Text>
-                                )}
+                        <View style={styles.section}>
+                            <View style={styles.compareHeader}>
+                                <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
+                                {sortedCompare.length > 0 && <Text style={styles.compareCount}>{sortedCompare.length} stores</Text>}
                             </View>
 
                             {compareLoading ? (
-                                <View className="items-center py-6">
+                                <View style={styles.compareLoading}>
                                     <ActivityIndicator size="large" color="#2355B6" />
-                                    <Text className="mt-2 text-[#636F85]">
-                                        Finding best prices...
-                                    </Text>
+                                    <Text style={styles.compareLoadingText}>Finding best prices...</Text>
                                 </View>
                             ) : (
                                 <>
-                                    {compareData?.price_analysis &&
-                                        compareData.price_analysis.potential_savings > 0 && (
-                                            <View style={styles.savingsBanner}>
-                                                <MaterialIcons
-                                                    name="savings"
-                                                    size={20}
-                                                    color="#16A34A"
-                                                />
-                                                <Text style={styles.savingsText}>
-                                                    Save up to $
-                                                    {compareData.price_analysis.potential_savings.toFixed(2)}
-                                                </Text>
+                                    {compareData?.price_analysis?.potential_savings > 0 && (
+                                        <View style={styles.savingsBanner}>
+                                            <MaterialIcons name="savings" size={20} color="#16A34A" />
+                                            <Text style={styles.savingsText}>Save up to ${compareData.price_analysis.potential_savings.toFixed(2)}</Text>
+                                        </View>
+                                    )}
+
+                                    <FlatList
+                                        data={sortedCompare}
+                                        keyExtractor={(item, index) => String(item.listing_id ?? item.product_id ?? index)}
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.compareList}
+                                        renderItem={({ item }) => (
+                                            <TouchableOpacity style={styles.compareItem} onPress={() => openUrl(item.url)} activeOpacity={0.8}>
+                                                <View style={styles.compareImageWrap}>
+                                                    {item.main_image ? (
+                                                        <Image source={{ uri: item.main_image }} style={styles.compareImage} resizeMode="cover" />
+                                                    ) : (
+                                                        <View style={styles.compareImageFallback}>
+                                                            <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
+                                                        </View>
+                                                    )}
+                                                    {item === sortedCompare[0] && (
+                                                        <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.bestDealBadge}>
+                                                            <Text style={styles.bestDealText}>⭐ BEST</Text>
+                                                        </LinearGradient>
+                                                    )}
                                                 </View>
-                                            )}
-
-                                        <FlatList
-                                            data={sortedCompare}
-                                            keyExtractor={(item, index) =>
-                                                String(item.listing_id ?? item.product_id ?? index)
-                                            }
-                                            horizontal
-                                            showsHorizontalScrollIndicator={false}
-                                            contentContainerStyle={{
-                                                paddingBottom: 24,
-                                                paddingRight: 8,
-                                            }}
-                                            ItemSeparatorComponent={() => (
-                                                <View style={{ width: 14 }} />
-                                            )}
-                                            renderItem={({ item }) => {
-                                                const displayName =
-                                                    item.clean_title ||
-                                                    item.seller ||
-                                                    item.platform ||
-                                                    'Unknown Store'
-                                                const storeName =
-                                                    item.seller || item.platform || 'Store'
-
-                                                return (
-                                                    <Pressable
-                                                        onPress={() => openUrl(item.url)}
-                                                        style={styles.compareCard}
-                                                    >
-                                                        <View style={styles.compareHeartBtn}>
-                                                            <Ionicons
-                                                                name="heart-outline"
-                                                                size={18}
-                                                                color="#9CA3AF"
-                                                            />
-                                                        </View>
-
-                                                        <View style={styles.compareImageWrap}>
-                                                            {item.main_image ? (
-                                                                <Image
-                                                                    source={{ uri: item.main_image }}
-                                                                    style={styles.compareImage}
-                                                                    resizeMode="stretch"
-                                                                />
-                                                            ) : (
-                                                                <View style={styles.compareImageFallback}>
-                                                                    <MaterialIcons
-                                                                        name="image-not-supported"
-                                                                        size={28}
-                                                                        color="#9CA3AF"
-                                                                    />
-                                                                </View>
-                                                            )}
-                                                        </View>
-
-                                                        <View style={styles.compareBody}>
-                                                            <Text
-                                                                numberOfLines={2}
-                                                                style={styles.compareTitle}
-                                                            >
-                                                                {displayName}
-                                                            </Text>
-
-                                                            <Text style={styles.comparePrice}>
-                                                                $
-                                                                {Number(
-                                                                    item.total_price ?? item.price ?? 0
-                                                                ).toFixed(2)}
-                                                            </Text>
-
-                                                            <View style={styles.compareFooter}>
-                                                                <View style={styles.compareStoreWrap}>
-                                                                    <MaterialIcons
-                                                                        name="storefront"
-                                                                        size={14}
-                                                                        color="#9CA3AF"
-                                                                    />
-                                                                    <Text
-                                                                        numberOfLines={1}
-                                                                        style={styles.compareStoreText}
-                                                                    >
-                                                                        {storeName}
-                                                                    </Text>
-                                                                </View>
-
-                                                                <View style={styles.compareArrowWrap}>
-                                                                    <MaterialCommunityIcons
-                                                                        name="arrow-right"
-                                                                        size={18}
-                                                                        color="#9CA3AF"
-                                                                    />
-                                                                </View>
-                                                            </View>
-                                                        </View>
-                                                    </Pressable>
-                                                )
-                                        }}
+                                                <View style={styles.compareInfo}>
+                                                    <Text numberOfLines={1} style={styles.compareStore}>{item.seller || item.platform || 'Store'}</Text>
+                                                    <Text style={styles.comparePriceText}>${Number(item.total_price ?? item.price ?? 0).toFixed(2)}</Text>
+                                                    <View style={styles.compareArrow}>
+                                                        <MaterialCommunityIcons name="arrow-right" size={18} color="#2355B6" />
+                                                    </View>
+                                                </View>
+                                            </TouchableOpacity>
+                                        )}
                                     />
                                 </>
                             )}
-                        </>
+                        </View>
                     )}
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
-            <Pressable
-                onPress={() => setChatModalVisible(true)}
-                className='absolute right-12 bottom-10 bg-white p-2 rounded-full border-2 border-[#FFC64933]'
-            >
-                <Ionicons name="chatbubble-ellipses" size={40} color="#FFC649" />
-            </Pressable>
+            {/* Chat Button */}
+            <TouchableOpacity onPress={() => setChatModalVisible(true)} style={styles.chatButton}>
+                <LinearGradient colors={['#FFC649', '#F59E0B']} style={styles.chatGradient}>
+                    <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
+                </LinearGradient>
+            </TouchableOpacity>
 
-            <ChatModal
-                visible={chatModalVisible}
-                onClose={() => setChatModalVisible(false)}
-            />
-
+            <ChatModal visible={chatModalVisible} onClose={() => setChatModalVisible(false)} />
             <Toast
                 visible={toast.visible}
                 message={toast.message}
@@ -1111,235 +649,89 @@ const ProductDetails = () => {
     )
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    favoriteButton: {
-        marginLeft: 'auto',
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFF1F2',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    savingsBanner: {
-        backgroundColor: '#ECFDF3',
-        borderWidth: 1,
-        borderColor: '#BBF7D0',
-        borderRadius: 14,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        marginBottom: 14,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    savingsText: {
-        color: '#15803D',
-        fontSize: 14,
-        fontWeight: '700',
-        flex: 1,
-    },
-    compareCard: {
-        width: 170,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-        marginBottom: 8,
-    },
-    compareHeartBtn: {
-        position: 'absolute',
-        top: 10,
-        right: 10,
-        zIndex: 10,
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    compareImageWrap: {
-        width: '100%',
-        height: 138,
-        backgroundColor: '#F8FAFC',
-    },
-    compareImage: {
-        width: '100%',
-        height: '100%',
-    },
-    compareImageFallback: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    compareBody: {
-        paddingHorizontal: 12,
-        paddingTop: 12,
-        paddingBottom: 10,
-    },
-    compareTitle: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#1F2937',
-        lineHeight: 20,
-        minHeight: 40,
-    },
-    comparePrice: {
-        fontSize: 28,
-        fontWeight: '800',
-        color: '#111827',
-        marginTop: 8,
-    },
-    compareFooter: {
-        marginTop: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    compareStoreWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginRight: 8,
-    },
-    compareStoreText: {
-        marginLeft: 4,
-        fontSize: 13,
-        color: '#9CA3AF',
-        flexShrink: 1,
-    },
-    compareArrowWrap: {
-        width: 24,
-        height: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    listingCard: {
-        backgroundColor: '#fff',
-        borderRadius: 18,
-        padding: 16,
-        marginBottom: 14,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        position: 'relative',
-    },
-    listingCardBest: {
-        borderColor: '#2355B6',
-        shadowColor: '#2355B6',
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 3,
-    },
-    bestPriceBadge: {
-        position: 'absolute',
-        top: -10,
-        left: 14,
-        backgroundColor: '#2355B6',
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        zIndex: 2,
-    },
-    bestPriceText: {
-        color: '#fff',
-        fontSize: 11,
-        fontWeight: '700',
-    },
-    listingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    logoBox: {
-        width: 56,
-        height: 56,
-        borderRadius: 16,
-        backgroundColor: '#F8FAFC',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-        overflow: 'hidden',
-    },
-    logoImage: {
-        width: 34,
-        height: 34,
-    },
-    listingInfo: {
-        flex: 1,
-        paddingRight: 8,
-    },
-    listingPlatformName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#0F172A',
-        marginBottom: 4,
-    },
-    listingShipping: {
-        fontSize: 13,
-        color: '#64748B',
-    },
-    listingRight: {
-        alignItems: 'flex-end',
-    },
-    priceCol: {
-        alignItems: 'flex-end',
-        marginBottom: 8,
-    },
-    listingPrice: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#0F172A',
-    },
-    listingPriceBest: {
-        color: '#2355B6',
-    },
-    listingOriginal: {
-        fontSize: 12,
-        color: '#94A3B8',
-        textDecorationLine: 'line-through',
-        marginTop: 2,
-    },
-    listingDiscount: {
-        fontSize: 12,
-        color: '#16A34A',
-        fontWeight: '700',
-        marginTop: 2,
-    },
-    listingBtn: {
-        backgroundColor: '#2355B6',
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        minWidth: 86,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    listingBtnSecondary: {
-        backgroundColor: '#EFF6FF',
-    },
-    listingBtnCart: {
-        backgroundColor: '#16A34A',
-    },
-    listingBtnText: {
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    listingBtnTextSecondary: {
-        color: '#2355B6',
-    },
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    
+    // Floating Header
+    floatingHeader: { position: 'absolute', top: 40, left: 0, right: 0, zIndex: 100, paddingTop: 8, backgroundColor: '#F8FAFC' },
+    blurHeader: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
+    headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: '#1F2937' },
+    
+    // Hero Image
+    imageContainer: { position: 'relative', width: '100%', height: 300, backgroundColor: '#F1F5F9' },
+    heroImage: { width: '100%', height: '100%' },
+    imageGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%' },
+    backOverlay: { position: 'absolute', top: 12, left: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+    favOverlay: { position: 'absolute', top: 12, right: 16, width: 44, height: 44, borderRadius: 22, overflow: 'hidden' },
+    favBlur: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+    
+    // Content
+    content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
+    
+    // Title Section
+    titleSection: { marginBottom: 20 },
+    productTitle: { fontSize: 22, fontWeight: '700', color: '#1F2937', lineHeight: 28, marginBottom: 8 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    platformBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#EFF6FF', borderRadius: 20 },
+    platformText: { fontSize: 12, fontWeight: '600', color: '#2355B6' },
+    ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#FEF3C7', borderRadius: 20 },
+    ratingText: { fontSize: 12, fontWeight: '700', color: '#92400E' },
+    reviewCount: { fontSize: 11, color: '#92400E', opacity: 0.7 },
+    
+    // Price Card
+    priceCard: { padding: 20, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: '#BFDBFE' },
+    priceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    priceLabel: { fontSize: 12, fontWeight: '600', color: '#3B82F6', letterSpacing: 0.5 },
+    discountBadge: { paddingHorizontal: 10, paddingVertical: 3, backgroundColor: '#EF4444', borderRadius: 12 },
+    discountText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+    priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 8 },
+    priceAmount: { fontSize: 34, fontWeight: '800', color: '#1F2937' },
+    originalPrice: { fontSize: 16, color: '#94A3B8', textDecorationLine: 'line-through' },
+    shippingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+    shippingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    shippingText: { fontSize: 13, fontWeight: '500', color: '#16A34A' },
+    shippingCost: { fontSize: 13, color: '#64748B' },
+    conditionBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 12 },
+    conditionText: { fontSize: 11, fontWeight: '500', color: '#16A34A' },
+    
+    // Action Row
+    actionRow: { flexDirection: 'row', gap: 12 },
+    shareButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB' },
+    shareText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
+    viewButton: { flex: 1 },
+    gradientBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
+    btnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    
+    // Section
+    section: { marginBottom: 24 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 12 },
+    description: { fontSize: 14, lineHeight: 22, color: '#64748B' },
+    
+    // Compare
+    compareHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    compareCount: { fontSize: 13, color: '#64748B' },
+    compareLoading: { alignItems: 'center', paddingVertical: 30 },
+    compareLoadingText: { marginTop: 8, fontSize: 14, color: '#64748B' },
+    savingsBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#ECFDF5', borderRadius: 12, marginBottom: 16 },
+    savingsText: { fontSize: 14, fontWeight: '600', color: '#065F46' },
+    compareList: { gap: 12, paddingBottom: 8 },
+    compareItem: { width: 140, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+    compareImageWrap: { position: 'relative', width: '100%', height: 120, backgroundColor: '#F8FAFC' },
+    compareImage: { width: '100%', height: '100%' },
+    compareImageFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    bestDealBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
+    bestDealText: { fontSize: 8, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },
+    compareInfo: { padding: 12 },
+    compareStore: { fontSize: 12, fontWeight: '500', color: '#64748B', marginBottom: 4 },
+    comparePriceText: { fontSize: 20, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
+    compareArrow: { alignItems: 'flex-end' },
+    
+    // Chat Button
+    chatButton: { position: 'absolute', bottom: 24, right: 24, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+    chatGradient: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
 })
 
 export default ProductDetails
