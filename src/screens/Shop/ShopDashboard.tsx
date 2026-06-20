@@ -30,6 +30,7 @@ import {
     RefreshControl,
     ActivityIndicator,
     Linking,
+    TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../components/AppHeader';
@@ -40,14 +41,14 @@ import { AuthStackParamList } from '../../Navigation/types';
 const API_BASE_URL = IPA_BASE;
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
-type TabType = 
-    | 'Overview' 
-    | 'Products' 
-    | 'Orders' 
-    | 'Shipping' 
-    | 'Payouts' 
-    | 'Seller Document' 
-    | 'Profile' 
+type TabType =
+    | 'Overview'
+    | 'Products'
+    | 'Orders'
+    | 'Shipping'
+    | 'Payouts'
+    | 'Seller Document'
+    | 'Profile'
     | 'Coupons';
 
 const TABS: TabType[] = [
@@ -350,6 +351,33 @@ const ShopDashboard = () => {
     const [expiresAt, setExpiresAt] = useState('');
     const [couponLoading, setCouponLoading] = useState(false);
 
+    // ─── Shipping State ──────────────────────────────────────────────────────────
+    const [pickupActive, setPickupActive] = useState(false);
+    const [pickupStreet, setPickupStreet] = useState('');
+    const [pickupCity, setPickupCity] = useState('');
+    const [pickupState, setPickupState] = useState('');
+    const [pickupZip, setPickupZip] = useState('');
+    const [pickupHoursStart, setPickupHoursStart] = useState('');
+    const [pickupHoursEnd, setPickupHoursEnd] = useState('');
+    const [pickupDays, setPickupDays] = useState<string[]>([]);
+
+    const [deliveryActive, setDeliveryActive] = useState(false);
+    const [deliveryRadius, setDeliveryRadius] = useState(5);
+    const [deliveryFee, setDeliveryFee] = useState('');
+    const [deliveryTimeframe, setDeliveryTimeframe] = useState('');
+
+    const [shippingActive, setShippingActive] = useState(true);
+    const [processingTime, setProcessingTime] = useState('');
+    const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
+    const [saving, setSaving] = useState(false);
+
+    // ─── Constants for Shipping ──────────────────────────────────────────────────
+    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const DELIVERY_TIMEFRAMES = ['Same Day', 'Next Day', '1-2 Days', '2-3 Days', '3-5 Days'];
+    const PROCESSING_TIMES = ['1-2 Business Days', '2-3 Business Days', '3-5 Business Days', '5-7 Business Days'];
+    const COURIERS = ['FedEx', 'UPS', 'USPS', 'DHL', 'Amazon Logistics'];
+    const RADIUS_OPTIONS = [1, 5, 10, 25, 50];
+
     // ─── Data Loading ──────────────────────────────────────────────────────────
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -409,6 +437,29 @@ const ShopDashboard = () => {
                 productsRes?.data?.data ??
                 [];
             setProducts(ensureArray<ProductItem>(productList));
+
+            const shippingData = shippingRes?.data?.data;
+            if (shippingData) {
+                setShipping(shippingData);
+                // Local Pickup
+                setPickupActive(shippingData.local_pickup?.active || false);
+                setPickupStreet(shippingData.local_pickup?.address_street || '');
+                setPickupCity(shippingData.local_pickup?.address_city || '');
+                setPickupState(shippingData.local_pickup?.address_state || '');
+                setPickupZip(shippingData.local_pickup?.address_zip || '');
+                setPickupHoursStart(shippingData.local_pickup?.hours_start || '');
+                setPickupHoursEnd(shippingData.local_pickup?.hours_end || '');
+                setPickupDays(shippingData.local_pickup?.available_days || []);
+                // Local Delivery
+                setDeliveryActive(shippingData.local_delivery?.active || false);
+                setDeliveryRadius(shippingData.local_delivery?.radius || 5);
+                setDeliveryFee(shippingData.local_delivery?.fee?.toString() || '0');
+                setDeliveryTimeframe(shippingData.local_delivery?.timeframe || '');
+                // Standard Shipping
+                setShippingActive(shippingData.standard_shipping?.active !== false);
+                setProcessingTime(shippingData.standard_shipping?.processing_time || '1-2 Business Days');
+                setSelectedCouriers(shippingData.standard_shipping?.preferred_couriers || []);
+            }
 
             const orderList =
                 ordersRes?.data?.data?.results ??
@@ -528,7 +579,78 @@ const ShopDashboard = () => {
         }
     };
 
-    // ─── Render Functions ─────────────────────────────────────────────────────
+    const handleSaveShipping = async () => {
+        try {
+            setSaving(true);
+            const token = await AsyncStorage.getItem('vToken');
+
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            const payload = {
+                local_pickup: {
+                    active: pickupActive,
+                    address_street: pickupStreet,
+                    address_city: pickupCity,
+                    address_state: pickupState,
+                    address_zip: pickupZip,
+                    hours_start: pickupHoursStart,
+                    hours_end: pickupHoursEnd,
+                    available_days: pickupDays,
+                },
+                local_delivery: {
+                    active: deliveryActive,
+                    radius: deliveryRadius,
+                    fee: parseFloat(deliveryFee) || 0,
+                    timeframe: deliveryTimeframe,
+                },
+                standard_shipping: {
+                    active: shippingActive,
+                    processing_time: processingTime,
+                    preferred_couriers: selectedCouriers,
+                },
+            };
+
+            const response = await axios.put(
+                `${API_BASE_URL}store/seller-profiles/dashboard/shipping/`,
+                payload,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                    },
+                }
+            );
+
+            if (response?.data?.success) {
+                toast.show({
+                    message: 'Shipping settings updated successfully!',
+                    type: 'success',
+                    style: 'top',
+                });
+                // Reload shipping data
+                await loadData();
+            } else {
+                toast.show({
+                    message: response?.data?.message || 'Failed to update shipping settings',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Error saving shipping:', error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to save shipping settings',
+                type: 'error',
+                style: 'top',
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
 
     // ── Header ──
     const renderHeader = () => (
@@ -850,6 +972,7 @@ const ShopDashboard = () => {
     );
 
     // ── Shipping Tab ──
+    // ─── Shipping Tab ───
     const renderShipping = () => {
         if (!shipping) return (
             <View className="flex-1 items-center justify-center py-20">
@@ -858,73 +981,258 @@ const ShopDashboard = () => {
             </View>
         );
 
+        const togglePickupDay = (day: string) => {
+            if (pickupDays.includes(day)) {
+                setPickupDays(pickupDays.filter(d => d !== day));
+            } else {
+                setPickupDays([...pickupDays, day]);
+            }
+        };
+
+        const toggleCourier = (courier: string) => {
+            if (selectedCouriers.includes(courier)) {
+                setSelectedCouriers(selectedCouriers.filter(c => c !== courier));
+            } else {
+                setSelectedCouriers([...selectedCouriers, courier]);
+            }
+        };
+
         return (
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                {/* Local Pickup */}
-                <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
-                    <View className="flex-row items-center justify-between mb-4">
-                        <Text className="text-[18px] font-bold text-[#111827]">Local Pickup</Text>
-                        <View className={`px-3 py-1 rounded-full ${shipping.local_pickup.active ? 'bg-green-100' : 'bg-red-100'}`}>
-                            <Text className={`text-[12px] font-semibold ${shipping.local_pickup.active ? 'text-green-700' : 'text-red-700'}`}>
-                                {shipping.local_pickup.active ? 'Active' : 'Inactive'}
-                            </Text>
-                        </View>
-                    </View>
-                    {shipping.local_pickup.active && (
-                        <View>
-                            <Text className="text-[14px] text-[#7A8192]">Address: {shipping.local_pickup.address_street || 'N/A'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">City: {shipping.local_pickup.address_city || 'N/A'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">State: {shipping.local_pickup.address_state || 'N/A'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">Zip: {shipping.local_pickup.address_zip || 'N/A'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">Hours: {shipping.local_pickup.hours_start || 'N/A'} - {shipping.local_pickup.hours_end || 'N/A'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">Days: {shipping.local_pickup.available_days?.join(', ') || 'N/A'}</Text>
-                        </View>
-                    )}
-                </View>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 40 }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1F56D8']} />}
+            >
+                {/* {renderHeader()} */}
 
-                {/* Local Delivery */}
-                <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
-                    <View className="flex-row items-center justify-between mb-4">
-                        <Text className="text-[18px] font-bold text-[#111827]">Local Delivery</Text>
-                        <View className={`px-3 py-1 rounded-full ${shipping.local_delivery.active ? 'bg-green-100' : 'bg-red-100'}`}>
-                            <Text className={`text-[12px] font-semibold ${shipping.local_delivery.active ? 'text-green-700' : 'text-red-700'}`}>
-                                {shipping.local_delivery.active ? 'Active' : 'Inactive'}
-                            </Text>
+                <View className="mt-4">
+                    {/* ─── Local Pickup ─── */}
+                    <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                        <View className="flex-row items-center justify-between mb-3">
+                            <View className="flex-row items-center gap-2">
+                                <Feather name="map-pin" size={20} color="#2355B6" />
+                                <Text className="text-[18px] font-bold text-[#111827]">Local Pickup</Text>
+                            </View>
+                            <Switch
+                                value={pickupActive}
+                                onValueChange={setPickupActive}
+                                trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                            />
                         </View>
-                    </View>
-                    {shipping.local_delivery.active && (
-                        <View>
-                            <Text className="text-[14px] text-[#7A8192]">Radius: {shipping.local_delivery.radius} miles</Text>
-                            <Text className="text-[14px] text-[#7A8192]">Fee: ${shipping.local_delivery.fee?.toFixed(2) || '0.00'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">Timeframe: {shipping.local_delivery.timeframe || 'N/A'}</Text>
-                        </View>
-                    )}
-                </View>
+                        <Text className="text-[14px] text-[#6B7280] mb-4">
+                            Buyers come to your location to collect orders
+                        </Text>
 
-                {/* Standard Shipping */}
-                <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
-                    <View className="flex-row items-center justify-between mb-4">
-                        <Text className="text-[18px] font-bold text-[#111827]">Standard Shipping</Text>
-                        <View className={`px-3 py-1 rounded-full ${shipping.standard_shipping.active ? 'bg-green-100' : 'bg-red-100'}`}>
-                            <Text className={`text-[12px] font-semibold ${shipping.standard_shipping.active ? 'text-green-700' : 'text-red-700'}`}>
-                                {shipping.standard_shipping.active ? 'Active' : 'Inactive'}
-                            </Text>
-                        </View>
-                    </View>
-                    {shipping.standard_shipping.active && (
-                        <View>
-                            <Text className="text-[14px] text-[#7A8192]">Processing Time: {shipping.standard_shipping.processing_time || 'N/A'}</Text>
-                            <Text className="text-[14px] text-[#7A8192]">Preferred Couriers: {shipping.standard_shipping.preferred_couriers?.join(', ') || 'N/A'}</Text>
-                        </View>
-                    )}
-                </View>
+                        {pickupActive && (
+                            <View>
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">PICKUP ADDRESS *</Text>
+                                <TextInput
+                                    value={pickupStreet}
+                                    onChangeText={setPickupStreet}
+                                    placeholder="Street address"
+                                    placeholderTextColor="#9CA3AF"
+                                    className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3 mb-3 text-[16px] text-[#111827]"
+                                />
+                                <View className="flex-row gap-3 mb-3">
+                                    <TextInput
+                                        value={pickupCity}
+                                        onChangeText={setPickupCity}
+                                        placeholder="City"
+                                        placeholderTextColor="#9CA3AF"
+                                        className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3 text-[16px] text-[#111827]"
+                                    />
+                                    <TextInput
+                                        value={pickupState}
+                                        onChangeText={setPickupState}
+                                        placeholder="State"
+                                        placeholderTextColor="#9CA3AF"
+                                        className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3 text-[16px] text-[#111827]"
+                                    />
+                                    <TextInput
+                                        value={pickupZip}
+                                        onChangeText={setPickupZip}
+                                        placeholder="ZIP"
+                                        placeholderTextColor="#9CA3AF"
+                                        keyboardType="numeric"
+                                        className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3 text-[16px] text-[#111827]"
+                                    />
+                                </View>
 
-                <Pressable
-                    className="bg-[#1F56D8] rounded-2xl py-4 items-center justify-center"
-                    onPress={() => navigation.navigate('EditShipping' as any)}
-                >
-                    <Text className="text-white text-[16px] font-bold">Edit Shipping Settings</Text>
-                </Pressable>
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2 mt-2">PICKUP HOURS</Text>
+                                <View className="flex-row gap-3 mb-3">
+                                    <View className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3">
+                                        <TextInput
+                                            value={pickupHoursStart}
+                                            onChangeText={setPickupHoursStart}
+                                            placeholder="--:--"
+                                            placeholderTextColor="#9CA3AF"
+                                            className="text-[16px] text-[#111827]"
+                                        />
+                                    </View>
+                                    <Text className="text-[#6B7280] text-[16px] self-center">to</Text>
+                                    <View className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3">
+                                        <TextInput
+                                            value={pickupHoursEnd}
+                                            onChangeText={setPickupHoursEnd}
+                                            placeholder="--:--"
+                                            placeholderTextColor="#9CA3AF"
+                                            className="text-[16px] text-[#111827]"
+                                        />
+                                    </View>
+                                </View>
+
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">AVAILABLE DAYS</Text>
+                                <View className="flex-row flex-wrap gap-2 mb-2">
+                                    {DAYS.map((day) => (
+                                        <TouchableOpacity
+                                            key={day}
+                                            onPress={() => togglePickupDay(day)}
+                                            className={`px-4 py-2 rounded-full border ${pickupDays.includes(day) ? 'bg-[#2355B6] border-[#2355B6]' : 'bg-white border-[#E5E7EB]'}`}
+                                        >
+                                            <Text className={pickupDays.includes(day) ? 'text-white font-medium' : 'text-[#6B7280]'}>
+                                                {day}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* ─── Local Delivery ─── */}
+                    <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                        <View className="flex-row items-center justify-between mb-3">
+                            <View className="flex-row items-center gap-2">
+                                <Feather name="truck" size={20} color="#2355B6" />
+                                <Text className="text-[18px] font-bold text-[#111827]">Local Delivery</Text>
+                            </View>
+                            <Switch
+                                value={deliveryActive}
+                                onValueChange={setDeliveryActive}
+                                trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                            />
+                        </View>
+                        <Text className="text-[14px] text-[#6B7280] mb-4">
+                            You deliver directly to buyers in your area
+                        </Text>
+
+                        {deliveryActive && (
+                            <View>
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">DELIVERY RADIUS: {deliveryRadius} miles</Text>
+                                <View className="flex-row flex-wrap gap-2 mb-4">
+                                    {RADIUS_OPTIONS.map((radius) => (
+                                        <TouchableOpacity
+                                            key={radius}
+                                            onPress={() => setDeliveryRadius(radius)}
+                                            className={`px-4 py-2 rounded-full border ${deliveryRadius === radius ? 'bg-[#2355B6] border-[#2355B6]' : 'bg-white border-[#E5E7EB]'}`}
+                                        >
+                                            <Text className={deliveryRadius === radius ? 'text-white font-medium' : 'text-[#6B7280]'}>
+                                                {radius} mile{radius > 1 ? 's' : ''}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">DELIVERY FEE ($)</Text>
+                                <View className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-3 mb-3">
+                                    <View className="flex-row items-center">
+                                        <Text className="text-[#6B7280] font-semibold mr-2">$</Text>
+                                        <TextInput
+                                            value={deliveryFee}
+                                            onChangeText={setDeliveryFee}
+                                            placeholder="0"
+                                            placeholderTextColor="#9CA3AF"
+                                            keyboardType="numeric"
+                                            className="flex-1 text-[16px] text-[#111827]"
+                                        />
+                                    </View>
+                                </View>
+                                <Text className="text-[12px] text-[#9CA3AF] -mt-2 mb-3">Enter 0 for free local delivery</Text>
+
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">DELIVERY TIMEFRAME</Text>
+                                <View className="flex-row flex-wrap gap-2">
+                                    {DELIVERY_TIMEFRAMES.map((timeframe) => (
+                                        <TouchableOpacity
+                                            key={timeframe}
+                                            onPress={() => setDeliveryTimeframe(timeframe)}
+                                            className={`px-4 py-2 rounded-full border ${deliveryTimeframe === timeframe ? 'bg-[#2355B6] border-[#2355B6]' : 'bg-white border-[#E5E7EB]'}`}
+                                        >
+                                            <Text className={deliveryTimeframe === timeframe ? 'text-white font-medium' : 'text-[#6B7280]'}>
+                                                {timeframe}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* ─── Standard Shipping ─── */}
+                    <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                        <View className="flex-row items-center justify-between mb-3">
+                            <View className="flex-row items-center gap-2">
+                                <Feather name="package" size={20} color="#2355B6" />
+                                <Text className="text-[18px] font-bold text-[#111827]">Standard Shipping</Text>
+                            </View>
+                            <Switch
+                                value={shippingActive}
+                                onValueChange={setShippingActive}
+                                trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                            />
+                        </View>
+                        <Text className="text-[14px] text-[#6B7280] mb-4">
+                            Ship via courier to buyers nationwide
+                        </Text>
+
+                        {shippingActive && (
+                            <View>
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">ORDER PROCESSING TIME</Text>
+                                <View className="flex-row flex-wrap gap-2 mb-4">
+                                    {PROCESSING_TIMES.map((time) => (
+                                        <TouchableOpacity
+                                            key={time}
+                                            onPress={() => setProcessingTime(time)}
+                                            className={`px-4 py-2 rounded-full border ${processingTime === time ? 'bg-[#2355B6] border-[#2355B6]' : 'bg-white border-[#E5E7EB]'}`}
+                                        >
+                                            <Text className={processingTime === time ? 'text-white font-medium' : 'text-[#6B7280]'}>
+                                                {time}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                <Text className="text-[14px] font-semibold text-[#374151] mb-2">PREFERRED COURIERS</Text>
+                                <View className="flex-row flex-wrap gap-2">
+                                    {COURIERS.map((courier) => (
+                                        <TouchableOpacity
+                                            key={courier}
+                                            onPress={() => toggleCourier(courier)}
+                                            className={`px-4 py-2 rounded-full border ${selectedCouriers.includes(courier) ? 'bg-[#2355B6] border-[#2355B6]' : 'bg-white border-[#E5E7EB]'}`}
+                                        >
+                                            <Text className={selectedCouriers.includes(courier) ? 'text-white font-medium' : 'text-[#6B7280]'}>
+                                                {courier}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* ─── Save Button ─── */}
+                    <TouchableOpacity
+                        onPress={handleSaveShipping}
+                        disabled={saving}
+                        className="bg-[#1F56D8] rounded-2xl py-4 items-center justify-center mb-6"
+                        style={{ opacity: saving ? 0.7 : 1 }}
+                    >
+                        {saving ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <Text className="text-white text-[16px] font-bold">Save Shipping Settings</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
         );
     };
