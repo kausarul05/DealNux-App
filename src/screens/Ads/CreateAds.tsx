@@ -184,10 +184,10 @@ const CreateAds = () => {
 
         try {
             result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images'],      // ✅ new API (array), not deprecated MediaTypeOptions
+                mediaTypes: ['images'],
                 quality: 1,
                 allowsEditing: false,
-                legacy: true,               // ✅ reduces content:// issues on Android
+                legacy: true,
             });
         } catch (e: any) {
             toast.show({ message: 'Image picker failed: ' + (e?.message || ''), type: 'error', style: 'top' });
@@ -201,7 +201,6 @@ const CreateAds = () => {
 
         let uri = asset.uri;
 
-        // ── ext + mime detection ──────────────────────────────────────────────
         let ext =
             asset.fileName && asset.fileName.includes('.')
                 ? asset.fileName.split('.').pop()?.toLowerCase() ?? ''
@@ -211,7 +210,6 @@ const CreateAds = () => {
 
         let mime: string = (asset as any).mimeType || mimeFromExt(ext);
 
-        // ── HEIC/HEIF → JPEG convert ──────────────────────────────────────────
         if (
             mime === 'image/heic' ||
             mime === 'image/heif' ||
@@ -233,7 +231,6 @@ const CreateAds = () => {
             }
         }
 
-        // ── fileName ──────────────────────────────────────────────────────────
         const fileName =
             asset.fileName && asset.fileName.includes('.')
                 ? asset.fileName.replace(/\.(heic|heif)$/i, '.jpg')
@@ -328,15 +325,24 @@ const CreateAds = () => {
                 },
             });
 
-            if (res.data?.success === true) {
+            console.log('POST response:', res.data);
+            console.log('POST status:', res.status);
+
+            // ✅ FIX: Check status code instead of success field
+            if (res.status === 201 || res.status === 200) {
                 setShowSuccessModal(true);
             } else {
-                toast.show({ message: 'Ads create failed', type: 'error', style: 'top' });
+                toast.show({ 
+                    message: res.data?.message || 'Ads create failed', 
+                    type: 'error', 
+                    style: 'top' 
+                });
             }
         } catch (error: any) {
-            console.error('POST error full:', JSON.stringify(error?.response?.data, null, 2));
+            console.error('POST error full:', error?.response?.data);
             console.error('POST status:', error?.response?.status);
             console.error('POST error:', error?.response?.data || error);
+            
             toast.show({
                 message: error?.response?.data?.message || 'Ads create failed',
                 type: 'error',

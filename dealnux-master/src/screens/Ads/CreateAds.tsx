@@ -418,7 +418,7 @@ const CreateAds = () => {
 
                         {/* Ad Title */}
                         <View className="mt-8">
-                            <FieldLabel>Ad Title *</FieldLabel>
+                            <FieldLabel>Ad Title  xxxx*</FieldLabel>
                             <BoxInput
                                 placeholder="Enter ad title"
                                 value={title}

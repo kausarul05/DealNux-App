@@ -32,22 +32,31 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
     const insets = useSafeAreaInsets()
     const [inputText, setInputText] = useState('')
     const scrollViewRef = useRef<ScrollView>(null)
-    
+    const initializedRef = useRef(false)
+
     const {
         messages,
         isLoading,
         isConnected,
         error,
-        products,
-        suggestedReplies,
         sendMessage,
         initializeChat,
+        retryConnection,
     } = useChat()
 
     // Initialize chat when modal opens
     useEffect(() => {
-        if (visible) {
+        if (visible && !initializedRef.current) {
+            console.log('🚀 Initializing chat on modal open...')
             initializeChat()
+            initializedRef.current = true
+        }
+    }, [visible])
+
+    // Reset init flag when modal closes
+    useEffect(() => {
+        if (!visible) {
+            initializedRef.current = false
         }
     }, [visible])
 
@@ -56,7 +65,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
         if (scrollViewRef.current && messages.length > 0) {
             setTimeout(() => {
                 scrollViewRef.current?.scrollToEnd({ animated: true })
-            }, 100)
+            }, 200)
         }
     }, [messages])
 
@@ -79,10 +88,10 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
 
     const formatTime = () => {
         const now = new Date()
-        return now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
+        return now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
             minute: '2-digit',
-            hour12: true 
+            hour12: true
         })
     }
 
@@ -113,7 +122,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                 <View style={styles.statusRow}>
                                     <View style={[styles.statusDot, isConnected && styles.statusDotConnected]} />
                                     <Text style={styles.statusText}>
-                                        {isConnected ? 'Online' : 'Connecting...'}
+                                        {isConnected ? 'Online' : isLoading ? 'Connecting...' : 'Offline'}
                                     </Text>
                                 </View>
                             </View>
@@ -128,7 +137,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                         <View style={styles.errorContainer}>
                             <Ionicons name="alert-circle" size={20} color="#EF4444" />
                             <Text style={styles.errorText}>{error}</Text>
-                            <TouchableOpacity onPress={initializeChat}>
+                            <TouchableOpacity onPress={retryConnection}>
                                 <Text style={styles.retryText}>Retry</Text>
                             </TouchableOpacity>
                         </View>
@@ -142,7 +151,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                         keyboardShouldPersistTaps="handled"
                         contentContainerStyle={styles.chatContentContainer}
                     >
-                        {messages.length === 0 && !isLoading ? (
+                        {messages.length === 0 && !isLoading && !error ? (
                             <View style={styles.welcomeContainer}>
                                 <View style={styles.welcomeIcon}>
                                     <Ionicons name="chatbubbles" size={48} color="#2563EB" />
@@ -151,26 +160,23 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                 <Text style={styles.welcomeText}>
                                     Ask me about products, prices, or anything else!
                                 </Text>
+                                <Text style={styles.welcomeSubText}>
+                                    Try: "Show me running shoes under $100"
+                                </Text>
+                            </View>
+                        ) : messages.length === 0 && isLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#2563EB" />
+                                <Text style={styles.loadingText}>Connecting to chat server...</Text>
                             </View>
                         ) : (
                             <>
-                                <Text style={styles.timeText}>{formatTime()}</Text>
+                                {messages.length > 0 && (
+                                    <Text style={styles.timeText}>{formatTime()}</Text>
+                                )}
 
                                 {messages.map((msg, index) => (
                                     <View key={index}>
-                                        {/* Assistant Message */}
-                                        {msg.reply_text && !msg.products && !msg.suggested_replies && (
-                                            <View style={styles.messageContainer}>
-                                                <View style={styles.assistantIcon}>
-                                                    <Ionicons name="chatbubbles" size={20} color="#2563EB" />
-                                                </View>
-                                                <View style={styles.messageContent}>
-                                                    <Text style={styles.assistantLabel}>Assistant</Text>
-                                                    <Text style={styles.messageText}>{msg.reply_text}</Text>
-                                                </View>
-                                            </View>
-                                        )}
-
                                         {/* User Message */}
                                         {msg.reply_text && !msg.products && msg.suggested_replies?.length === 0 && (
                                             <View style={styles.userMessageContainer}>
@@ -180,7 +186,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                             </View>
                                         )}
 
-                                        {/* Message with Products */}
+                                        {/* Assistant Message with Products */}
                                         {msg.products && msg.products.length > 0 && (
                                             <View style={styles.messageContainer}>
                                                 <View style={styles.assistantIcon}>
@@ -189,7 +195,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                                 <View style={styles.messageContent}>
                                                     <Text style={styles.assistantLabel}>Assistant</Text>
                                                     <Text style={styles.messageText}>{msg.reply_text}</Text>
-                                                    
+
                                                     {msg.products.map((product) => (
                                                         <ProductCard
                                                             key={product.id}
@@ -208,7 +214,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                             </View>
                                         )}
 
-                                        {/* Suggested Replies only */}
+                                        {/* Assistant Message with Suggested Replies only */}
                                         {msg.suggested_replies && msg.suggested_replies.length > 0 && !msg.products && (
                                             <View style={styles.messageContainer}>
                                                 <View style={styles.assistantIcon}>
@@ -224,13 +230,26 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                                 </View>
                                             </View>
                                         )}
+
+                                        {/* Assistant Message only */}
+                                        {msg.reply_text && !msg.products && !msg.suggested_replies && (
+                                            <View style={styles.messageContainer}>
+                                                <View style={styles.assistantIcon}>
+                                                    <Ionicons name="chatbubbles" size={20} color="#2563EB" />
+                                                </View>
+                                                <View style={styles.messageContent}>
+                                                    <Text style={styles.assistantLabel}>Assistant</Text>
+                                                    <Text style={styles.messageText}>{msg.reply_text}</Text>
+                                                </View>
+                                            </View>
+                                        )}
                                     </View>
                                 ))}
 
-                                {isLoading && (
-                                    <View style={styles.loadingContainer}>
+                                {isLoading && messages.length > 0 && (
+                                    <View style={styles.typingContainer}>
                                         <ActivityIndicator size="small" color="#2563EB" />
-                                        <Text style={styles.loadingText}>Assistant is typing...</Text>
+                                        <Text style={styles.typingText}>Assistant is typing...</Text>
                                     </View>
                                 )}
                             </>
@@ -241,23 +260,23 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                     <View style={styles.inputContainer}>
                         <TextInput
                             style={styles.input}
-                            placeholder="Type a message..."
+                            placeholder={isConnected ? "Type a message..." : "Connecting..."}
                             placeholderTextColor="#9CA3AF"
                             value={inputText}
                             onChangeText={setInputText}
                             returnKeyType="send"
                             onSubmitEditing={handleSend}
-                            editable={!isLoading}
+                            editable={isConnected && !isLoading}
                         />
-                        <TouchableOpacity 
-                            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+                        <TouchableOpacity
+                            style={[styles.sendButton, (!inputText.trim() || !isConnected || isLoading) && styles.sendButtonDisabled]}
                             onPress={handleSend}
-                            disabled={!inputText.trim() || isLoading}
+                            disabled={!inputText.trim() || !isConnected || isLoading}
                         >
-                            <Ionicons 
-                                name="send" 
-                                size={20} 
-                                color={inputText.trim() ? 'white' : '#94A3B8'} 
+                            <Ionicons
+                                name="send"
+                                size={20}
+                                color={(inputText.trim() && isConnected && !isLoading) ? 'white' : '#94A3B8'}
                             />
                         </TouchableOpacity>
                     </View>
@@ -381,6 +400,13 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#6B7280',
         textAlign: 'center',
+        marginBottom: 8,
+    },
+    welcomeSubText: {
+        fontSize: 13,
+        color: '#94A3B8',
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
     timeText: {
         textAlign: 'center',
@@ -433,13 +459,23 @@ const styles = StyleSheet.create({
         color: '#1F2937',
     },
     loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    typingContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
         paddingVertical: 8,
         paddingLeft: 44,
     },
-    loadingText: {
+    typingText: {
         fontSize: 13,
         color: '#94A3B8',
     },
