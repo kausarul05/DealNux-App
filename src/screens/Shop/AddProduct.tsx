@@ -21,6 +21,7 @@ import {
     Text,
     TextInput,
     View,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -99,17 +100,20 @@ const SelectBox = ({
     placeholder,
     rightIcon,
     onPress,
+    loading = false,
 }: {
     placeholder: string;
     rightIcon?: React.ReactNode;
     onPress: () => void;
+    loading?: boolean;
 }) => (
     <Pressable
         onPress={onPress}
         className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-4 flex-row items-center justify-between"
+        disabled={loading}
     >
         <Text className="text-[18px] text-[#111827] flex-1 mr-3">{placeholder}</Text>
-        {rightIcon}
+        {loading ? <ActivityIndicator size="small" color="#6B7280" /> : rightIcon}
     </Pressable>
 );
 
@@ -133,9 +137,9 @@ const AddProduct = () => {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // category name backend e jabe
-    const [category, setCategory] = useState('');
-    const [categoryName, setCategoryName] = useState('');
+    // ✅ Category - Now storing ID and Name separately
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | number | null>(null);
+    const [selectedCategoryName, setSelectedCategoryName] = useState('');
     const [categories, setCategories] = useState<CategoryItem[]>([]);
     const [categoryLoading, setCategoryLoading] = useState(false);
     const [categoryModalOpen, setCategoryModalOpen] = useState(false);
@@ -172,7 +176,15 @@ const AddProduct = () => {
                 },
             });
 
-            const rawData = res?.data?.data || [];
+            console.log('📂 Categories API Response:', res?.data);
+
+            // ✅ Handle different response structures
+            let rawData = res?.data?.data || res?.data || [];
+
+            // If the response has a 'results' field (common in DRF)
+            if (rawData.results) {
+                rawData = rawData.results;
+            }
 
             const mappedCategories: CategoryItem[] = Array.isArray(rawData)
                 ? rawData.map((item: any) => ({
@@ -183,10 +195,11 @@ const AddProduct = () => {
                 : [];
 
             setCategories(mappedCategories);
+            console.log('✅ Categories loaded:', mappedCategories.length);
         } catch (error: any) {
-            console.log('CATEGORY FETCH ERROR =>', error?.response?.data || error);
+            console.log('❌ CATEGORY FETCH ERROR =>', error?.response?.data || error);
             toast.show({
-                message: 'Failed to load categories',
+                message: error?.response?.data?.message || 'Failed to load categories',
                 type: 'error',
                 style: 'top',
             });
@@ -279,9 +292,10 @@ const AddProduct = () => {
             return;
         }
 
-        if (!category.trim()) {
+        // ✅ Validate Category ID
+        if (!selectedCategoryId) {
             toast.show({
-                message: 'Please select category.',
+                message: 'Please select a category.',
                 type: 'error',
                 style: 'top',
             });
@@ -462,8 +476,8 @@ const AddProduct = () => {
 
             const formData = new FormData();
 
-            // backend e category name jabe
-            formData.append('category', category.trim());
+            // ✅ Send category ID instead of name
+            formData.append('category_id', String(selectedCategoryId));
             formData.append('title', title.trim());
             formData.append('description', description.trim());
             formData.append('brand', brand.trim());
@@ -488,15 +502,19 @@ const AddProduct = () => {
                 type: imageFile.type || 'image/jpeg',
             } as any);
 
-            console.log('ADD PRODUCT URL =>', ADD_PRODUCT_URL);
-            console.log('category sending =>', category);
+            console.log('📤 ADD PRODUCT URL =>', ADD_PRODUCT_URL);
+            console.log('📤 category_id sending =>', selectedCategoryId);
+            console.log('📤 category_name sending =>', selectedCategoryName);
 
             const res = await axios.post(ADD_PRODUCT_URL, formData, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: 'application/json',
+                    'Content-Type': 'multipart/form-data',
                 },
             });
+
+            console.log('✅ ADD PRODUCT RESPONSE =>', res.data);
 
             if (res?.data?.success === true || res?.data?.code === 200 || res?.data?.code === 201) {
                 setShowSuccessModal(true);
@@ -508,10 +526,10 @@ const AddProduct = () => {
                 });
             }
         } catch (error: any) {
-            console.log('ADD PRODUCT FULL ERROR =>', error);
-            console.log('ADD PRODUCT RESPONSE =>', error?.response);
-            console.log('ADD PRODUCT RESPONSE DATA =>', error?.response?.data);
-            console.log('ADD PRODUCT MESSAGE =>', error?.message);
+            console.log('❌ ADD PRODUCT FULL ERROR =>', error);
+            console.log('❌ ADD PRODUCT RESPONSE =>', error?.response);
+            console.log('❌ ADD PRODUCT RESPONSE DATA =>', error?.response?.data);
+            console.log('❌ ADD PRODUCT MESSAGE =>', error?.message);
 
             toast.show({
                 message: error?.response?.data?.message || error?.message || 'Product add failed',
@@ -578,7 +596,7 @@ const AddProduct = () => {
                                     <Image
                                         source={{ uri: imageFile.uri }}
                                         style={{ width: 240, height: 140, borderRadius: 12 }}
-                                            resizeMode="cover"
+                                        resizeMode="cover"
                                     />
                                     <Text className="text-[12px] text-[#6B7280] mt-2 text-center">
                                         {imageFile.name}
@@ -601,14 +619,15 @@ const AddProduct = () => {
                             <FieldLabel>Category *</FieldLabel>
 
                             <SelectBox
-                                placeholder={categoryName || 'Select category'}
+                                placeholder={selectedCategoryName || 'Select category'}
                                 onPress={() => setCategoryModalOpen(true)}
                                 rightIcon={<Ionicons name="chevron-down" size={20} color="#6B7280" />}
+                                loading={categoryLoading}
                             />
 
-                            {!!categoryName && (
+                            {!!selectedCategoryName && (
                                 <Text className="text-[13px] text-[#6B7280] mt-2">
-                                    Selected: {categoryName}
+                                    Selected: {selectedCategoryName} (ID: {selectedCategoryId})
                                 </Text>
                             )}
                         </View>
@@ -795,6 +814,7 @@ const AddProduct = () => {
                 </ScrollView>
             </KeyboardAvoidingView>
 
+            {/* ✅ Category Modal - Updated to show loading state and better UX */}
             <Modal
                 transparent
                 visible={categoryModalOpen}
@@ -806,26 +826,42 @@ const AddProduct = () => {
                     onPress={() => setCategoryModalOpen(false)}
                 >
                     <Pressable className="bg-white rounded-t-2xl p-5 max-h-[70%]" onPress={() => { }}>
-                        <Text className="text-[18px] font-bold text-[#111827] mb-3">
-                            Select Category
-                        </Text>
+                        <View className="flex-row items-center justify-between mb-3">
+                            <Text className="text-[18px] font-bold text-[#111827]">
+                                Select Category
+                            </Text>
+                            {categoryLoading && (
+                                <ActivityIndicator size="small" color="#1F56D8" />
+                            )}
+                        </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {categoryLoading ? (
-                                <Text className="text-[15px] text-[#6B7280] py-4">
-                                    Loading categories...
-                                </Text>
+                                <View className="py-8 items-center">
+                                    <ActivityIndicator size="large" color="#1F56D8" />
+                                    <Text className="text-[15px] text-[#6B7280] mt-3">
+                                        Loading categories...
+                                    </Text>
+                                </View>
                             ) : categories.length === 0 ? (
-                                <Text className="text-[15px] text-[#6B7280] py-4">
-                                    No categories found
-                                </Text>
+                                <View className="py-8 items-center">
+                                    <Text className="text-[15px] text-[#6B7280]">
+                                        No categories found
+                                    </Text>
+                                    <Pressable
+                                        onPress={fetchCategories}
+                                        className="mt-3 px-4 py-2 bg-[#1F56D8] rounded-xl"
+                                    >
+                                        <Text className="text-white font-semibold">Retry</Text>
+                                    </Pressable>
+                                </View>
                             ) : (
                                 categories.map((item) => (
                                     <Pressable
                                         key={String(item.id)}
                                         onPress={() => {
-                                            setCategory(item.name);
-                                            setCategoryName(item.name);
+                                            setSelectedCategoryId(item.id);
+                                            setSelectedCategoryName(item.name);
                                             setCategoryModalOpen(false);
                                         }}
                                         className="py-4 border-b border-[#E5E7EB] flex-row items-center justify-between"
@@ -834,7 +870,7 @@ const AddProduct = () => {
                                             {item.name}
                                         </Text>
 
-                                        {category === item.name ? (
+                                        {selectedCategoryId === item.id ? (
                                             <Ionicons name="checkmark" size={20} color="#1F56D8" />
                                         ) : null}
                                     </Pressable>
