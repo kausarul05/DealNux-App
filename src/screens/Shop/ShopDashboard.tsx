@@ -31,8 +31,10 @@ import {
     ActivityIndicator,
     Linking,
     TouchableOpacity,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import { Toast, useToast } from '../../components/useToost';
@@ -262,6 +264,13 @@ type CouponItem = {
     created_at: string;
 };
 
+// ─── Constants ──────────────────────────────────────────────────────────────────
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DELIVERY_TIMEFRAMES = ['Same Day', 'Next Day', '1-2 Days', '2-3 Days', '3-5 Days'];
+const PROCESSING_TIMES = ['1-2 Business Days', '2-3 Business Days', '3-5 Business Days', '5-7 Business Days'];
+const COURIERS = ['FedEx', 'UPS', 'USPS', 'DHL', 'Amazon Logistics'];
+const RADIUS_OPTIONS = [1, 5, 10, 25, 50];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const buildImageUrl = (path?: string | null) => {
     if (!path) return '';
@@ -351,7 +360,7 @@ const ShopDashboard = () => {
     const [expiresAt, setExpiresAt] = useState('');
     const [couponLoading, setCouponLoading] = useState(false);
 
-    // ─── Shipping State ──────────────────────────────────────────────────────────
+    // ─── Shipping Tab State ──────────────────────────────────────────────────
     const [pickupActive, setPickupActive] = useState(false);
     const [pickupStreet, setPickupStreet] = useState('');
     const [pickupCity, setPickupCity] = useState('');
@@ -371,12 +380,39 @@ const ShopDashboard = () => {
     const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
 
-    // ─── Constants for Shipping ──────────────────────────────────────────────────
-    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const DELIVERY_TIMEFRAMES = ['Same Day', 'Next Day', '1-2 Days', '2-3 Days', '3-5 Days'];
-    const PROCESSING_TIMES = ['1-2 Business Days', '2-3 Business Days', '3-5 Business Days', '5-7 Business Days'];
-    const COURIERS = ['FedEx', 'UPS', 'USPS', 'DHL', 'Amazon Logistics'];
-    const RADIUS_OPTIONS = [1, 5, 10, 25, 50];
+    // ─── Edit Profile Modal States ────────────────────────────────────────────
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [editTab, setEditTab] = useState<'branding' | 'shipping' | 'legal'>('branding');
+
+    // Branding
+    const [shopName, setShopName] = useState('');
+    const [shopDescription, setShopDescription] = useState('');
+    const [shopLogo, setShopLogo] = useState<string | null>(null);
+    const [logoFile, setLogoFile] = useState<any>(null);
+
+    // Shipping (Edit)
+    const [editPickupActive, setEditPickupActive] = useState(false);
+    const [editPickupStreet, setEditPickupStreet] = useState('');
+    const [editPickupCity, setEditPickupCity] = useState('');
+    const [editPickupState, setEditPickupState] = useState('');
+    const [editPickupZip, setEditPickupZip] = useState('');
+    const [editPickupHoursStart, setEditPickupHoursStart] = useState('');
+    const [editPickupHoursEnd, setEditPickupHoursEnd] = useState('');
+    const [editPickupDays, setEditPickupDays] = useState<string[]>([]);
+    const [editDeliveryActive, setEditDeliveryActive] = useState(false);
+    const [editDeliveryRadius, setEditDeliveryRadius] = useState(5);
+    const [editDeliveryFee, setEditDeliveryFee] = useState('');
+    const [editDeliveryTimeframe, setEditDeliveryTimeframe] = useState('');
+
+    // Legal & Verification
+    const [legalFullName, setLegalFullName] = useState('');
+    const [businessRegNumber, setBusinessRegNumber] = useState('');
+    const [businessAddress, setBusinessAddress] = useState('');
+    const [governmentId, setGovernmentId] = useState<any>(null);
+    const [businessLicense, setBusinessLicense] = useState<any>(null);
+    const [utilityBill, setUtilityBill] = useState<any>(null);
+
+    const [editingLoading, setEditingLoading] = useState(false);
 
     // ─── Data Loading ──────────────────────────────────────────────────────────
     const loadData = useCallback(async () => {
@@ -441,7 +477,7 @@ const ShopDashboard = () => {
             const shippingData = shippingRes?.data?.data;
             if (shippingData) {
                 setShipping(shippingData);
-                // Local Pickup
+                // Load shipping tab state
                 setPickupActive(shippingData.local_pickup?.active || false);
                 setPickupStreet(shippingData.local_pickup?.address_street || '');
                 setPickupCity(shippingData.local_pickup?.address_city || '');
@@ -450,12 +486,10 @@ const ShopDashboard = () => {
                 setPickupHoursStart(shippingData.local_pickup?.hours_start || '');
                 setPickupHoursEnd(shippingData.local_pickup?.hours_end || '');
                 setPickupDays(shippingData.local_pickup?.available_days || []);
-                // Local Delivery
                 setDeliveryActive(shippingData.local_delivery?.active || false);
                 setDeliveryRadius(shippingData.local_delivery?.radius || 5);
                 setDeliveryFee(shippingData.local_delivery?.fee?.toString() || '0');
                 setDeliveryTimeframe(shippingData.local_delivery?.timeframe || '');
-                // Standard Shipping
                 setShippingActive(shippingData.standard_shipping?.active !== false);
                 setProcessingTime(shippingData.standard_shipping?.processing_time || '1-2 Business Days');
                 setSelectedCouriers(shippingData.standard_shipping?.preferred_couriers || []);
@@ -467,7 +501,6 @@ const ShopDashboard = () => {
                 [];
             setOrders(ensureArray<OrderItem>(orderList));
 
-            setShipping(shippingRes?.data?.data ?? null);
             setPayouts(payoutsRes?.data?.data ?? null);
 
             // Seller document (first item in array)
@@ -476,7 +509,30 @@ const ShopDashboard = () => {
 
             // Profile (first item in array)
             const profiles = ensureArray<ProfileData>(profileRes?.data);
-            setProfile(profiles.length > 0 ? profiles[0] : null);
+            if (profiles.length > 0) {
+                const p = profiles[0];
+                setProfile(p);
+                // Set edit form values
+                setShopName(p.shop_name || '');
+                setShopDescription(p.shop_description || '');
+                setShopLogo(p.shop_logo || null);
+                setEditPickupActive(p.local_pickup_active || false);
+                setEditPickupStreet(p.pickup_address_street || '');
+                setEditPickupCity(p.pickup_address_city || '');
+                setEditPickupState(p.pickup_address_state || '');
+                setEditPickupZip(p.pickup_address_zip || '');
+                setEditPickupHoursStart(p.pickup_hours_start || '');
+                setEditPickupHoursEnd(p.pickup_hours_end || '');
+                setEditPickupDays(p.pickup_available_days || []);
+                setEditDeliveryActive(p.local_delivery_active || false);
+                setEditDeliveryRadius(p.delivery_radius || 5);
+                setEditDeliveryFee(p.delivery_fee || '0');
+                setEditDeliveryTimeframe(p.delivery_timeframe || '');
+                // Legal
+                setLegalFullName(p.user?.full_name || '');
+                setBusinessRegNumber(p.business_reg_number || '');
+                setBusinessAddress(p.business_address || '');
+            }
 
             const couponList = ensureArray<CouponItem>(couponsRes?.data);
             setCoupons(couponList);
@@ -579,6 +635,7 @@ const ShopDashboard = () => {
         }
     };
 
+    // ─── Save Shipping Function ──────────────────────────────────────────────
     const handleSaveShipping = async () => {
         try {
             setSaving(true);
@@ -631,7 +688,6 @@ const ShopDashboard = () => {
                     type: 'success',
                     style: 'top',
                 });
-                // Reload shipping data
                 await loadData();
             } else {
                 toast.show({
@@ -652,6 +708,162 @@ const ShopDashboard = () => {
         }
     };
 
+    // ─── Edit Profile Functions ──────────────────────────────────────────────
+    const pickLogo = async () => {
+        try {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+                toast.show({ message: 'Gallery permission denied', type: 'error', style: 'top' });
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+                allowsEditing: true,
+                aspect: [1, 1],
+            });
+
+            if (!result.canceled && result.assets?.length > 0) {
+                const asset = result.assets[0];
+                setShopLogo(asset.uri);
+                setLogoFile(asset);
+            }
+        } catch (error) {
+            toast.show({ message: 'Failed to pick image', type: 'error', style: 'top' });
+        }
+    };
+
+    const pickDocument = async (type: 'government' | 'license' | 'utility') => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+                allowsEditing: false,
+            });
+
+            if (!result.canceled && result.assets?.length > 0) {
+                const asset = result.assets[0];
+                if (type === 'government') setGovernmentId(asset);
+                else if (type === 'license') setBusinessLicense(asset);
+                else setUtilityBill(asset);
+            }
+        } catch (error) {
+            toast.show({ message: 'Failed to pick document', type: 'error', style: 'top' });
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        try {
+            setEditingLoading(true);
+            const token = await AsyncStorage.getItem('vToken');
+
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            const formData = new FormData();
+
+            // Branding
+            formData.append('shop_name', shopName);
+            formData.append('shop_description', shopDescription);
+
+            // Shipping
+            formData.append('local_pickup_active', String(editPickupActive));
+            formData.append('pickup_address_street', editPickupStreet);
+            formData.append('pickup_address_city', editPickupCity);
+            formData.append('pickup_address_state', editPickupState);
+            formData.append('pickup_address_zip', editPickupZip);
+            formData.append('pickup_hours_start', editPickupHoursStart);
+            formData.append('pickup_hours_end', editPickupHoursEnd);
+            formData.append('pickup_available_days', JSON.stringify(editPickupDays));
+            formData.append('local_delivery_active', String(editDeliveryActive));
+            formData.append('delivery_radius', String(editDeliveryRadius));
+            formData.append('delivery_fee', editDeliveryFee);
+            formData.append('delivery_timeframe', editDeliveryTimeframe);
+
+            // Legal
+            formData.append('full_name', legalFullName);
+            formData.append('business_reg_number', businessRegNumber);
+            formData.append('business_address', businessAddress);
+
+            // Logo
+            if (logoFile) {
+                formData.append('shop_logo', {
+                    uri: logoFile.uri,
+                    type: logoFile.mimeType || 'image/jpeg',
+                    name: logoFile.fileName || 'shop_logo.jpg',
+                } as any);
+            }
+
+            // Documents
+            if (governmentId) {
+                formData.append('government_id', {
+                    uri: governmentId.uri,
+                    type: governmentId.mimeType || 'image/jpeg',
+                    name: governmentId.fileName || 'government_id.jpg',
+                } as any);
+            }
+            if (businessLicense) {
+                formData.append('business_license', {
+                    uri: businessLicense.uri,
+                    type: businessLicense.mimeType || 'image/jpeg',
+                    name: businessLicense.fileName || 'business_license.jpg',
+                } as any);
+            }
+            if (utilityBill) {
+                formData.append('utility_bill', {
+                    uri: utilityBill.uri,
+                    type: utilityBill.mimeType || 'image/jpeg',
+                    name: utilityBill.fileName || 'utility_bill.jpg',
+                } as any);
+            }
+
+            console.log("wwwwwwwwwwwww", profile?.id)
+
+            const response = await axios.patch(
+                `${API_BASE_URL}store/seller-profiles/${profile?.id}/`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data',
+                        Accept: 'application/json',
+                    },
+                }
+            );
+
+            console.log('response', JSON.stringify(response?.data, null, 2))
+
+            if (response?.data) {
+                toast.show({
+                    message: 'Profile updated successfully!',
+                    type: 'success',
+                    style: 'top',
+                });
+                setEditModalVisible(false);
+                loadData();
+            } else {
+                toast.show({
+                    message: response?.data?.message || 'Failed to update profile',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Error saving profile:', error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to save profile',
+                type: 'error',
+                style: 'top',
+            });
+        } finally {
+            setEditingLoading(false);
+        }
+    };
+
+    // ── Render Functions ──────────────────────────────────────────────────────
     // ── Header ──
     const renderHeader = () => (
         <View>
@@ -796,15 +1008,14 @@ const ShopDashboard = () => {
             >
                 {TABS.map((tab) => {
                     const active = activeTab === tab;
-                    const isActive = activeTab === tab;
                     return (
                         <Pressable
                             key={tab}
                             onPress={() => setActiveTab(tab)}
-                            className={`px-5 py-2 rounded-full mr-3 ${isActive ? 'bg-[#1F56D8]' : 'bg-white border border-[#D6DAE2]'
+                            className={`px-5 py-2 rounded-full mr-3 ${active ? 'bg-[#1F56D8]' : 'bg-white border border-[#D6DAE2]'
                                 }`}
                         >
-                            <Text className={`text-[15px] font-semibold ${isActive ? 'text-white' : 'text-[#7B8190]'}`}>
+                            <Text className={`text-[15px] font-semibold ${active ? 'text-white' : 'text-[#7B8190]'}`}>
                                 {tab}
                             </Text>
                         </Pressable>
@@ -972,7 +1183,6 @@ const ShopDashboard = () => {
     );
 
     // ── Shipping Tab ──
-    // ─── Shipping Tab ───
     const renderShipping = () => {
         if (!shipping) return (
             <View className="flex-1 items-center justify-center py-20">
@@ -1003,7 +1213,7 @@ const ShopDashboard = () => {
                 contentContainerStyle={{ paddingBottom: 40 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1F56D8']} />}
             >
-                {/* {renderHeader()} */}
+                {renderHeader()}
 
                 <View className="mt-4">
                     {/* ─── Local Pickup ─── */}
@@ -1251,8 +1461,8 @@ const ShopDashboard = () => {
                 <View className="flex-row flex-wrap justify-between">
                     <StatCard label="Available Balance" value={`$${payouts.available_balance?.toFixed(2) ?? '0.00'}`} icon="wallet" color="#16A34A" />
                     <StatCard label="Pending Balance" value={`$${payouts.pending_balance?.toFixed(2) ?? '0.00'}`} icon="clock" color="#F59E0B" />
-                    <StatCard label="Total Withdrawn" value={`$${payouts.total_withdrawn?.toFixed(2) ?? '0.00'}`} icon="arrow-up" color="#EF4444" />
                     <StatCard label="Total Earned" value={`$${payouts.total_earned?.toFixed(2) ?? '0.00'}`} icon="dollar-sign" color="#16A34A" />
+                    <StatCard label="Total Withdrawn" value={`$${payouts.total_withdrawn?.toFixed(2) ?? '0.00'}`} icon="arrow-up" color="#EF4444" />
                 </View>
 
                 {payouts.payout_history && payouts.payout_history.length > 0 ? (
@@ -1385,38 +1595,448 @@ const ShopDashboard = () => {
                     </View>
 
                     <View className="border-t border-[#E5E7EB] pt-4">
-                        <View className="flex-row justify-between py-2 border-b border-[#E5E7EB]">
-                            <Text className="text-[14px] text-[#7A8192]">Total Products</Text>
-                            <Text className="text-[14px] font-medium text-[#111827]">{profile.total_products}</Text>
+                        {/* Payout Summary */}
+                        <View className="flex-row flex-wrap justify-between mb-4">
+                            <View className="w-[48%] bg-[#F8FAFC] rounded-xl p-3">
+                                <Text className="text-[12px] text-[#7A8192]">Available Balance</Text>
+                                <Text className="text-[18px] font-bold text-[#16A34A]">${profile.available_balance}</Text>
+                            </View>
+                            <View className="w-[48%] bg-[#F8FAFC] rounded-xl p-3">
+                                <Text className="text-[12px] text-[#7A8192]">Pending Balance</Text>
+                                <Text className="text-[18px] font-bold text-[#F59E0B]">${profile.pending_balance}</Text>
+                            </View>
+                            <View className="w-[48%] bg-[#F8FAFC] rounded-xl p-3 mt-2">
+                                <Text className="text-[12px] text-[#7A8192]">Total Earned</Text>
+                                <Text className="text-[18px] font-bold text-[#16A34A]">${profile.total_earnings}</Text>
+                            </View>
+                            <View className="w-[48%] bg-[#F8FAFC] rounded-xl p-3 mt-2">
+                                <Text className="text-[12px] text-[#7A8192]">Total Withdrawn</Text>
+                                <Text className="text-[18px] font-bold text-[#EF4444]">${profile.total_withdrawn}</Text>
+                            </View>
                         </View>
-                        <View className="flex-row justify-between py-2 border-b border-[#E5E7EB]">
-                            <Text className="text-[14px] text-[#7A8192]">Total Orders</Text>
-                            <Text className="text-[14px] font-medium text-[#111827]">{profile.total_orders}</Text>
+
+                        {/* Local Pickup */}
+                        <View className="bg-[#F8FAFC] rounded-xl p-3 mb-3">
+                            <View className="flex-row items-center justify-between mb-2">
+                                <View className="flex-row items-center gap-2">
+                                    <Feather name="map-pin" size={16} color="#2355B6" />
+                                    <Text className="text-[16px] font-semibold text-[#111827]">Local Pickup</Text>
+                                </View>
+                                <View className={`px-3 py-1 rounded-full ${profile.local_pickup_active ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    <Text className={`text-[12px] font-semibold ${profile.local_pickup_active ? 'text-green-700' : 'text-red-700'}`}>
+                                        {profile.local_pickup_active ? 'Active' : 'Inactive'}
+                                    </Text>
+                                </View>
+                            </View>
+                            {profile.local_pickup_active && (
+                                <View>
+                                    <Text className="text-[14px] text-[#6B7280]">ADDRESS: {profile.pickup_address_street}, {profile.pickup_address_city}, {profile.pickup_address_zip}</Text>
+                                    <Text className="text-[14px] text-[#6B7280]">HOURS: {profile.pickup_hours_start} – {profile.pickup_hours_end}</Text>
+                                    <Text className="text-[14px] text-[#6B7280]">DAYS: {profile.pickup_available_days?.join(', ')}</Text>
+                                </View>
+                            )}
                         </View>
-                        <View className="flex-row justify-between py-2 border-b border-[#E5E7EB]">
-                            <Text className="text-[14px] text-[#7A8192]">Seller Score</Text>
-                            <Text className="text-[14px] font-medium text-[#111827]">{profile.seller_score}</Text>
+
+                        {/* Local Delivery */}
+                        <View className="bg-[#F8FAFC] rounded-xl p-3 mb-3">
+                            <View className="flex-row items-center justify-between mb-2">
+                                <View className="flex-row items-center gap-2">
+                                    <Feather name="truck" size={16} color="#2355B6" />
+                                    <Text className="text-[16px] font-semibold text-[#111827]">Local Delivery</Text>
+                                </View>
+                                <View className={`px-3 py-1 rounded-full ${profile.local_delivery_active ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    <Text className={`text-[12px] font-semibold ${profile.local_delivery_active ? 'text-green-700' : 'text-red-700'}`}>
+                                        {profile.local_delivery_active ? 'Active' : 'Inactive'}
+                                    </Text>
+                                </View>
+                            </View>
+                            {profile.local_delivery_active && (
+                                <View>
+                                    <Text className="text-[14px] text-[#6B7280]">RADIUS: {profile.delivery_radius} miles</Text>
+                                    <Text className="text-[14px] text-[#6B7280]">FEE: ${profile.delivery_fee}</Text>
+                                    <Text className="text-[14px] text-[#6B7280]">TIMEFRAME: {profile.delivery_timeframe}</Text>
+                                </View>
+                            )}
                         </View>
-                        <View className="flex-row justify-between py-2 border-b border-[#E5E7EB]">
-                            <Text className="text-[14px] text-[#7A8192]">Available Balance</Text>
-                            <Text className="text-[14px] font-medium text-[#16A34A]">${profile.available_balance}</Text>
+
+                        {/* Standard Shipping */}
+                        <View className="bg-[#F8FAFC] rounded-xl p-3 mb-3">
+                            <View className="flex-row items-center justify-between mb-2">
+                                <View className="flex-row items-center gap-2">
+                                    <Feather name="package" size={16} color="#2355B6" />
+                                    <Text className="text-[16px] font-semibold text-[#111827]">Standard Shipping</Text>
+                                </View>
+                                <View className={`px-3 py-1 rounded-full ${profile.standard_shipping_active ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    <Text className={`text-[12px] font-semibold ${profile.standard_shipping_active ? 'text-green-700' : 'text-red-700'}`}>
+                                        {profile.standard_shipping_active ? 'Active' : 'Inactive'}
+                                    </Text>
+                                </View>
+                            </View>
+                            {profile.standard_shipping_active && (
+                                <View>
+                                    <Text className="text-[14px] text-[#6B7280]">PROCESSING: {profile.order_processing_time}</Text>
+                                    <Text className="text-[14px] text-[#6B7280]">COURIERS: {profile.preferred_couriers?.join(', ')}</Text>
+                                </View>
+                            )}
                         </View>
-                        <View className="flex-row justify-between py-2">
-                            <Text className="text-[14px] text-[#7A8192]">Total Earnings</Text>
-                            <Text className="text-[14px] font-medium text-[#16A34A]">${profile.total_earnings}</Text>
+
+                        {/* Payment (Stripe) */}
+                        <View className="bg-[#F8FAFC] rounded-xl p-3">
+                            <View className="flex-row items-center justify-between mb-2">
+                                <View className="flex-row items-center gap-2">
+                                    <Feather name="credit-card" size={16} color="#2355B6" />
+                                    <Text className="text-[16px] font-semibold text-[#111827]">Payment (Stripe)</Text>
+                                </View>
+                                <View className={`px-3 py-1 rounded-full ${profile.stripe_account_id ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    <Text className={`text-[12px] font-semibold ${profile.stripe_account_id ? 'text-green-700' : 'text-red-700'}`}>
+                                        {profile.stripe_account_id ? 'Active' : 'Inactive'}
+                                    </Text>
+                                </View>
+                            </View>
+                            {profile.stripe_account_id && (
+                                <View>
+                                    <Text className="text-[14px] text-[#6B7280]">ACCOUNT: {profile.stripe_account_id}</Text>
+                                    <View className="flex-row items-center mt-1">
+                                        <Text className="text-[14px] text-[#6B7280] mr-2">ONBOARDING:</Text>
+                                        <Text className={`text-[14px] font-semibold ${profile.stripe_onboarding_completed ? 'text-green-700' : 'text-red-700'}`}>
+                                            {profile.stripe_onboarding_completed ? '✓ Complete' : '× Incomplete'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
                         </View>
                     </View>
                 </View>
 
-                <Pressable
+                <TouchableOpacity
+                    onPress={() => setEditModalVisible(true)}
                     className="bg-[#1F56D8] rounded-2xl py-4 items-center justify-center"
-                    onPress={() => navigation.navigate('EditShopProfile' as any)}
                 >
                     <Text className="text-white text-[16px] font-bold">Edit Profile</Text>
-                </Pressable>
+                </TouchableOpacity>
             </ScrollView>
         );
     };
+
+    // ── Edit Profile Modal ──
+    const renderEditProfileModal = () => (
+        <Modal
+            visible={editModalVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setEditModalVisible(false)}
+        >
+            <View className="flex-1 bg-black/50 justify-end">
+                <View className="bg-[#F9F9FB] rounded-t-3xl max-h-[92%]">
+                    {/* Header */}
+                    <View className="flex-row items-center justify-between px-5 py-4 border-b border-[#E5E7EB] bg-white rounded-t-3xl">
+                        <Text className="text-[20px] font-bold text-[#111827]">Edit Shop Profile</Text>
+                        <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                            <Ionicons name="close" size={24} color="#111827" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Tabs */}
+                    <View className="flex-row bg-white px-5 py-3 border-b border-[#E5E7EB]">
+                        {[
+                            { key: 'branding', label: 'Shop Branding' },
+                            { key: 'shipping', label: 'Shipping Settings' },
+                            { key: 'legal', label: 'Legal & Verification' },
+                        ].map((tab) => (
+                            <TouchableOpacity
+                                key={tab.key}
+                                onPress={() => setEditTab(tab.key as any)}
+                                className={`px-4 py-2 rounded-full mr-2 ${editTab === tab.key ? 'bg-[#1F56D8]' : 'bg-gray-100'}`}
+                            >
+                                <Text className={editTab === tab.key ? 'text-white font-semibold' : 'text-[#6B7280]'}>
+                                    {tab.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <ScrollView className="px-5 pt-4 pb-8" showsVerticalScrollIndicator={false}>
+                        {/* ─── Shop Branding ─── */}
+                        {editTab === 'branding' && (
+                            <View>
+                                <FieldLabel>SHOP LOGO</FieldLabel>
+                                <TouchableOpacity
+                                    onPress={pickLogo}
+                                    className="w-32 h-32 rounded-full bg-[#F3F4F6] border-2 border-dashed border-[#D1D5DB] items-center justify-center self-center mb-4 overflow-hidden"
+                                >
+                                    {shopLogo ? (
+                                        <Image source={{ uri: shopLogo }} className="w-32 h-32 rounded-full" />
+                                    ) : (
+                                        <View className="items-center">
+                                            <Feather name="camera" size={32} color="#9CA3AF" />
+                                            <Text className="text-[12px] text-[#9CA3AF] text-center mt-1">Upload logo</Text>
+                                            <Text className="text-[10px] text-[#9CA3AF] text-center">PNG, JPG up to 2MB</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+
+                                <FieldLabel>SHOP NAME *</FieldLabel>
+                                <TextInput
+                                    value={shopName}
+                                    onChangeText={setShopName}
+                                    placeholder="Enter shop name"
+                                    placeholderTextColor="#9CA3AF"
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827]"
+                                />
+
+                                <FieldLabel>SHOP DESCRIPTION</FieldLabel>
+                                <TextInput
+                                    value={shopDescription}
+                                    onChangeText={setShopDescription}
+                                    placeholder="Describe your shop..."
+                                    placeholderTextColor="#9CA3AF"
+                                    multiline
+                                    numberOfLines={4}
+                                    textAlignVertical="top"
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827] min-h-[100px]"
+                                />
+                            </View>
+                        )}
+
+                        {/* ─── Shipping Settings ─── */}
+                        {editTab === 'shipping' && (
+                            <View>
+                                {/* Enable Local Pickup */}
+                                <View className="bg-white rounded-xl p-4 mb-4 border border-[#E5E7EB]">
+                                    <View className="flex-row items-center justify-between mb-3">
+                                        <Text className="text-[16px] font-semibold text-[#111827]">Enable Local Pickup</Text>
+                                        <Switch
+                                            value={editPickupActive}
+                                            onValueChange={setEditPickupActive}
+                                            trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                                        />
+                                    </View>
+                                    {editPickupActive && (
+                                        <View>
+                                            <Text className="text-[14px] font-semibold text-[#374151] mb-2">PICKUP ADDRESS</Text>
+                                            <TextInput
+                                                value={editPickupStreet}
+                                                onChangeText={setEditPickupStreet}
+                                                placeholder="Street address"
+                                                placeholderTextColor="#9CA3AF"
+                                                className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 mb-2 text-[14px] text-[#111827]"
+                                            />
+                                            <View className="flex-row gap-2 mb-2">
+                                                <TextInput
+                                                    value={editPickupCity}
+                                                    onChangeText={setEditPickupCity}
+                                                    placeholder="City"
+                                                    placeholderTextColor="#9CA3AF"
+                                                    className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                                />
+                                                <TextInput
+                                                    value={editPickupState}
+                                                    onChangeText={setEditPickupState}
+                                                    placeholder="State"
+                                                    placeholderTextColor="#9CA3AF"
+                                                    className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                                />
+                                                <TextInput
+                                                    value={editPickupZip}
+                                                    onChangeText={setEditPickupZip}
+                                                    placeholder="ZIP"
+                                                    placeholderTextColor="#9CA3AF"
+                                                    keyboardType="numeric"
+                                                    className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                                />
+                                            </View>
+                                            <Text className="text-[14px] font-semibold text-[#374151] mb-2">HOURS START / END</Text>
+                                            <View className="flex-row gap-2">
+                                                <TextInput
+                                                    value={editPickupHoursStart}
+                                                    onChangeText={setEditPickupHoursStart}
+                                                    placeholder="HH:MM AM"
+                                                    placeholderTextColor="#9CA3AF"
+                                                    className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                                />
+                                                <TextInput
+                                                    value={editPickupHoursEnd}
+                                                    onChangeText={setEditPickupHoursEnd}
+                                                    placeholder="HH:MM PM"
+                                                    placeholderTextColor="#9CA3AF"
+                                                    className="flex-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                                />
+                                            </View>
+                                            <Text className="text-[14px] font-semibold text-[#374151] mb-2 mt-2">AVAILABLE DAYS</Text>
+                                            <View className="flex-row flex-wrap gap-2">
+                                                {DAYS.map((day) => (
+                                                    <TouchableOpacity
+                                                        key={day}
+                                                        onPress={() => {
+                                                            if (editPickupDays.includes(day)) {
+                                                                setEditPickupDays(editPickupDays.filter(d => d !== day));
+                                                            } else {
+                                                                setEditPickupDays([...editPickupDays, day]);
+                                                            }
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-full border ${editPickupDays.includes(day) ? 'bg-[#2355B6] border-[#2355B6]' : 'bg-white border-[#E5E7EB]'}`}
+                                                    >
+                                                        <Text className={editPickupDays.includes(day) ? 'text-white font-medium text-[12px]' : 'text-[#6B7280] text-[12px]'}>
+                                                            {day}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Enable Local Delivery */}
+                                <View className="bg-white rounded-xl p-4 mb-4 border border-[#E5E7EB]">
+                                    <View className="flex-row items-center justify-between mb-3">
+                                        <Text className="text-[16px] font-semibold text-[#111827]">Enable Local Delivery</Text>
+                                        <Switch
+                                            value={editDeliveryActive}
+                                            onValueChange={setEditDeliveryActive}
+                                            trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                                        />
+                                    </View>
+                                    {editDeliveryActive && (
+                                        <View>
+                                            <Text className="text-[14px] font-semibold text-[#374151] mb-2">DELIVERY RADIUS (MILES)</Text>
+                                            <TextInput
+                                                value={String(editDeliveryRadius)}
+                                                onChangeText={(t) => setEditDeliveryRadius(Number(t) || 0)}
+                                                placeholder="5"
+                                                placeholderTextColor="#9CA3AF"
+                                                keyboardType="numeric"
+                                                className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 mb-2 text-[14px] text-[#111827]"
+                                            />
+                                            <Text className="text-[14px] font-semibold text-[#374151] mb-2">DELIVERY FEE ($)</Text>
+                                            <TextInput
+                                                value={editDeliveryFee}
+                                                onChangeText={setEditDeliveryFee}
+                                                placeholder="0.00"
+                                                placeholderTextColor="#9CA3AF"
+                                                keyboardType="numeric"
+                                                className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                            />
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Standard Shipping */}
+                                <View className="bg-white rounded-xl p-4 border border-[#E5E7EB]">
+                                    <View className="flex-row items-center justify-between mb-3">
+                                        <Text className="text-[16px] font-semibold text-[#111827]">Standard Shipping</Text>
+                                        <Switch
+                                            value={shippingActive}
+                                            onValueChange={setShippingActive}
+                                            trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                                        />
+                                    </View>
+                                    {shippingActive && (
+                                        <View>
+                                            <Text className="text-[14px] font-semibold text-[#374151] mb-2">PROCESSING TIME</Text>
+                                            <TextInput
+                                                value={processingTime}
+                                                onChangeText={setProcessingTime}
+                                                placeholder="1-2 Business Days"
+                                                placeholderTextColor="#9CA3AF"
+                                                className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-4 py-2 text-[14px] text-[#111827]"
+                                            />
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                        )}
+
+                        {/* ─── Legal & Verification ─── */}
+                        {editTab === 'legal' && (
+                            <View>
+                                <FieldLabel>LEGAL FULL NAME</FieldLabel>
+                                <TextInput
+                                    value={legalFullName}
+                                    onChangeText={setLegalFullName}
+                                    placeholder="e.g. Abdullah Al Mamun"
+                                    placeholderTextColor="#9CA3AF"
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827]"
+                                />
+
+                                <FieldLabel>BUSINESS REGISTRATION NUMBER</FieldLabel>
+                                <TextInput
+                                    value={businessRegNumber}
+                                    onChangeText={setBusinessRegNumber}
+                                    placeholder="e.g. REG-998877"
+                                    placeholderTextColor="#9CA3AF"
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827]"
+                                />
+
+                                <FieldLabel>BUSINESS ADDRESS</FieldLabel>
+                                <TextInput
+                                    value={businessAddress}
+                                    onChangeText={setBusinessAddress}
+                                    placeholder="e.g. Sector 7, Uttara, Dhaka"
+                                    placeholderTextColor="#9CA3AF"
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827]"
+                                />
+
+                                <FieldLabel>GOVERNMENT ID</FieldLabel>
+                                <TouchableOpacity
+                                    onPress={() => pickDocument('government')}
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-4 mb-4 items-center"
+                                >
+                                    <Feather name={governmentId ? 'check-circle' : 'upload-cloud'} size={24} color={governmentId ? '#16A34A' : '#9CA3AF'} />
+                                    <Text className={governmentId ? 'text-[#16A34A] mt-1' : 'text-[#9CA3AF] mt-1'}>
+                                        {governmentId ? 'File uploaded' : 'Click to upload'}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <FieldLabel>BUSINESS LICENSE</FieldLabel>
+                                <TouchableOpacity
+                                    onPress={() => pickDocument('license')}
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-4 mb-4 items-center"
+                                >
+                                    <Feather name={businessLicense ? 'check-circle' : 'upload-cloud'} size={24} color={businessLicense ? '#16A34A' : '#9CA3AF'} />
+                                    <Text className={businessLicense ? 'text-[#16A34A] mt-1' : 'text-[#9CA3AF] mt-1'}>
+                                        {businessLicense ? 'File uploaded' : 'Click to upload'}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <FieldLabel>UTILITY BILL</FieldLabel>
+                                <TouchableOpacity
+                                    onPress={() => pickDocument('utility')}
+                                    className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-4 mb-4 items-center"
+                                >
+                                    <Feather name={utilityBill ? 'check-circle' : 'upload-cloud'} size={24} color={utilityBill ? '#16A34A' : '#9CA3AF'} />
+                                    <Text className={utilityBill ? 'text-[#16A34A] mt-1' : 'text-[#9CA3AF] mt-1'}>
+                                        {utilityBill ? 'File uploaded' : 'Click to upload'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </ScrollView>
+
+                    {/* Footer Buttons */}
+                    <View className="flex-row gap-3 px-5 py-4 bg-white border-t border-[#E5E7EB] rounded-b-3xl">
+                        <TouchableOpacity
+                            onPress={() => setEditModalVisible(false)}
+                            className="flex-1 py-3 rounded-xl border border-[#D1D5DB] items-center"
+                        >
+                            <Text className="text-[#6B7280] font-semibold">Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={handleSaveProfile}
+                            disabled={editingLoading}
+                            className="flex-1 py-3 rounded-xl bg-[#1F56D8] items-center"
+                            style={{ opacity: editingLoading ? 0.7 : 1 }}
+                        >
+                            {editingLoading ? (
+                                <ActivityIndicator color="white" />
+                            ) : (
+                                <Text className="text-white font-semibold">Save Changes</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
 
     // ── Coupons Tab ──
     const renderCoupon = ({ item }: { item: CouponItem }) => {
@@ -1708,6 +2328,9 @@ const ShopDashboard = () => {
                         </View>
                     </View>
                 </Modal>
+
+                {/* Edit Profile Modal */}
+                {renderEditProfileModal()}
 
                 <Toast
                     style={toast.style}
