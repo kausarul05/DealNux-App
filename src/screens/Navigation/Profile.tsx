@@ -136,7 +136,7 @@ const Profile = () => {
     useFocusEffect(
         useCallback(() => {
             const loadData = async () => {
-                console.log("Profile Screen Focused 🔄");
+                // console.log("Profile Screen Focused 🔄");
 
                 const token = await AsyncStorage.getItem("vToken");
 
@@ -149,7 +149,7 @@ const Profile = () => {
                             },
                         }
                     );
-                    console.log(res.data)
+                    // console.log(res.data)
                     setUser(res.data.data);
                     // console.log(user?.advertiser_status?.status)
                 } catch (error) {

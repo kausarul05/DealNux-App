@@ -19,8 +19,6 @@ const BuyCard = ({
             {/* Left side - Logo & Info */}
             <View style={styles.leftSection}>
                 {logo ? <Image source={logo} style={styles.logo} resizeMode="stretch" /> : <Entypo name="shop" size={40} color="#2355B6" />}
-
-
                 <View style={styles.textContainer}>
                     <Text style={styles.title}>{title}</Text>
                     <Text style={styles.subtitle}>{free_shipping && "Free delivery"}</Text>

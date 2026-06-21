@@ -136,7 +136,7 @@ const Profile = () => {
     useFocusEffect(
         useCallback(() => {
             const loadData = async () => {
-                console.log("Profile Screen Focused 🔄");
+                // console.log("Profile Screen Focused 🔄");
 
                 const token = await AsyncStorage.getItem("vToken");
 
