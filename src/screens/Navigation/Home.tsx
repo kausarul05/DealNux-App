@@ -41,7 +41,7 @@ import { CategoryScroll } from '../../components/Home/CategoryScroll'
 import { AdsModalSection } from '../../components/Home/AdsModalSection'
 import { PremiumCard } from '../../components/Home/PremiumCard'
 import ChatModal from '../../components/ChatModal'
-
+import SubscriptionModal from '../../components/SubscriptionModal';
 
 
 const API_BASE_URL = IPA_BASE
@@ -156,12 +156,20 @@ const Home = () => {
     const [hasNextPage, setHasNextPage] = useState(true)
     const [recommendedProducts, setRecommendedProducts] = useState<ApiProduct[]>([])
 
+    const [subscriptionModalVisible, setSubscriptionModalVisible] = useState(false);
+    const [selectedExternalProduct, setSelectedExternalProduct] = useState<UiProduct | null>(null)
+
     const [chatModalVisible, setChatModalVisible] = useState(false)
 
     //---ads
     const [ads, setAds] = useState<AdsItem[]>([])
     const [actionLocked, setActionLocked] = useState(false)
     const [actionMessage, setActionMessage] = useState('Processing...')
+
+    const handleExternalProductPress = useCallback((product: UiProduct) => {
+        setSelectedExternalProduct(product);
+        setSubscriptionModalVisible(true);
+    }, []);
 
     // ── favorites ──────────────────────────────────────────────────────────────
     const favRef = useRef<Set<string>>(new Set())
@@ -526,34 +534,63 @@ const Home = () => {
         }
     }, [toast])
 
-    const handleNavigateProduct = useCallback((id: number, source: ProductSource) => {
-        navigation.navigate('ProductDetails', {
-            productId: id,
-            source,
-        } as never)
-    }, [navigation])
+    const handleNavigateProduct = useCallback((id: number, source: ProductSource, product?: UiProduct) => {
+        if (source === 'external') {
+            // Show subscription modal for external products
+            if (product) {
+                setSelectedExternalProduct(product);
+                setSubscriptionModalVisible(true);
+            }
+        } else {
+            // Navigate directly for local products
+            navigation.navigate('ProductDetails', {
+                productId: id,
+                source,
+            } as never);
+        }
+    }, [navigation]);
 
     const renderItem = useCallback(({ item }: { item: UiProduct }) => (
         <ProductCard
             product={item}
-            size="small"  // Can be 'small', 'medium', or 'large'
+            size="small"
             isFavorite={isFav(item.id)}
             isLoading={isFavLoad(item.id)}
             onToggle={toggleFavorite}
-            onPress={handleNavigateProduct}
+            onPress={(id, source) => {
+                if (source === 'external') {
+                    setSelectedExternalProduct(item);
+                    setSubscriptionModalVisible(true);
+                } else {
+                    navigation.navigate('ProductDetails', {
+                        productId: id,
+                        source,
+                    } as never);
+                }
+            }}
         />
-    ), [toggleFavorite, handleNavigateProduct, favVersion, favLoadVersion])
+    ), [toggleFavorite, navigation, favVersion, favLoadVersion]);
 
     const renderRecommendedItem = useCallback(({ item }: { item: UiProduct }) => (
         <ProductCard
             product={item}
-            size="medium"  // Medium size for horizontal scroll
+            size="medium"
             isFavorite={isFav(item.id)}
             isLoading={isFavLoad(item.id)}
             onToggle={toggleFavorite}
-            onPress={handleNavigateProduct}
+            onPress={(id, source) => {
+                if (source === 'external') {
+                    setSelectedExternalProduct(item);
+                    setSubscriptionModalVisible(true);
+                } else {
+                    navigation.navigate('ProductDetails', {
+                        productId: id,
+                        source,
+                    } as never);
+                }
+            }}
         />
-    ), [toggleFavorite, handleNavigateProduct, favVersion, favLoadVersion])
+    ), [toggleFavorite, navigation, favVersion, favLoadVersion]);
 
     const renderFooter = () => {
         if (!loadingMore) return <View style={{ height: 30 }} />
@@ -731,6 +768,22 @@ const Home = () => {
 
             <ChatModal
                 visible={chatModalVisible} onClose={() => setChatModalVisible(false)} />
+
+            <SubscriptionModal
+                visible={subscriptionModalVisible}
+                onClose={() => {
+                    setSubscriptionModalVisible(false);
+                    setSelectedExternalProduct(null);
+                }}
+                onSubscribe={() => {
+                    // Navigate to premium subscription screen or open payment
+                    setSubscriptionModalVisible(false);
+                    setPremiumModalVisible(true); // Reuse your premium modal
+                }}
+                productName={selectedExternalProduct?.name || 'this product'}
+                productSeller={selectedExternalProduct?.seller || 'External Store'}
+                productPrice={selectedExternalProduct?.price || 0}
+            />
 
             <Toast
                 style={toast.style}
