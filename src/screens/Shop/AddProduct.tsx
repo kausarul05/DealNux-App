@@ -476,7 +476,7 @@ const AddProduct = () => {
 
             const formData = new FormData();
 
-            // ✅ Send category ID instead of name
+            // Send category ID instead of name
             formData.append('category_id', String(selectedCategoryId));
             formData.append('title', title.trim());
             formData.append('description', description.trim());

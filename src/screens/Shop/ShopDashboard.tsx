@@ -820,8 +820,6 @@ const ShopDashboard = () => {
                 } as any);
             }
 
-            console.log("wwwwwwwwwwwww", profile?.id)
-
             const response = await axios.patch(
                 `${API_BASE_URL}store/seller-profiles/${profile?.id}/`,
                 formData,
@@ -833,8 +831,6 @@ const ShopDashboard = () => {
                     },
                 }
             );
-
-            console.log('response', JSON.stringify(response?.data, null, 2))
 
             if (response?.data) {
                 toast.show({
