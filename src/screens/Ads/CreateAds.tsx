@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Image,
@@ -10,8 +10,15 @@ import {
     Text,
     TextInput,
     View,
+    TouchableOpacity,
+    ActivityIndicator,
+    Dimensions,
+    StyleSheet,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { WebView } from 'react-native-webview';
 
 import { ADS_CREATE, IPA_BASE } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +35,7 @@ import SuccessModal from '../../components/SuccessModal';
 import { Toast, useToast } from '../../components/useToost';
 import { AuthStackParamList } from '../../Navigation/types';
 
+const { width } = Dimensions.get('window');
 const API_BASE_URL = IPA_BASE;
 const END_POINTS = ADS_CREATE;
 
@@ -61,77 +69,19 @@ const formatYYYYMMDD = (d: Date) => {
     return `${yyyy}-${mm}-${dd}`;
 };
 
-// ─── FieldLabel — defined OUTSIDE component (focus fix) ──────────────────────
-const FieldLabel = ({ children }: { children: React.ReactNode }) => (
-    <Text className="text-[16px] font-semibold text-[#6B7280] mb-2">
-        {children}
-    </Text>
-);
-
-// ─── BoxInput — defined OUTSIDE component (focus fix) ────────────────────────
-const BoxInput = ({
-    placeholder,
-    multiline,
-    value,
-    onChangeText,
-    rightIcon,
-    keyboardType,
-}: {
-    placeholder?: string;
-    multiline?: boolean;
-    value: string;
-    onChangeText: (t: string) => void;
-    rightIcon?: React.ReactNode;
-    keyboardType?: any;
-}) => (
-    <View className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3">
-        <View className="flex-row items-center">
-            <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#9CA3AF"
-                keyboardType={keyboardType}
-                className={`flex-1 text-[18px] text-[#111827] ${multiline ? 'min-h-[96px]' : ''}`}
-                multiline={multiline}
-                textAlignVertical={multiline ? 'top' : 'center'}
-            />
-            {rightIcon ? <View className="ml-3">{rightIcon}</View> : null}
-        </View>
-    </View>
-);
-
-// ─── SelectBox — defined OUTSIDE component (focus fix) ───────────────────────
-const SelectBox = ({
-    placeholder,
-    rightIcon,
-    onPress,
-    muted,
-}: {
-    placeholder: string;
-    rightIcon?: React.ReactNode;
-    onPress: () => void;
-    muted?: boolean;
-}) => (
-    <Pressable
-        onPress={onPress}
-        className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-4 flex-row items-center justify-between"
-    >
-        <Text className={`text-[18px] ${muted ? 'text-[#9CA3AF]' : 'text-[#111827]'}`}>
-            {placeholder}
-        </Text>
-        {rightIcon}
-    </Pressable>
-);
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 const CreateAds = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
     const toast = useToast();
     const route = useRoute<any>();
-    console.log(route.params?.adId);
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [loading, setLoading] = useState(false);
+    
+    // ─── Stripe Checkout State ──────────────────────────────────────────────
+    const [checkoutVisible, setCheckoutVisible] = useState(false);
+    const [checkoutUrl, setCheckoutUrl] = useState('');
+    const [paymentId, setPaymentId] = useState<number | null>(null);
 
     // form fields
     const [title, setTitle] = useState('');
@@ -159,21 +109,18 @@ const CreateAds = () => {
 
     const activeRule = IMAGE_RULES[targetSection];
 
-    // useCallback so reference stays stable across renders
     const onChangeTarget = useCallback((t: (typeof targets)[number]) => {
         setTargetSection(t);
         setTargetModalOpen(false);
         setImageFile(null);
     }, []);
 
-    // ── Budget change — stable with useCallback ───────────────────────────────
     const onBudgetChange = useCallback((t: string) => {
         setBudget(t.replace(/[^0-9.]/g, ''));
     }, []);
 
     // ── Image Picker ──────────────────────────────────────────────────────────
     const pickImage = async () => {
-        // Request permission
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
             toast.show({ message: 'Gallery permission denied', type: 'error', style: 'top' });
@@ -245,7 +192,17 @@ const CreateAds = () => {
         });
     };
 
-    // ── Submit ────────────────────────────────────────────────────────────────
+    // ─── Build Stripe Checkout URL ──────────────────────────────────────────
+    const buildStripeCheckoutUrl = (clientSecret: string) => {
+        // ✅ Extract payment_intent ID from client_secret
+        // Format: pi_xxx_secret_xxx
+        const paymentIntentId = clientSecret.split('_secret_')[0];
+        
+        // ✅ Build the correct Stripe Checkout URL
+        return `https://checkout.stripe.com/pay/${paymentIntentId}?client_secret=${clientSecret}`;
+    };
+
+    // ─── Submit ────────────────────────────────────────────────────────────────
     const handleSaveChanges = async () => {
         const token = await AsyncStorage.getItem('vToken');
 
@@ -253,6 +210,8 @@ const CreateAds = () => {
             toast.show({ message: 'Token missing', type: 'error', style: 'top' });
             return;
         }
+
+        // ─── Validations ──────────────────────────────────────────────────────
         if (!title.trim()) {
             toast.show({ message: 'Please enter ad title.', type: 'error', style: 'top' });
             return;
@@ -289,17 +248,19 @@ const CreateAds = () => {
         }
 
         if (!startDate) {
-            toast.show({ message: 'Please enter ad start date.', type: 'error', style: 'top' });
+            toast.show({ message: 'Please select start date.', type: 'error', style: 'top' });
             return;
         }
         if (!endDate) {
-            toast.show({ message: 'Please enter ad end date.', type: 'error', style: 'top' });
+            toast.show({ message: 'Please select end date.', type: 'error', style: 'top' });
             return;
         }
         if (endDate.getTime() < startDate.getTime()) {
             toast.show({ message: 'End date must be after start date.', type: 'error', style: 'top' });
             return;
         }
+
+        setLoading(true);
 
         const formData = new FormData();
         formData.append('title', title);
@@ -325,30 +286,74 @@ const CreateAds = () => {
                 },
             });
 
-            console.log('POST response:', res.data);
-            console.log('POST status:', res.status);
+            console.log('✅ POST response:', res.data);
 
-            // ✅ FIX: Check status code instead of success field
             if (res.status === 201 || res.status === 200) {
-                setShowSuccessModal(true);
+                const clientSecret = res.data?.client_secret;
+                const paymentId = res.data?.payment_id;
+
+                // ✅ If there's a client_secret, open Stripe Checkout
+                if (clientSecret) {
+                    setPaymentId(paymentId);
+                    
+                    // ✅ Build correct Stripe Checkout URL
+                    const checkoutUrl = buildStripeCheckoutUrl(clientSecret);
+                    console.log('🔗 Checkout URL:', checkoutUrl);
+                    setCheckoutUrl(checkoutUrl);
+                    setCheckoutVisible(true);
+                    
+                    toast.show({
+                        message: 'Please complete payment to activate your ad.',
+                        type: 'info',
+                        style: 'top',
+                    });
+                } else {
+                    // No payment required (free ad)
+                    setShowSuccessModal(true);
+                    toast.show({
+                        message: 'Ad created successfully!',
+                        type: 'success',
+                        style: 'top',
+                    });
+                }
             } else {
-                toast.show({ 
-                    message: res.data?.message || 'Ads create failed', 
-                    type: 'error', 
-                    style: 'top' 
+                toast.show({
+                    message: res.data?.message || 'Ads create failed',
+                    type: 'error',
+                    style: 'top',
                 });
             }
         } catch (error: any) {
-            console.error('POST error full:', error?.response?.data);
-            console.error('POST status:', error?.response?.status);
-            console.error('POST error:', error?.response?.data || error);
-            
+            console.error('❌ POST error:', error?.response?.data || error);
             toast.show({
                 message: error?.response?.data?.message || 'Ads create failed',
                 type: 'error',
                 style: 'top',
             });
+        } finally {
+            setLoading(false);
         }
+    };
+
+    // ─── Handle Checkout Success ─────────────────────────────────────────────
+    const handleCheckoutSuccess = () => {
+        setCheckoutVisible(false);
+        setShowSuccessModal(true);
+        toast.show({
+            message: 'Payment successful! Your ad is now active.',
+            type: 'success',
+            style: 'top',
+        });
+    };
+
+    // ─── Handle Checkout Cancel ──────────────────────────────────────────────
+    const handleCheckoutCancel = () => {
+        setCheckoutVisible(false);
+        toast.show({
+            message: 'Payment cancelled. You can retry later.',
+            type: 'info',
+            style: 'top',
+        });
     };
 
     useEffect(() => {
@@ -361,206 +366,304 @@ const CreateAds = () => {
     }, [showSuccessModal, navigation]);
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F7F7FA]">
+        <SafeAreaView style={styles.safeArea}>
             <KeyboardAvoidingView
-                className="flex-1"
+                style={styles.container}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 {/* Header */}
-                <View className="px-5 py-2">
-                    <View className="flex-row items-center">
-                        <View className="w-10">
-                            <AppHeader left={() => <BackButton />} />
-                        </View>
-                        <Text className="text-lg ml-4 font-semibold text-[#111827]">
-                            Create Ad
-                        </Text>
-                        <View className="w-10" />
+                <View style={styles.header}>
+                    <View style={styles.headerContent}>
+                        <AppHeader left={() => <BackButton />} />
+                        <Text style={styles.headerTitle}>Create Ad</Text>
                     </View>
                 </View>
 
                 <ScrollView
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 24 }}
+                    contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <View className="px-5">
-                        {/* Upload Box */}
-                        <View className="mt-4 bg-white rounded-2xl border border-[#D1D5DB] border-dashed p-6">
-                            <Text className="text-[22px] font-extrabold text-[#111827] text-center">
-                                Upload Banner
-                            </Text>
-
-                            <Text className="text-[14px] text-[#6B7280] text-center mt-2">
-                                Target: {targetSection} • Required size: {activeRule.label}
-                            </Text>
+                    <View style={styles.formContainer}>
+                        {/* Upload Section */}
+                        <View style={styles.uploadCard}>
+                            <View style={styles.uploadHeader}>
+                                <View style={styles.uploadIconContainer}>
+                                    <Ionicons name="image-outline" size={28} color="#2355B6" />
+                                </View>
+                                <Text style={styles.uploadTitle}>Upload Banner</Text>
+                                <Text style={styles.uploadSubtitle}>
+                                    Target: {targetSection} • {activeRule.label}
+                                </Text>
+                            </View>
 
                             {!imageFile ? (
-                                <Text className="text-[16px] text-[#6B7280] text-center mt-3 leading-6">
-                                    Drag and drop or browse to upload your{'\n'}banner image.
-                                </Text>
+                                <TouchableOpacity
+                                    onPress={pickImage}
+                                    activeOpacity={0.8}
+                                    style={styles.uploadArea}
+                                >
+                                    <Feather name="upload" size={40} color="#9CA3AF" />
+                                    <Text style={styles.uploadAreaText}>Browse to upload</Text>
+                                    <Text style={styles.uploadAreaSubtext}>PNG, JPG, JPEG up to 5MB</Text>
+                                </TouchableOpacity>
                             ) : (
-                                <View className="mt-4 items-center">
+                                <View style={styles.imagePreviewContainer}>
                                     <Image
                                         source={{ uri: imageFile.uri }}
-                                        style={{ width: 240, height: 140, borderRadius: 12 }}
+                                        style={styles.imagePreview}
+                                        resizeMode="cover"
                                     />
-                                    <Text className="text-[12px] text-[#6B7280] mt-2">
-                                        Selected: {imageFile.width}×{imageFile.height} • {imageFile.type}
-                                    </Text>
+                                    <View style={styles.imageInfoRow}>
+                                        <Text style={styles.imageInfoText}>
+                                            {imageFile.width}×{imageFile.height}
+                                        </Text>
+                                        <View style={styles.imageDot} />
+                                        <Text style={styles.imageInfoText}>
+                                            {imageFile.type}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        onPress={pickImage}
+                                        style={styles.changeButton}
+                                    >
+                                        <Feather name="refresh-cw" size={14} color="#6B7280" />
+                                        <Text style={styles.changeButtonText}>Change</Text>
+                                    </TouchableOpacity>
                                 </View>
                             )}
-
-                            <Pressable
-                                onPress={pickImage}
-                                className="mt-6 self-center bg-[#1F56D8] px-6 py-3 rounded-xl flex-row items-center"
-                            >
-                                <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
-                                <Text className="text-white text-[16px] font-semibold ml-2">
-                                    {imageFile ? 'Change File' : 'Browse Files'}
-                                </Text>
-                            </Pressable>
                         </View>
 
-                        {/* Ad Title */}
-                        <View className="mt-8">
-                            <FieldLabel>Ad Title *</FieldLabel>
-                            <BoxInput
-                                placeholder="Enter ad title"
-                                value={title}
-                                onChangeText={setTitle}
-                            />
-                        </View>
-
-                        {/* Description */}
-                        <View className="mt-6">
-                            <FieldLabel>Description *</FieldLabel>
-                            <BoxInput
-                                placeholder="Enter ad description"
-                                multiline
-                                value={description}
-                                onChangeText={setDescription}
-                            />
-                        </View>
-
-                        {/* Target Section */}
-                        <View className="mt-6">
-                            <FieldLabel>Target Section *</FieldLabel>
-                            <SelectBox
-                                placeholder={targetSection}
-                                onPress={() => setTargetModalOpen(true)}
-                                rightIcon={<Ionicons name="chevron-down" size={20} color="#6B7280" />}
-                            />
-                        </View>
-
-                        {/* Target URL */}
-                        <View className="mt-6">
-                            <FieldLabel>Target URL *</FieldLabel>
-                            <BoxInput
-                                placeholder="https://dealnux.com/..."
-                                value={targetUrl}
-                                onChangeText={setTargetUrl}
-                            />
-                        </View>
-
-                        {/* Total Budget */}
-                        <View className="mt-6">
-                            <FieldLabel>Total Budget *</FieldLabel>
-                            <BoxInput
-                                placeholder="0.00"
-                                value={budget}
-                                keyboardType="numeric"
-                                onChangeText={onBudgetChange}
-                                rightIcon={<Text className="text-[#6B7280] font-semibold">$</Text>}
-                            />
-                        </View>
-
-                        {/* Start / End Date */}
-                        <View className="mt-6">
-                            <View className="flex-row justify-between">
-                                <Text className="text-[16px] font-semibold text-[#6B7280] mb-2">
-                                    Start Date *
-                                </Text>
-                                <Text className="text-[16px] font-semibold text-[#6B7280] mb-2">
-                                    End Date *
-                                </Text>
-                            </View>
-
-                            <View className="flex-row gap-4">
-                                <View className="flex-1">
-                                    <SelectBox
-                                        placeholder={startDate ? formatYYYYMMDD(startDate) : 'mm/dd/yyyy'}
-                                        muted={!startDate}
-                                        onPress={() => setShowStartPicker(true)}
-                                        rightIcon={
-                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                                        }
-                                    />
+                        {/* Form Fields */}
+                        <View style={styles.fieldsContainer}>
+                            {/* Title */}
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Ad Title</Text>
+                                    <Text style={styles.required}>*</Text>
                                 </View>
-                                <View className="flex-1">
-                                    <SelectBox
-                                        placeholder={endDate ? formatYYYYMMDD(endDate) : 'mm/dd/yyyy'}
-                                        muted={!endDate}
-                                        onPress={() => setShowEndPicker(true)}
-                                        rightIcon={
-                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                                        }
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.inputIconContainer}>
+                                        <Ionicons name="text-outline" size={20} color="#9CA3AF" />
+                                    </View>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Enter ad title"
+                                        placeholderTextColor="#9CA3AF"
+                                        value={title}
+                                        onChangeText={setTitle}
                                     />
                                 </View>
                             </View>
 
-                            {showStartPicker && (
-                                <DateTimePicker
-                                    value={startDate ?? new Date()}
-                                    mode="date"
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={(_, date) => {
-                                        setShowStartPicker(false);
-                                        if (date) setStartDate(date);
-                                    }}
-                                />
-                            )}
+                            {/* Description */}
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Description</Text>
+                                    <Text style={styles.required}>*</Text>
+                                </View>
+                                <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+                                    <View style={styles.inputIconContainer}>
+                                        <Ionicons name="document-text-outline" size={20} color="#9CA3AF" />
+                                    </View>
+                                    <TextInput
+                                        style={[styles.input, styles.textArea]}
+                                        placeholder="Enter ad description"
+                                        placeholderTextColor="#9CA3AF"
+                                        multiline
+                                        numberOfLines={4}
+                                        textAlignVertical="top"
+                                        value={description}
+                                        onChangeText={setDescription}
+                                    />
+                                </View>
+                            </View>
 
-                            {showEndPicker && (
-                                <DateTimePicker
-                                    value={endDate ?? new Date()}
-                                    mode="date"
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={(_, date) => {
-                                        setShowEndPicker(false);
-                                        if (date) setEndDate(date);
-                                    }}
-                                />
-                            )}
+                            {/* Target Section */}
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Target Section</Text>
+                                    <Text style={styles.required}>*</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.selectBox}
+                                    onPress={() => setTargetModalOpen(true)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.selectBoxText}>{targetSection}</Text>
+                                    <Ionicons name="chevron-down" size={20} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Target URL */}
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Target URL</Text>
+                                    <Text style={styles.required}>*</Text>
+                                </View>
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.inputIconContainer}>
+                                        <Ionicons name="link-outline" size={20} color="#9CA3AF" />
+                                    </View>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="https://dealnux.com/..."
+                                        placeholderTextColor="#9CA3AF"
+                                        value={targetUrl}
+                                        onChangeText={setTargetUrl}
+                                        autoCapitalize="none"
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Budget */}
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Total Budget</Text>
+                                    <Text style={styles.required}>*</Text>
+                                </View>
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.inputIconContainer}>
+                                        <Ionicons name="cash-outline" size={20} color="#9CA3AF" />
+                                    </View>
+                                    <TextInput
+                                        style={[styles.input, styles.budgetInput]}
+                                        placeholder="0.00"
+                                        placeholderTextColor="#9CA3AF"
+                                        keyboardType="numeric"
+                                        value={budget}
+                                        onChangeText={onBudgetChange}
+                                    />
+                                    <Text style={styles.budgetSymbol}>$</Text>
+                                </View>
+                            </View>
+
+                            {/* Dates */}
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Start & End Date</Text>
+                                    <Text style={styles.required}>*</Text>
+                                </View>
+                                <View style={styles.dateRow}>
+                                    <View style={styles.dateItem}>
+                                        <TouchableOpacity
+                                            style={styles.selectBox}
+                                            onPress={() => setShowStartPicker(true)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={[styles.selectBoxText, !startDate && styles.placeholderText]}>
+                                                {startDate ? formatYYYYMMDD(startDate) : 'Start Date'}
+                                            </Text>
+                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={styles.dateItem}>
+                                        <TouchableOpacity
+                                            style={styles.selectBox}
+                                            onPress={() => setShowEndPicker(true)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={[styles.selectBoxText, !endDate && styles.placeholderText]}>
+                                                {endDate ? formatYYYYMMDD(endDate) : 'End Date'}
+                                            </Text>
+                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
                         </View>
 
                         {/* Submit Button */}
-                        <Pressable
-                            className="mt-10 bg-[#1F56D8] rounded-2xl py-5 flex-row items-center justify-center"
-                            style={{
-                                shadowColor: '#000',
-                                shadowOpacity: 0.14,
-                                shadowRadius: 14,
-                                shadowOffset: { width: 0, height: 10 },
-                                elevation: 6,
-                            }}
-                            onPress={handleSaveChanges}
+                        <LinearGradient
+                            colors={['#2355B6', '#1A4D8F']}
+                            style={styles.submitGradient}
                         >
-                            <Text className="text-white text-[18px] font-extrabold">
-                                Submit for approval
-                            </Text>
-                            <Ionicons
-                                name="arrow-forward"
-                                size={22}
-                                color="white"
-                                style={{ marginLeft: 10 }}
-                            />
-                        </Pressable>
+                            <TouchableOpacity
+                                onPress={handleSaveChanges}
+                                disabled={loading}
+                                style={styles.submitButton}
+                                activeOpacity={0.8}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <>
+                                        <Text style={styles.submitButtonText}>Submit for Approval</Text>
+                                        <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </LinearGradient>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* Target Modal */}
+            {/* ─── Stripe Checkout WebView Modal ───────────────────────────── */}
+            <Modal
+                visible={checkoutVisible}
+                animationType="slide"
+                onRequestClose={handleCheckoutCancel}
+            >
+                <SafeAreaView style={styles.checkoutContainer}>
+                    <View style={styles.checkoutHeader}>
+                        <TouchableOpacity onPress={handleCheckoutCancel} style={styles.checkoutClose}>
+                            <Ionicons name="close" size={28} color="#1F2937" />
+                        </TouchableOpacity>
+                        <Text style={styles.checkoutTitle}>Complete Payment</Text>
+                        <View style={{ width: 40 }} />
+                    </View>
+                    <View style={styles.checkoutWebViewWrapper}>
+                        <WebView
+                            source={{ uri: checkoutUrl }}
+                            style={styles.checkoutWebView}
+                            onNavigationStateChange={(navState) => {
+                                console.log('🌐 Navigation:', navState.url);
+                                
+                                // Check if payment was successful
+                                if (navState.url && navState.url.includes('success')) {
+                                    handleCheckoutSuccess();
+                                }
+                                // Check if payment was cancelled
+                                if (navState.url && navState.url.includes('cancel')) {
+                                    handleCheckoutCancel();
+                                }
+                                // Check if payment was completed (stripe.com/.../complete)
+                                if (navState.url && navState.url.includes('/complete')) {
+                                    handleCheckoutSuccess();
+                                }
+                            }}
+                            startInLoadingState={true}
+                            renderLoading={() => (
+                                <View style={styles.checkoutLoading}>
+                                    <ActivityIndicator size="large" color="#2355B6" />
+                                    <Text style={styles.checkoutLoadingText}>Loading payment...</Text>
+                                </View>
+                            )}
+                            javaScriptEnabled={true}
+                            domStorageEnabled={true}
+                            injectedJavaScript={`
+                                // Auto-detect payment completion
+                                (function() {
+                                    const observer = new MutationObserver(function() {
+                                        if (document.querySelector('.PaymentSuccess') || 
+                                            document.querySelector('.Success')) {
+                                            window.ReactNativeWebView.postMessage('payment_success');
+                                        }
+                                    });
+                                    observer.observe(document.body, { childList: true, subtree: true });
+                                })();
+                            `}
+                            onMessage={(event) => {
+                                if (event.nativeEvent.data === 'payment_success') {
+                                    handleCheckoutSuccess();
+                                }
+                            }}
+                        />
+                    </View>
+                </SafeAreaView>
+            </Modal>
+
+            {/* ─── Target Modal ──────────────────────────────────────────────── */}
             <Modal
                 transparent
                 visible={targetModalOpen}
@@ -568,33 +671,61 @@ const CreateAds = () => {
                 onRequestClose={() => setTargetModalOpen(false)}
             >
                 <Pressable
-                    className="flex-1 bg-black/40 justify-end"
+                    style={styles.modalOverlay}
                     onPress={() => setTargetModalOpen(false)}
                 >
-                    <Pressable className="bg-white rounded-t-2xl p-5" onPress={() => { }}>
-                        <Text className="text-[18px] font-bold text-[#111827] mb-3">
-                            Select Target
-                        </Text>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Select Target</Text>
+                            <TouchableOpacity onPress={() => setTargetModalOpen(false)}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
 
                         {targets.map((t) => (
-                            <Pressable
+                            <TouchableOpacity
                                 key={t}
                                 onPress={() => onChangeTarget(t)}
-                                className="py-4 border-b border-[#E5E7EB] flex-row items-center justify-between"
+                                style={styles.modalItem}
                             >
-                                <Text className="text-[18px] text-[#111827]">{t}</Text>
-                                {targetSection === t ? (
-                                    <Ionicons name="checkmark" size={20} color="#1F56D8" />
-                                ) : null}
-                            </Pressable>
+                                <Text style={styles.modalItemText}>{t}</Text>
+                                {targetSection === t && (
+                                    <Ionicons name="checkmark-circle" size={22} color="#2355B6" />
+                                )}
+                            </TouchableOpacity>
                         ))}
 
-                        <Text className="text-[13px] text-[#6B7280] mt-3">
-                            Changing target resets selected image.
+                        <Text style={styles.modalFooterText}>
+                            Changing target will reset selected image
                         </Text>
-                    </Pressable>
+                    </View>
                 </Pressable>
             </Modal>
+
+            {/* ─── Date Pickers ───────────────────────────────────────────────── */}
+            {showStartPicker && (
+                <DateTimePicker
+                    value={startDate ?? new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(_, date) => {
+                        setShowStartPicker(false);
+                        if (date) setStartDate(date);
+                    }}
+                />
+            )}
+
+            {showEndPicker && (
+                <DateTimePicker
+                    value={endDate ?? new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(_, date) => {
+                        setShowEndPicker(false);
+                        if (date) setEndDate(date);
+                    }}
+                />
+            )}
 
             <SuccessModal
                 visible={showSuccessModal}
@@ -615,5 +746,324 @@ const CreateAds = () => {
         </SafeAreaView>
     );
 };
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#F8FAFC',
+    },
+    container: {
+        flex: 1,
+    },
+    header: {
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+        marginLeft: 16,
+    },
+    scrollContent: {
+        paddingBottom: 40,
+    },
+    formContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 16,
+    },
+
+    // Upload Section
+    uploadCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    uploadHeader: {
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    uploadIconContainer: {
+        backgroundColor: '#EFF6FF',
+        padding: 12,
+        borderRadius: 50,
+        marginBottom: 8,
+    },
+    uploadTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    uploadSubtitle: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 2,
+    },
+    uploadArea: {
+        borderWidth: 2,
+        borderColor: '#D1D5DB',
+        borderStyle: 'dashed',
+        borderRadius: 12,
+        paddingVertical: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FAFBFC',
+    },
+    uploadAreaText: {
+        fontSize: 15,
+        color: '#6B7280',
+        marginTop: 8,
+        fontWeight: '500',
+    },
+    uploadAreaSubtext: {
+        fontSize: 12,
+        color: '#9CA3AF',
+        marginTop: 4,
+    },
+    imagePreviewContainer: {
+        alignItems: 'center',
+    },
+    imagePreview: {
+        width: '100%',
+        height: 180,
+        borderRadius: 12,
+    },
+    imageInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 10,
+    },
+    imageInfoText: {
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    imageDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#D1D5DB',
+    },
+    changeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#F3F4F6',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginTop: 10,
+    },
+    changeButtonText: {
+        fontSize: 13,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+
+    // Form Fields
+    fieldsContainer: {
+        marginTop: 20,
+        gap: 16,
+    },
+    fieldGroup: {
+        gap: 6,
+    },
+    labelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    required: {
+        color: '#EF4444',
+        marginLeft: 4,
+        fontSize: 14,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+    },
+    inputIconContainer: {
+        marginRight: 10,
+    },
+    input: {
+        flex: 1,
+        fontSize: 15,
+        color: '#111827',
+        paddingVertical: 0,
+    },
+    textAreaWrapper: {
+        alignItems: 'flex-start',
+        paddingVertical: 12,
+    },
+    textArea: {
+        minHeight: 80,
+        textAlignVertical: 'top',
+    },
+    budgetInput: {
+        paddingRight: 8,
+    },
+    budgetSymbol: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    selectBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    selectBoxText: {
+        fontSize: 15,
+        color: '#111827',
+    },
+    placeholderText: {
+        color: '#9CA3AF',
+    },
+    dateRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    dateItem: {
+        flex: 1,
+    },
+
+    // Submit Button
+    submitGradient: {
+        borderRadius: 16,
+        marginTop: 28,
+        marginBottom: 8,
+        shadowColor: '#2355B6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    submitButton: {
+        paddingVertical: 18,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+    },
+    submitButtonText: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+
+    // Checkout Modal
+    checkoutContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
+    checkoutHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+    },
+    checkoutClose: {
+        padding: 8,
+    },
+    checkoutTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    checkoutWebViewWrapper: {
+        flex: 1,
+    },
+    checkoutWebView: {
+        flex: 1,
+    },
+    checkoutLoading: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkoutLoadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: '#6B7280',
+    },
+
+    // Modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        paddingBottom: 32,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    modalItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    modalItemText: {
+        fontSize: 16,
+        color: '#111827',
+    },
+    modalFooterText: {
+        fontSize: 12,
+        color: '#9CA3AF',
+        textAlign: 'center',
+        marginTop: 12,
+    },
+});
 
 export default CreateAds;
