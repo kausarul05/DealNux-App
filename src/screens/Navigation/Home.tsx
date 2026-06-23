@@ -25,6 +25,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -41,11 +42,11 @@ import { CategoryScroll } from '../../components/Home/CategoryScroll'
 import { AdsModalSection } from '../../components/Home/AdsModalSection'
 import { PremiumCard } from '../../components/Home/PremiumCard'
 import ChatModal from '../../components/ChatModal'
-import SubscriptionModal from '../../components/SubscriptionModal';
-
+import SubscriptionModal from '../../components/SubscriptionModal'
 
 const API_BASE_URL = IPA_BASE
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 type UserProfile = {
     name: string
     email: string
@@ -57,6 +58,16 @@ type UserProfile = {
     balance: number
     has_claimed_referral: boolean
     referred_by: string | null
+}
+
+type SubscriptionStatus = {
+    plan_name: string
+    price: number
+    status: string
+    is_active: boolean
+    has_used_trial: boolean
+    access: string
+    features: string[]
 }
 
 type ApiProduct = {
@@ -156,8 +167,11 @@ const Home = () => {
     const [hasNextPage, setHasNextPage] = useState(true)
     const [recommendedProducts, setRecommendedProducts] = useState<ApiProduct[]>([])
 
+    // ─── Subscription State ──────────────────────────────────────────────────
     const [subscriptionModalVisible, setSubscriptionModalVisible] = useState(false);
-    const [selectedExternalProduct, setSelectedExternalProduct] = useState<UiProduct | null>(null)
+    const [selectedExternalProduct, setSelectedExternalProduct] = useState<UiProduct | null>(null);
+    const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+    const [isSubscriptionActive, setIsSubscriptionActive] = useState(false);
 
     const [chatModalVisible, setChatModalVisible] = useState(false)
 
@@ -166,10 +180,45 @@ const Home = () => {
     const [actionLocked, setActionLocked] = useState(false)
     const [actionMessage, setActionMessage] = useState('Processing...')
 
-    const handleExternalProductPress = useCallback((product: UiProduct) => {
-        setSelectedExternalProduct(product);
-        setSubscriptionModalVisible(true);
+    // ─── Fetch Subscription Status ──────────────────────────────────────────
+    const fetchSubscriptionStatus = useCallback(async (token: string) => {
+        try {
+            const res = await axios.get(`${API_BASE_URL}payment/subscription/status/`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                },
+            })
+
+            const data = res?.data?.data ?? res?.data;
+            if (data) {
+                setSubscriptionStatus(data);
+                const isActive = data.status === 'ACTIVE';
+                setIsSubscriptionActive(isActive);
+                console.log('📊 Subscription Status:', data.status);
+                console.log('📊 Is Active:', isActive);
+            }
+            return data;
+        } catch (error) {
+            console.error('❌ Error fetching subscription status:', error);
+            return null;
+        }
     }, []);
+
+    // ── Handle External Product Press ──────────────────────────────────────
+    const handleExternalProductPress = useCallback((product: UiProduct) => {
+        // ✅ Check subscription status before showing modal
+        if (!isSubscriptionActive) {
+            setSelectedExternalProduct(product);
+            setSubscriptionModalVisible(true);
+        } else {
+            // ✅ If subscription is active, navigate directly to product details
+            navigation.navigate('ProductDetails', {
+                productId: product.productId,
+                source: product.source,
+            } as never);
+        }
+    }, [isSubscriptionActive, navigation]);
 
     // ── favorites ──────────────────────────────────────────────────────────────
     const favRef = useRef<Set<string>>(new Set())
@@ -258,8 +307,6 @@ const Home = () => {
             })
             const list = Array.isArray(res?.data?.data) ? res.data.data : []
             setAds(list)
-
-            //it can stor this like or other option then you will fixed it
         } catch (e) {
             console.error('ads load error', e)
             setAds([])
@@ -425,6 +472,8 @@ const Home = () => {
                 fetchCategories(token),
                 fetchRecommended(token),
                 fetchAds(token),
+                // ✅ Fetch subscription status
+                fetchSubscriptionStatus(token),
             ])
             setHasLoadedOnce(true)
         } catch (e) {
@@ -432,7 +481,7 @@ const Home = () => {
         } finally {
             setLoading(false)
         }
-    }, [fetchProfile, fetchProducts, fetchCategories, fetchRecommended, fetchAds, hasLoadedOnce])
+    }, [fetchProfile, fetchProducts, fetchCategories, fetchRecommended, fetchAds, fetchSubscriptionStatus, hasLoadedOnce])
 
     useEffect(() => {
         loadInitialData()
@@ -476,6 +525,7 @@ const Home = () => {
                 fetchCategories(token),
                 fetchRecommended(token),
                 fetchAds(token),
+                fetchSubscriptionStatus(token),
                 selectedCategory === 'all'
                     ? fetchProducts(token, 1, false)
                     : fetchProductsByCategory(token, selectedCategory),
@@ -483,7 +533,7 @@ const Home = () => {
         } finally {
             setRefreshing(false)
         }
-    }, [fetchProfile, fetchCategories, fetchRecommended, fetchAds, fetchProducts, fetchProductsByCategory, selectedCategory])
+    }, [fetchProfile, fetchCategories, fetchRecommended, fetchAds, fetchProducts, fetchProductsByCategory, selectedCategory, fetchSubscriptionStatus])
 
     const toggleFavorite = useCallback(async (productId: number) => {
         const token = await AsyncStorage.getItem('vToken')
@@ -536,10 +586,18 @@ const Home = () => {
 
     const handleNavigateProduct = useCallback((id: number, source: ProductSource, product?: UiProduct) => {
         if (source === 'external') {
-            // Show subscription modal for external products
-            if (product) {
-                setSelectedExternalProduct(product);
-                setSubscriptionModalVisible(true);
+            // ✅ Check subscription before showing modal
+            if (!isSubscriptionActive) {
+                if (product) {
+                    setSelectedExternalProduct(product);
+                    setSubscriptionModalVisible(true);
+                }
+            } else {
+                // ✅ Subscription active - navigate directly
+                navigation.navigate('ProductDetails', {
+                    productId: id,
+                    source,
+                } as never);
             }
         } else {
             // Navigate directly for local products
@@ -548,7 +606,7 @@ const Home = () => {
                 source,
             } as never);
         }
-    }, [navigation]);
+    }, [isSubscriptionActive, navigation]);
 
     const renderItem = useCallback(({ item }: { item: UiProduct }) => (
         <ProductCard
@@ -559,8 +617,15 @@ const Home = () => {
             onToggle={toggleFavorite}
             onPress={(id, source) => {
                 if (source === 'external') {
-                    setSelectedExternalProduct(item);
-                    setSubscriptionModalVisible(true);
+                    if (!isSubscriptionActive) {
+                        setSelectedExternalProduct(item);
+                        setSubscriptionModalVisible(true);
+                    } else {
+                        navigation.navigate('ProductDetails', {
+                            productId: id,
+                            source,
+                        } as never);
+                    }
                 } else {
                     navigation.navigate('ProductDetails', {
                         productId: id,
@@ -569,7 +634,7 @@ const Home = () => {
                 }
             }}
         />
-    ), [toggleFavorite, navigation, favVersion, favLoadVersion]);
+    ), [toggleFavorite, navigation, isSubscriptionActive, favVersion, favLoadVersion]);
 
     const renderRecommendedItem = useCallback(({ item }: { item: UiProduct }) => (
         <ProductCard
@@ -580,8 +645,15 @@ const Home = () => {
             onToggle={toggleFavorite}
             onPress={(id, source) => {
                 if (source === 'external') {
-                    setSelectedExternalProduct(item);
-                    setSubscriptionModalVisible(true);
+                    if (!isSubscriptionActive) {
+                        setSelectedExternalProduct(item);
+                        setSubscriptionModalVisible(true);
+                    } else {
+                        navigation.navigate('ProductDetails', {
+                            productId: id,
+                            source,
+                        } as never);
+                    }
                 } else {
                     navigation.navigate('ProductDetails', {
                         productId: id,
@@ -590,7 +662,7 @@ const Home = () => {
                 }
             }}
         />
-    ), [toggleFavorite, navigation, favVersion, favLoadVersion]);
+    ), [toggleFavorite, navigation, isSubscriptionActive, favVersion, favLoadVersion]);
 
     const renderFooter = () => {
         if (!loadingMore) return <View style={{ height: 30 }} />
@@ -603,14 +675,6 @@ const Home = () => {
 
     const renderHeader = () => (
         <>
-            {/* <View style={styles.header}>
-                <View>
-                    <Text className="text-[#2355B6] text-lg font-bold">
-                        DealNux - Compare Faster Save Smarter
-                    </Text>
-                    <Text style={styles.userName}>{user?.name || 'User'}</Text>
-                </View>
-            </View> */}
             <HomeHeader userName={user?.name || 'User'} />
 
             <Pressable
@@ -621,62 +685,19 @@ const Home = () => {
                 <Text style={styles.searchInput}>Search products, brands....</Text>
             </Pressable>
 
-            {/* <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.categoryContainer}
-            >
-                {displayCategories.map(cat => {
-                    const active = selectedCategory === cat.slug
-                    return (
-                        <TouchableOpacity
-                            key={cat.id}
-                            style={[styles.categoryButton, active && styles.categoryButtonActive]}
-                            onPress={() => handleCategoryPress(cat.slug)}
-                        >
-                            <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
-                                {cat.name}
-                            </Text>
-                        </TouchableOpacity>
-                    )
-                })}
-            </ScrollView> */}
             <CategoryScroll
                 categories={displayCategories}
                 selectedCategory={selectedCategory}
                 onCategoryPress={handleCategoryPress}
             />
-            {/* <AdsCarousel
-                ads={ads}
-                buildImageUrl={buildImageUrl}
-                onPressAd={handleAds}
-            /> */}
+
             <AdsModalSection
                 ads={ads}
                 buildImageUrl={buildImageUrl}
                 onPressAd={handleAds}
             />
-            {/* Premium Card */}
-            {/* <LinearGradient
-                colors={['#0057FF', '#61B3FF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.premiumCard}
-            >
-                <Image source={Images.MoneyStraw} style={styles.moneyStraw} resizeMode="contain" />
-                <View style={styles.premiumIcon}>
-                    <Text style={styles.premiumIconText}>✨</Text>
-                    <Text style={styles.premiumTitle}>DEALNUX PREMIUM</Text>
-                </View>
-                <Text style={styles.premiumSubtitle}>Unlock smarter savings and{'\n'}auto-coupons!</Text>
-                
-                <TouchableOpacity style={styles.premiumButton} onPress={() => setPremiumModalVisible(true)}>
-                    <Text style={styles.premiumButtonText}>Start Free Trial</Text>
-                </TouchableOpacity>
-            </LinearGradient> */}
+
             <PremiumCard onPress={() => setPremiumModalVisible(true)} />
-
-
 
             {recommendedProducts.length > 0 && (
                 <View style={styles.recommendedSection}>
@@ -692,13 +713,11 @@ const Home = () => {
                         keyExtractor={item => `rec-${item.id}`}
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.recommendedList}
-                        renderItem={renderRecommendedItem}  // ✅ Use the new render function
-                    // Remove the inline renderItem and use the callback instead
+                        renderItem={renderRecommendedItem}
                     />
                 </View>
             )}
 
-            {/* All Products Header */}
             <View style={styles.allProductsHeader}>
                 <Text style={styles.allProductsTitle}>All Products</Text>
                 {!productLoading && uiProducts.length > 0 && (
@@ -727,7 +746,7 @@ const Home = () => {
                 keyExtractor={item => item.id}
                 numColumns={2}
                 columnWrapperStyle={styles.productGrid}
-                renderItem={renderItem}  // ✅ Use the new render function
+                renderItem={renderItem}
                 ListHeaderComponent={renderHeader}
                 ListFooterComponent={renderFooter}
                 onEndReached={handleLoadMore}
@@ -769,6 +788,7 @@ const Home = () => {
             <ChatModal
                 visible={chatModalVisible} onClose={() => setChatModalVisible(false)} />
 
+            {/* ✅ Subscription Modal - Only shows when subscription is INACTIVE */}
             <SubscriptionModal
                 visible={subscriptionModalVisible}
                 onClose={() => {
@@ -776,9 +796,8 @@ const Home = () => {
                     setSelectedExternalProduct(null);
                 }}
                 onSubscribe={() => {
-                    // Navigate to premium subscription screen or open payment
                     setSubscriptionModalVisible(false);
-                    setPremiumModalVisible(true); // Reuse your premium modal
+                    setPremiumModalVisible(true);
                 }}
                 productName={selectedExternalProduct?.name || 'this product'}
                 productSeller={selectedExternalProduct?.seller || 'External Store'}
@@ -809,8 +828,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         color: '#1F2937',
-        // paddingHorizontal: 20,
-        // marginBottom: 4,
     },
     header: {
         flexDirection: 'row',
@@ -880,7 +897,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         minHeight: 120,
     },
-
     angleIcon: {
         position: 'absolute',
         top: -100,
@@ -999,7 +1015,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-
     recommendedSection: {
         marginBottom: 20,
     },
@@ -1030,8 +1045,21 @@ const styles = StyleSheet.create({
         marginTop: 40,
         fontSize: 16,
     },
-
-    // Chat Button
-    chatButton: { position: 'absolute', bottom: 100, right: 24, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-    chatGradient: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
+    chatButton: { 
+        position: 'absolute', 
+        bottom: 100, 
+        right: 24, 
+        shadowColor: '#F59E0B', 
+        shadowOffset: { width: 0, height: 4 }, 
+        shadowOpacity: 0.3, 
+        shadowRadius: 8, 
+        elevation: 6 
+    },
+    chatGradient: { 
+        width: 60, 
+        height: 60, 
+        borderRadius: 30, 
+        alignItems: 'center', 
+        justifyContent: 'center'
+    },
 })

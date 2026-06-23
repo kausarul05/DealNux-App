@@ -14,11 +14,10 @@ import {
     ActivityIndicator,
     Dimensions,
     StyleSheet,
-    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { WebView } from 'react-native-webview';
+import { useStripe } from '@stripe/stripe-react-native';
 
 import { ADS_CREATE, IPA_BASE } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -74,14 +73,12 @@ const CreateAds = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
     const toast = useToast();
     const route = useRoute<any>();
+    const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [loading, setLoading] = useState(false);
-    
-    // ─── Stripe Checkout State ──────────────────────────────────────────────
-    const [checkoutVisible, setCheckoutVisible] = useState(false);
-    const [checkoutUrl, setCheckoutUrl] = useState('');
-    const [paymentId, setPaymentId] = useState<number | null>(null);
+    const [paymentLoading, setPaymentLoading] = useState(false);
+    const [showPaymentSheet, setShowPaymentSheet] = useState(false);
 
     // form fields
     const [title, setTitle] = useState('');
@@ -192,16 +189,6 @@ const CreateAds = () => {
         });
     };
 
-    // ─── Build Stripe Checkout URL ──────────────────────────────────────────
-    const buildStripeCheckoutUrl = (clientSecret: string) => {
-        // ✅ Extract payment_intent ID from client_secret
-        // Format: pi_xxx_secret_xxx
-        const paymentIntentId = clientSecret.split('_secret_')[0];
-        
-        // ✅ Build the correct Stripe Checkout URL
-        return `https://checkout.stripe.com/pay/${paymentIntentId}?client_secret=${clientSecret}`;
-    };
-
     // ─── Submit ────────────────────────────────────────────────────────────────
     const handleSaveChanges = async () => {
         const token = await AsyncStorage.getItem('vToken');
@@ -292,21 +279,53 @@ const CreateAds = () => {
                 const clientSecret = res.data?.client_secret;
                 const paymentId = res.data?.payment_id;
 
-                // ✅ If there's a client_secret, open Stripe Checkout
+                // ✅ If there's a client_secret, show Payment Sheet
                 if (clientSecret) {
-                    setPaymentId(paymentId);
-                    
-                    // ✅ Build correct Stripe Checkout URL
-                    const checkoutUrl = buildStripeCheckoutUrl(clientSecret);
-                    console.log('🔗 Checkout URL:', checkoutUrl);
-                    setCheckoutUrl(checkoutUrl);
-                    setCheckoutVisible(true);
-                    
-                    toast.show({
-                        message: 'Please complete payment to activate your ad.',
-                        type: 'info',
-                        style: 'top',
+                    // ✅ Initialize Payment Sheet with the client secret
+                    const { error: initError } = await initPaymentSheet({
+                        paymentIntentClientSecret: clientSecret,
+                        merchantDisplayName: 'DealNux',
+                        allowsDelayedPaymentMethods: true,
                     });
+
+                    if (initError) {
+                        console.error('Init error:', initError);
+                        toast.show({
+                            message: initError?.message || 'Failed to initialize payment',
+                            type: 'error',
+                            style: 'top',
+                        });
+                        setLoading(false);
+                        return;
+                    }
+
+                    // ✅ Present Payment Sheet
+                    const { error: presentError } = await presentPaymentSheet();
+
+                    if (presentError) {
+                        console.error('Present error:', presentError);
+                        if (presentError.code === 'Canceled') {
+                            toast.show({
+                                message: 'Payment was cancelled',
+                                type: 'info',
+                                style: 'top',
+                            });
+                        } else {
+                            toast.show({
+                                message: presentError?.message || 'Payment failed',
+                                type: 'error',
+                                style: 'top',
+                            });
+                        }
+                    } else {
+                        // ✅ Payment successful
+                        toast.show({
+                            message: 'Payment successful! Your ad is now active.',
+                            type: 'success',
+                            style: 'top',
+                        });
+                        setShowSuccessModal(true);
+                    }
                 } else {
                     // No payment required (free ad)
                     setShowSuccessModal(true);
@@ -333,27 +352,6 @@ const CreateAds = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    // ─── Handle Checkout Success ─────────────────────────────────────────────
-    const handleCheckoutSuccess = () => {
-        setCheckoutVisible(false);
-        setShowSuccessModal(true);
-        toast.show({
-            message: 'Payment successful! Your ad is now active.',
-            type: 'success',
-            style: 'top',
-        });
-    };
-
-    // ─── Handle Checkout Cancel ──────────────────────────────────────────────
-    const handleCheckoutCancel = () => {
-        setCheckoutVisible(false);
-        toast.show({
-            message: 'Payment cancelled. You can retry later.',
-            type: 'info',
-            style: 'top',
-        });
     };
 
     useEffect(() => {
@@ -597,71 +595,6 @@ const CreateAds = () => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-
-            {/* ─── Stripe Checkout WebView Modal ───────────────────────────── */}
-            <Modal
-                visible={checkoutVisible}
-                animationType="slide"
-                onRequestClose={handleCheckoutCancel}
-            >
-                <SafeAreaView style={styles.checkoutContainer}>
-                    <View style={styles.checkoutHeader}>
-                        <TouchableOpacity onPress={handleCheckoutCancel} style={styles.checkoutClose}>
-                            <Ionicons name="close" size={28} color="#1F2937" />
-                        </TouchableOpacity>
-                        <Text style={styles.checkoutTitle}>Complete Payment</Text>
-                        <View style={{ width: 40 }} />
-                    </View>
-                    <View style={styles.checkoutWebViewWrapper}>
-                        <WebView
-                            source={{ uri: checkoutUrl }}
-                            style={styles.checkoutWebView}
-                            onNavigationStateChange={(navState) => {
-                                console.log('🌐 Navigation:', navState.url);
-                                
-                                // Check if payment was successful
-                                if (navState.url && navState.url.includes('success')) {
-                                    handleCheckoutSuccess();
-                                }
-                                // Check if payment was cancelled
-                                if (navState.url && navState.url.includes('cancel')) {
-                                    handleCheckoutCancel();
-                                }
-                                // Check if payment was completed (stripe.com/.../complete)
-                                if (navState.url && navState.url.includes('/complete')) {
-                                    handleCheckoutSuccess();
-                                }
-                            }}
-                            startInLoadingState={true}
-                            renderLoading={() => (
-                                <View style={styles.checkoutLoading}>
-                                    <ActivityIndicator size="large" color="#2355B6" />
-                                    <Text style={styles.checkoutLoadingText}>Loading payment...</Text>
-                                </View>
-                            )}
-                            javaScriptEnabled={true}
-                            domStorageEnabled={true}
-                            injectedJavaScript={`
-                                // Auto-detect payment completion
-                                (function() {
-                                    const observer = new MutationObserver(function() {
-                                        if (document.querySelector('.PaymentSuccess') || 
-                                            document.querySelector('.Success')) {
-                                            window.ReactNativeWebView.postMessage('payment_success');
-                                        }
-                                    });
-                                    observer.observe(document.body, { childList: true, subtree: true });
-                                })();
-                            `}
-                            onMessage={(event) => {
-                                if (event.nativeEvent.data === 'payment_success') {
-                                    handleCheckoutSuccess();
-                                }
-                            }}
-                        />
-                    </View>
-                </SafeAreaView>
-            </Modal>
 
             {/* ─── Target Modal ──────────────────────────────────────────────── */}
             <Modal
@@ -980,46 +913,6 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: '700',
         color: '#FFFFFF',
-    },
-
-    // Checkout Modal
-    checkoutContainer: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    checkoutHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-        backgroundColor: '#FFFFFF',
-    },
-    checkoutClose: {
-        padding: 8,
-    },
-    checkoutTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    checkoutWebViewWrapper: {
-        flex: 1,
-    },
-    checkoutWebView: {
-        flex: 1,
-    },
-    checkoutLoading: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    checkoutLoadingText: {
-        marginTop: 12,
-        fontSize: 16,
-        color: '#6B7280',
     },
 
     // Modal

@@ -1209,7 +1209,7 @@ const ShopDashboard = () => {
                 contentContainerStyle={{ paddingBottom: 40 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1F56D8']} />}
             >
-                {renderHeader()}
+                {/* {renderHeader()} */}
 
                 <View className="mt-4">
                     {/* ─── Local Pickup ─── */}
