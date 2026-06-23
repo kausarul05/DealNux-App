@@ -195,8 +195,8 @@ const Home = () => {
                 setSubscriptionStatus(data);
                 const isActive = data.status === 'ACTIVE';
                 setIsSubscriptionActive(isActive);
-                console.log('📊 Subscription Status:', data.status);
-                console.log('📊 Is Active:', isActive);
+                // console.log('📊 Subscription Status:', data.status);
+                // console.log('📊 Is Active:', isActive);
             }
             return data;
         } catch (error) {

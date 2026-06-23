@@ -17,9 +17,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useStripe } from '@stripe/stripe-react-native';
 
-import { ADS_CREATE, IPA_BASE } from '@env';
+// ✅ Stripe React Native
+import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+
+import { ADS_CREATE, IPA_BASE, STRIPE_PUBLISHABLE_KEY } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native';
 import axios from 'axios';
@@ -68,17 +70,16 @@ const formatYYYYMMDD = (d: Date) => {
     return `${yyyy}-${mm}-${dd}`;
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-const CreateAds = () => {
+// ─── Inner Component (needs StripeProvider above it) ─────────────────────────
+const CreateAdsInner = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
     const toast = useToast();
-    const route = useRoute<any>();
+
+    // ✅ Stripe hooks
     const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [paymentLoading, setPaymentLoading] = useState(false);
-    const [showPaymentSheet, setShowPaymentSheet] = useState(false);
 
     // form fields
     const [title, setTitle] = useState('');
@@ -257,7 +258,6 @@ const CreateAds = () => {
         formData.append('total_budget', String(budgetNum));
         formData.append('start_date', formatYYYYMMDD(startDate));
         formData.append('end_date', formatYYYYMMDD(endDate));
-
         formData.append('image', {
             uri: imageFile.uri,
             name: imageFile.name || `ad_${Date.now()}.jpg`,
@@ -276,58 +276,64 @@ const CreateAds = () => {
             console.log('✅ POST response:', res.data);
 
             if (res.status === 201 || res.status === 200) {
-                const clientSecret = res.data?.client_secret;
-                const paymentId = res.data?.payment_id;
+                // ✅ Use payment_intent_client_secret for Payment Sheet
+                const paymentIntentClientSecret = res.data?.payment_intent_client_secret;
 
-                // ✅ If there's a client_secret, show Payment Sheet
-                if (clientSecret) {
-                    // ✅ Initialize Payment Sheet with the client secret
+                if (paymentIntentClientSecret) {
+                    // ─── Step 1: Init Payment Sheet ───────────────────────────
                     const { error: initError } = await initPaymentSheet({
-                        paymentIntentClientSecret: clientSecret,
+                        paymentIntentClientSecret,
                         merchantDisplayName: 'DealNux',
-                        allowsDelayedPaymentMethods: true,
+                        // Optional: customise appearance
+                        appearance: {
+                            colors: {
+                                primary: '#2355B6',
+                            },
+                        },
+                        // Required on iOS for 3D Secure / redirect flows
+                        returnURL: 'yourapp://payment-complete',
                     });
 
                     if (initError) {
-                        console.error('Init error:', initError);
+                        console.error('❌ initPaymentSheet error:', initError);
                         toast.show({
-                            message: initError?.message || 'Failed to initialize payment',
+                            message: initError.message || 'Payment init failed.',
                             type: 'error',
                             style: 'top',
                         });
-                        setLoading(false);
                         return;
                     }
 
-                    // ✅ Present Payment Sheet
-                    const { error: presentError } = await presentPaymentSheet();
+                    // ─── Step 2: Present Payment Sheet ────────────────────────
+                    const { error: payError } = await presentPaymentSheet();
 
-                    if (presentError) {
-                        console.error('Present error:', presentError);
-                        if (presentError.code === 'Canceled') {
+                    if (payError) {
+                        if (payError.code === 'Canceled') {
+                            // User closed the sheet — not an error
                             toast.show({
-                                message: 'Payment was cancelled',
+                                message: 'Payment cancelled. You can retry later.',
                                 type: 'info',
                                 style: 'top',
                             });
                         } else {
+                            console.error('❌ presentPaymentSheet error:', payError);
                             toast.show({
-                                message: presentError?.message || 'Payment failed',
+                                message: payError.message || 'Payment failed.',
                                 type: 'error',
                                 style: 'top',
                             });
                         }
                     } else {
                         // ✅ Payment successful
+                        setShowSuccessModal(true);
                         toast.show({
                             message: 'Payment successful! Your ad is now active.',
                             type: 'success',
                             style: 'top',
                         });
-                        setShowSuccessModal(true);
                     }
                 } else {
-                    // No payment required (free ad)
+                    // No payment required
                     setShowSuccessModal(true);
                     toast.show({
                         message: 'Ad created successfully!',
@@ -680,6 +686,21 @@ const CreateAds = () => {
     );
 };
 
+// ─── Main Export — wrapped with StripeProvider ────────────────────────────────
+const CreateAds = () => {
+    return (
+        <StripeProvider
+            publishableKey={STRIPE_PUBLISHABLE_KEY}
+            // Optional: for Apple Pay
+            // merchantIdentifier="merchant.com.yourapp"
+        >
+            <CreateAdsInner />
+        </StripeProvider>
+    );
+};
+
+export default CreateAds;
+
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     safeArea: {
@@ -958,5 +979,3 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
 });
-
-export default CreateAds;

@@ -1,5 +1,6 @@
 declare module "@env" {
   export const IPA_BASE: string;
+  export const STRIPE_PUBLISHABLE_KEY: string;
   export const API_BASE_URL: string;
   export const API_TIMEOUT: string;
   export const ENVIRONMENT: string;
