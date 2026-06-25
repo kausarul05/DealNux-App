@@ -681,7 +681,7 @@ const CartInner = () => {
         paymentIntentClientSecret: checkoutData.payment_intent_client_secret,
         merchantDisplayName: 'DealNux',
         appearance: { colors: { primary: '#2355B6' } },
-        returnURL: 'com.ahmedrefu.savvyshopper://payment-complete',
+        returnURL: 'savvyshopper://payment-complete', 
       })
 
       if (initError) {
@@ -694,8 +694,6 @@ const CartInner = () => {
 
       const { error: payError } = await presentPaymentSheet()
 
-      console.log("payError", payError)
-
       if (payError) {
         if (payError.code === 'Canceled') {
           setSummaryModalVisible(true)
@@ -703,8 +701,13 @@ const CartInner = () => {
           Alert.alert('Payment Failed', payError.message || 'Payment could not be completed.')
         }
       } else {
+        // ✅ Clear payment state
         setCheckoutData(null)
         setShippingAddress(null)
+
+        // ✅ Refresh cart so cleared items show immediately
+        await fetchCart(false)
+
         Alert.alert(
           '🎉 Payment Successful!',
           'Your order has been placed successfully.',

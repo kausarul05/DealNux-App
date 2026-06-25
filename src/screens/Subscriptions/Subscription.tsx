@@ -1,408 +1,677 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import React, { useEffect, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StripeProvider, useStripe } from "@stripe/stripe-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+
 import AppHeader from "../../components/AppHeader";
 import BackButton from "../../components/BackButton";
 import { AuthStackParamList } from "../../Navigation/types";
+import { IPA_BASE, STRIPE_PUBLISHABLE_KEY } from "@env";
 
-type PlanType = "monthly" | "yearly";
+const API_BASE_URL = IPA_BASE
+const PLANS_ENDPOINT = "payment/plans/";
+const SUBSCRIBE_ENDPOINT = "payment/subscribe/";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Plan = {
+  id: number;
+  name: string;
+  plan_type: string;
+  price: string;
+  trial_days: number;
+  clicks_per_day: number;
+  price_alerts_limit: number;
+  has_ai_optimization: boolean;
+  has_barcode_scanning: boolean;
+  features: string[];
+};
 
+type SubscribeResponse = {
+  client_secret: string;
+  payment_intent_client_secret: string;
+  plan_name: string;
+  amount: number;
+};
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const isMonthly = (plan_type: string) =>
+  plan_type.includes("MONTHLY") || plan_type === "FREE";
+
+const isYearly = (plan_type: string) => plan_type.includes("YEARLY");
+
+const isFree = (plan_type: string) => plan_type === "FREE";
+
+const planBadgeLabel = (plan_type: string) => {
+  if (plan_type === "FREE") return "FREE";
+  if (plan_type.includes("MONTHLY")) return "MONTHLY";
+  if (plan_type.includes("YEARLY")) return "YEARLY";
+  return "";
+};
+
+// ─── Feature Row ──────────────────────────────────────────────────────────────
 const Feature = ({ text, blue }: { text: string; blue?: boolean }) => (
-    <View style={styles.featureRow}>
-        <Ionicons
-            name="checkmark-done"
-            size={22}
-            color={blue ? "#1D4ED8" : "#111827"}
-            style={{ marginRight: 12 }}
-        />
-        <Text style={styles.featureText}>{text}</Text>
-    </View>
+  <View style={styles.featureRow}>
+    <Ionicons
+      name="checkmark-done"
+      size={20}
+      color={blue ? "#1D4ED8" : "#111827"}
+      style={{ marginRight: 10 }}
+    />
+    <Text style={styles.featureText}>{text}</Text>
+  </View>
 );
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+const PlanSkeleton = () => (
+  <View style={styles.skeletonCard}>
+    <View style={styles.skeletonLine} />
+    <View style={[styles.skeletonLine, { width: "50%", marginTop: 10 }]} />
+    <View style={[styles.skeletonLine, { width: "80%", marginTop: 20, height: 48 }]} />
+    {[1, 2, 3].map((i) => (
+      <View key={i} style={[styles.skeletonLine, { width: "90%", marginTop: 10, height: 14 }]} />
+    ))}
+  </View>
+);
 
-const PaymentMethodModal = ({
-    visible,
-    onClose,
-    onAddCard,
-    onConfirm,
+// ─── Plan Card ────────────────────────────────────────────────────────────────
+const PlanCard = ({
+  plan,
+  onSubscribe,
+  subscribingId,
 }: {
-    visible: boolean;
-    onClose: () => void;
-    onAddCard: () => void;
-    onConfirm: () => void;
+  plan: Plan;
+  onSubscribe: (plan: Plan) => void;
+  subscribingId: number | null;
 }) => {
+  const free = isFree(plan.plan_type);
+  const yearly = isYearly(plan.plan_type);
+  const badge = planBadgeLabel(plan.plan_type);
+  const isLoading = subscribingId === plan.id;
+
+  if (free) {
     return (
-        <Modal transparent visible={visible} animationType="fade">
-            {/* overlay */}
-            <Pressable onPress={onClose} className="flex-1 bg-black/40" />
-
-            {/* bottom sheet */}
-            <View className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[28px] px-6 pt-4 pb-7">
-                <View className="w-[70px] h-[6px] rounded-full bg-[#E5E7EB] self-center mb-4" />
-
-                <Text className="text-xl font-bold text-[#2D2D2D] text-center mb-4">
-                    Payment Method
-                </Text>
-
-                <View className="h-[1px] bg-[#EEF0F3] mb-4" />
-
-                {/* method row */}
-                <TouchableOpacity activeOpacity={0.85} className="bg-white rounded-2xl px-5 py-5 flex-row items-center justify-between shadow-sm my-5">
-                    <View className="flex-row items-center">
-                        <View className="w-11 h-11 rounded-xl bg-[#4F46E5] items-center justify-center mr-4">
-                            <Ionicons name="logo-buffer" size={20} color="#fff" />
-                        </View>
-                        <Text className="text-3xl font-bold text-[#111827]">strapi</Text>
-                    </View>
-
-                    <Ionicons name="radio-button-on" size={22} color="#1D4ED8" />
-                </TouchableOpacity>
-
-                {/* add new card */}
-                <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={onAddCard}
-                    className="mt-5 border-2 border-[#1D4ED8] rounded-2xl py-4 flex-row items-center justify-center my-5"
-                >
-                    <Text className="text-xl font-bold text-[#1D4ED8] mr-3">
-                        Add New Card
-                    </Text>
-                    <Ionicons name="add" size={24} color="#1D4ED8" />
-                </TouchableOpacity>
-
-                {/* confirm */}
-                <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={onConfirm}
-                    className="mt-5 bg-[#1D4ED8] rounded-2xl py-5 items-center shadow-lg"
-                >
-                    <Text className="text-white text-xl font-bold">
-                        Confirm and Pay
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </Modal>
+      <View style={styles.card}>
+        <View style={styles.cardTopRow}>
+          <Text style={styles.planTitle}>{plan.name}</Text>
+          <View style={styles.activePill}>
+            <Text style={styles.activeText}>Active</Text>
+          </View>
+        </View>
+        <Text style={styles.priceBig}>
+          ${parseFloat(plan.price).toFixed(2)}
+          {plan.trial_days > 0 && (
+            <Text style={styles.trialNote}> · {plan.trial_days}-day trial</Text>
+          )}
+        </Text>
+        <View style={styles.currentPlanBtn}>
+          <Text style={styles.currentPlanText}>Current Plan</Text>
+        </View>
+        <View style={{ marginTop: 16 }}>
+          {plan.features.map((f, i) => (
+            <Feature key={i} text={f} />
+          ))}
+        </View>
+      </View>
     );
+  }
+
+  return (
+    <View style={[styles.proCard, yearly && styles.yearlyCard]}>
+      {/* Ribbon */}
+      <View style={[styles.ribbon, yearly && styles.yearlyRibbon]}>
+        <Text style={styles.ribbonText}>{yearly ? "BEST VALUE" : "POPULAR"}</Text>
+      </View>
+
+      {/* Plan name */}
+      <Text style={styles.proName} numberOfLines={1}>
+        {plan.name}
+      </Text>
+
+      {/* Price */}
+      <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: 4 }}>
+        <Text style={styles.proPrice}>${parseFloat(plan.price).toFixed(2)}</Text>
+        <Text style={styles.pricePer}>
+          {" "}/ {yearly ? "year" : "month"}
+        </Text>
+      </View>
+
+      {/* Badge */}
+      <View style={[styles.badgePill, yearly && styles.yearlyBadgePill]}>
+        <Text style={[styles.badgeText, yearly && { color: "#92400E" }]}>{badge}</Text>
+      </View>
+
+      {/* Upgrade button */}
+      <TouchableOpacity
+        onPress={() => onSubscribe(plan)}
+        disabled={subscribingId !== null}
+        activeOpacity={0.88}
+        style={[styles.upgradeBtn, yearly && styles.yearlyUpgradeBtn, subscribingId !== null && { opacity: 0.6 }]}
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.upgradeText}>
+            {plan.trial_days > 0 ? `Start ${plan.trial_days}-Day Trial` : "Subscribe Now"}
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      {/* Features */}
+      <View style={{ marginTop: 14 }}>
+        {plan.features.map((f, i) => (
+          <Feature key={i} text={f} blue />
+        ))}
+      </View>
+
+      {/* Clicks info */}
+      <View style={styles.clicksRow}>
+        <Ionicons name="flash" size={14} color="#6B7280" />
+        <Text style={styles.clicksText}>{plan.clicks_per_day} retailer clicks/day</Text>
+      </View>
+    </View>
+  );
 };
 
-type AuthNavProp = NativeStackNavigationProp<AuthStackParamList>;
+// ─── Success Modal ────────────────────────────────────────────────────────────
+const SuccessModal = ({
+  visible,
+  planName,
+}: {
+  visible: boolean;
+  planName: string;
+}) => {
+  const isAndroid = Platform.OS === "android";
+  const [spinnerRotation, setSpinnerRotation] = useState(0);
 
-const Subscription = () => {
-    const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
-    const [planType, setPlanType] = useState<PlanType>("monthly");
-    const isAndroid = Platform.OS === 'android';
-    const [payOpen, setPayOpen] = useState(false);
+  useEffect(() => {
+    if (!visible) { setSpinnerRotation(0); return; }
+    const t = setInterval(() => setSpinnerRotation((p) => (p + 45) % 360), 150);
+    return () => clearInterval(t);
+  }, [visible]);
 
-    const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [timer, setTimer] = useState(60);
-    const [spinnerRotation, setSpinnerRotation] = useState(0);
+  const dots = [
+    { angle: 0, size: 12, opacity: 1 },
+    { angle: 45, size: 11, opacity: 0.9 },
+    { angle: 90, size: 10, opacity: 0.8 },
+    { angle: 135, size: 9, opacity: 0.6 },
+    { angle: 180, size: 8, opacity: 0.4 },
+    { angle: 225, size: 7, opacity: 0.3 },
+    { angle: 270, size: 6, opacity: 0.2 },
+    { angle: 315, size: 6, opacity: 0.1 },
+  ];
 
-    useEffect(() => {
-        if (!showSuccessModal) return;
+  return (
+    <Modal transparent animationType="fade" visible={visible}>
+      <View style={StyleSheet.absoluteFill}>
+        <BlurView
+          intensity={isAndroid ? 2 : 15}
+          experimentalBlurMethod="dimezisBlurView"
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconOuter}>
+              <View style={styles.successIconInner}>
+                <Ionicons name="card" size={30} color="#1D4ED8" />
+              </View>
+            </View>
+            <Text style={styles.successTitle}>Payment Successful!</Text>
+            <Text style={styles.successSub}>
+              You're now subscribed to{"\n"}
+              <Text style={{ fontWeight: "700", color: "#1D4ED8" }}>{planName}</Text>
+            </Text>
+            <View style={styles.spinnerWrap}>
+              {dots.map((dot, i) => {
+                const angle = (dot.angle + spinnerRotation) * (Math.PI / 180);
+                const r = 20;
+                return (
+                  <View
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      width: dot.size,
+                      height: dot.size,
+                      borderRadius: dot.size / 2,
+                      backgroundColor: "#2355B6",
+                      opacity: dot.opacity,
+                      transform: [
+                        { translateX: Math.cos(angle) * r },
+                        { translateY: Math.sin(angle) * r },
+                      ],
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
-        const t = setTimeout(() => {
-            setShowSuccessModal(false);
-            navigation.reset({
-                index: 0,
-                routes: [{ name: "MainTabs" as never }],
-            });
-        }, 3000);
+// ─── Inner Component ──────────────────────────────────────────────────────────
+const SubscriptionInner = () => {
+  const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
-        return () => clearTimeout(t);
-    }, [showSuccessModal]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [tab, setTab] = useState<"monthly" | "yearly">("monthly");
 
-    useEffect(() => {
-        let spinnerInterval: NodeJS.Timeout | undefined;
+  const [subscribingId, setSubscribingId] = useState<number | null>(null);
+  const [successVisible, setSuccessVisible] = useState(false);
+  const [successPlanName, setSuccessPlanName] = useState("");
 
-        if (showSuccessModal) {
-            spinnerInterval = setInterval(() => {
-                setSpinnerRotation((prev) => (prev + 45) % 360);
-            }, 150);
-        } else {
-            setSpinnerRotation(0);
+  // ── Fetch plans ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        setPlansLoading(true);
+        const token = await AsyncStorage.getItem("vToken");
+        const res = await axios.get(`${API_BASE_URL}${PLANS_ENDPOINT}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+        setPlans(res.data?.data ?? []);
+      } catch (err: any) {
+        console.error("❌ Plans fetch error:", err?.response?.data || err);
+        Alert.alert("Error", "Failed to load subscription plans.");
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  // ── Filter plans by tab ────────────────────────────────────────────────────
+  const filteredPlans = plans.filter((p) => {
+    if (isFree(p.plan_type)) return true;
+    if (tab === "monthly") return isMonthly(p.plan_type);
+    return isYearly(p.plan_type);
+  });
+
+  // ── Subscribe flow ─────────────────────────────────────────────────────────
+  const handleSubscribe = async (plan: Plan) => {
+    try {
+      setSubscribingId(plan.id);
+
+      const token = await AsyncStorage.getItem("vToken");
+      if (!token) {
+        Alert.alert("Error", "Please login to continue.");
+        return;
+      }
+
+      // Step 1 — hit subscribe API
+      const res = await axios.post(
+        `${API_BASE_URL}${SUBSCRIBE_ENDPOINT}`,
+        { plan_id: plan.id },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
         }
+      );
 
-        return () => {
-            if (spinnerInterval) clearInterval(spinnerInterval);
-        };
-    }, [showSuccessModal]);
+      console.log("✅ Subscribe response:", res.data);
+      const data: SubscribeResponse = res.data;
 
-    const spinnerDots = [
-        { angle: 0, size: 12, opacity: 1 },
-        { angle: 45, size: 11, opacity: 0.9 },
-        { angle: 90, size: 10, opacity: 0.8 },
-        { angle: 135, size: 9, opacity: 0.6 },
-        { angle: 180, size: 8, opacity: 0.4 },
-        { angle: 225, size: 7, opacity: 0.3 },
-        { angle: 270, size: 6, opacity: 0.2 },
-        { angle: 315, size: 6, opacity: 0.1 },
-    ];
-    const proPrice = planType === "monthly" ? "$4.99 / month" : "$49.99 / year";
-    const proRibbon = planType === "monthly" ? "MOST POPULAR" : "BEST VALUE";
-    const trialText = planType === "monthly" ? "Free trial (7 days)" : "Free trial (14 days)";
+      if (!data.payment_intent_client_secret) {
+        Alert.alert("Error", "Could not initialize payment. Please try again.");
+        return;
+      }
 
-    return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1">
-            <View className="px-5">
-                <View className='flex-row items-center gap-4' >
-                    <AppHeader left={() => <BackButton />} middle={() => <Text className='text-lg font-semibold'>Subscription Plans</Text>} />
+      // Step 2 — init Payment Sheet
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: data.payment_intent_client_secret,
+        merchantDisplayName: "DealNux",
+        appearance: { colors: { primary: "#1D4ED8" } },
+        returnURL: "savvyshopper://payment-complete",
+      });
 
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Segmented tabs */}
-                    <View style={styles.segmentWrap}>
-                        <TouchableOpacity
-                            activeOpacity={0.9}
-                            onPress={() => setPlanType("monthly")}
-                            style={[styles.segmentBtn, planType === "monthly" && styles.segmentBtnActive]}
-                        >
-                            <Text style={styles.segmentText}>Monthly</Text>
-                        </TouchableOpacity>
+      if (initError) {
+        console.error("❌ initPaymentSheet error:", initError);
+        Alert.alert("Payment Error", initError.message || "Failed to initialize payment.");
+        return;
+      }
 
-                        <TouchableOpacity
-                            activeOpacity={0.9}
-                            onPress={() => setPlanType("yearly")}
-                            style={[styles.segmentBtn, planType === "yearly" && styles.segmentBtnActive]}
-                        >
-                            {/* ✅ NO gap (crash fix) */}
-                            <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                <Text style={[styles.segmentText, { marginRight: 10 }]}>Yearly</Text>
+      // Step 3 — present Payment Sheet
+      const { error: payError } = await presentPaymentSheet();
 
-                                <View style={styles.discountPill}>
-                                    <Text style={styles.discountText}>-16.52%</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
+      if (payError) {
+        if (payError.code === "Canceled") {
+          // user closed — do nothing
+        } else {
+          Alert.alert("Payment Failed", payError.message || "Payment could not be completed.");
+        }
+      } else {
+        // ✅ Success
+        setSuccessPlanName(data.plan_name);
+        setSuccessVisible(true);
 
-                    {/* Free Plan Card */}
-                    <View style={styles.card}>
-                        <View style={styles.cardTopRow}>
-                            <Text style={styles.planTitle}>Free Plan</Text>
-                            <View style={styles.activePill}>
-                                <Text style={styles.activeText}>Active</Text>
-                            </View>
-                        </View>
+        // Auto-close after 3s and go home
+        setTimeout(() => {
+          setSuccessVisible(false);
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "MainTabs" as never }],
+          });
+        }, 3000);
+      }
+    } catch (err: any) {
+      console.error("❌ Subscribe error:", err?.response?.data || err);
+      Alert.alert("Error", err?.response?.data?.message || "Subscription failed. Please try again.");
+    } finally {
+      setSubscribingId(null);
+    }
+  };
 
-                        <Text style={styles.priceBig}>$0.00</Text>
+  // ─── Render ────────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F9FB" }}>
+      <View style={{ paddingHorizontal: 20, flex: 1 }}>
+        {/* Header */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <AppHeader
+            left={() => <BackButton />}
+            middle={() => (
+              <Text style={{ fontSize: 18, fontWeight: "600" }}>Subscription Plans</Text>
+            )}
+          />
+        </View>
 
-                        <View style={styles.currentPlanBtn}>
-                            <Text style={styles.currentPlanText}>Current Plan</Text>
-                        </View>
-
-                        <View style={{ marginTop: 18 }}>
-                            <Feature text="5 Price Alerts" />
-                            <Feature text="Basic Tracking" />
-                            <Feature text="Ad-supported" />
-                        </View>
-                    </View>
-
-                    {/* PRO Plan Card */}
-                    <View style={styles.proCard}>
-                        <View style={styles.ribbon}>
-                            <Text style={styles.ribbonText}>{proRibbon}</Text>
-                        </View>
-
-                        <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: 12 }}>
-                            <Text style={styles.brandBlue}>DEAL</Text>
-                            <Text style={styles.brandGold}>NUX</Text>
-                            <Text style={styles.brandDark}> PRO</Text>
-                        </View>
-
-                        <Text style={styles.proPrice}>{proPrice}</Text>
-
-                        <TouchableOpacity onPress={() => setPayOpen(true)} activeOpacity={0.9} style={styles.upgradeBtn}>
-                            <Text style={styles.upgradeText}>Upgrade Now</Text>
-                        </TouchableOpacity>
-
-                        <View style={{ marginTop: 16 }}>
-                            <Feature text={trialText} blue />
-                            <Feature text="Unlimited Price Alerts" blue />
-                            <Feature text="Advanced AI Optimization" blue />
-                            <Feature text="Ad-free Experience" blue />
-                            <Feature text="Priority Support" blue />
-                            <Feature text="Ad-supported" blue />
-                        </View>
-                    </View>
-
-                    <View style={{ height: 30, marginBottom:25}} />
-                </ScrollView>
-            </View>
-
-            <PaymentMethodModal
-                visible={payOpen}
-                onClose={() => setPayOpen(false)}
-                onAddCard={() => {
-
-                    setPayOpen(false);
-                }}
-                onConfirm={() => {
-
-                    setShowSuccessModal(true);
-                    setPayOpen(false);
-                }}
-            />
-            <Modal
-                transparent={true}
-                animationType="fade"
-                visible={showSuccessModal}
-                onRequestClose={() => setShowSuccessModal(false)}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Tab toggle */}
+          <View style={styles.segmentWrap}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setTab("monthly")}
+              style={[styles.segmentBtn, tab === "monthly" && styles.segmentBtnActive]}
             >
-                <View style={StyleSheet.absoluteFill}>
-                    {/* Blur */}
-                    <BlurView intensity={isAndroid ? 2 : 15}
-                                            experimentalBlurMethod="dimezisBlurView"
-                                            style={[StyleSheet.absoluteFill,]} />
+              <Text style={styles.segmentText}>Monthly</Text>
+            </TouchableOpacity>
 
-                    {/* Extra dim layer to make Android look closer to iOS */}
-                    <View className='flex-1 items-center justify-center bg-[rgba(0,0,0,0.8)]'>
-
-                        {/* Content */}
-                        <View className="flex-1 justify-center items-center px-10">
-                            <View className="w-full max-w-[400px]">
-                                <View className="bg-white rounded-3xl p-10 items-center shadow-2xl">
-                                    <View className="bg-[#1d4fd817] rounded-full  mt-6 p-4">
-                                        <View className=" bg-[#1d4fd82c] p-5 rounded-full">
-                                            <Ionicons name="card" size={30} color="#1D4ED8" />
-                                        </View>
-                                    </View>
-
-                                    <Text className="text-3xl font-bold text-center mt-8 mb-8">
-                                        Payment Successfully
-                                    </Text>
-
-                                    <Text className="text-xl text-[#636F85] text-center mb-8 leading-6">
-
-                                        Your payment has been done {'\n'} successfully.
-                                    </Text>
-
-                                    {/* Spinner */}
-                                    <View className="w-16 h-16 my-8 items-center justify-center">
-                                        {spinnerDots.map((dot, index) => {
-                                            const angle = (dot.angle + spinnerRotation) * (Math.PI / 180);
-                                            const radius = 20;
-                                            const x = Math.cos(angle) * radius;
-                                            const y = Math.sin(angle) * radius;
-
-                                            return (
-                                                <View
-                                                    key={index}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        width: dot.size,
-                                                        height: dot.size,
-                                                        borderRadius: dot.size / 2,
-                                                        backgroundColor: '#2355B6',
-                                                        opacity: dot.opacity,
-                                                        transform: [{ translateX: x }, { translateY: y }],
-                                                    }}
-                                                />
-                                            );
-                                        })}
-                                    </View>
-
-
-                                </View>
-                            </View>
-                        </View>
-                    </View>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setTab("yearly")}
+              style={[styles.segmentBtn, tab === "yearly" && styles.segmentBtnActive]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={[styles.segmentText, { marginRight: 8 }]}>Yearly</Text>
+                <View style={styles.discountPill}>
+                  <Text style={styles.discountText}>Save more</Text>
                 </View>
-            </Modal>
-        </SafeAreaView>
-    );
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Plans */}
+          {plansLoading ? (
+            <>
+              <PlanSkeleton />
+              <PlanSkeleton />
+            </>
+          ) : (
+            filteredPlans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                onSubscribe={handleSubscribe}
+                subscribingId={subscribingId}
+              />
+            ))
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+
+      {/* Success Modal */}
+      <SuccessModal visible={successVisible} planName={successPlanName} />
+    </SafeAreaView>
+  );
 };
+
+// ─── Root Export ──────────────────────────────────────────────────────────────
+const Subscription = () => (
+  <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+    <SubscriptionInner />
+  </StripeProvider>
+);
 
 export default Subscription;
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: "#F9F9FB" },
-    container: { paddingHorizontal: 20, paddingBottom: 10 },
+  segmentWrap: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 18,
+    padding: 5,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  segmentBtnActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  segmentText: { fontSize: 15, fontWeight: "800", color: "#111827" },
+  discountPill: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  discountText: { color: "#15803D", fontWeight: "900", fontSize: 12 },
 
-    // ✅ removed gap, used marginRight
+  // Free plan card
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+    marginBottom: 16,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  planTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
+  activePill: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  activeText: { color: "#15803D", fontWeight: "900", fontSize: 13 },
+  priceBig: { fontSize: 20, fontWeight: "900", color: "#2D2D2D", marginTop: 6 },
+  trialNote: { fontSize: 14, fontWeight: "500", color: "#6B7280" },
+  currentPlanBtn: {
+    backgroundColor: "#F1F5F9",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  currentPlanText: { fontSize: 15, fontWeight: "800", color: "#64748B" },
 
+  // Pro / paid plan card
+  proCard: {
+    backgroundColor: "#E9EEF9",
+    borderRadius: 26,
+    padding: 22,
+    borderWidth: 2,
+    borderColor: "#1D4ED8",
+    position: "relative",
+    overflow: "hidden",
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  yearlyCard: {
+    backgroundColor: "#FEF9EC",
+    borderColor: "#D97706",
+  },
+  ribbon: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    backgroundColor: "#1D4ED8",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomLeftRadius: 16,
+  },
+  yearlyRibbon: { backgroundColor: "#D97706" },
+  ribbonText: { color: "#fff", fontWeight: "900", fontSize: 13, letterSpacing: 0.4 },
 
+  proName: { fontSize: 18, fontWeight: "900", color: "#111827", marginTop: 4, marginBottom: 4 },
+  proPrice: { fontSize: 26, fontWeight: "900", color: "#2D2D2D" },
+  pricePer: { fontSize: 14, fontWeight: "500", color: "#6B7280" },
 
-    segmentWrap: {
-        flexDirection: "row",
-        backgroundColor: "#F3F4F6",
-        borderRadius: 18,
-        padding: 5,
-        marginBottom: 12,
-    },
-    segmentBtn: { flex: 1, paddingVertical: 12, borderRadius: 14, justifyContent: "center", alignItems: "center" },
-    segmentBtnActive: {
-        backgroundColor: "#fff",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    segmentText: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  badgePill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#DBEAFE",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginBottom: 14,
+    marginTop: 6,
+  },
+  yearlyBadgePill: { backgroundColor: "#FEF3C7" },
+  badgeText: { fontSize: 11, fontWeight: "800", color: "#1D4ED8", letterSpacing: 0.5 },
 
-    discountPill: { backgroundColor: "#DCFCE7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-    discountText: { color: "#15803D", fontWeight: "900", fontSize: 14 },
+  upgradeBtn: {
+    backgroundColor: "#1D4ED8",
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: "#1D4ED8",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  yearlyUpgradeBtn: {
+    backgroundColor: "#D97706",
+    shadowColor: "#D97706",
+  },
+  upgradeText: { color: "#fff", fontSize: 16, fontWeight: "900" },
 
-    card: {
-        backgroundColor: "#fff",
-        borderRadius: 22,
-        padding: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 14,
-        elevation: 2,
-        marginBottom: 18,
-    },
-    cardTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    planTitle: { fontSize: 18, fontWeight: "500", color: "#111827" },
-    activePill: { backgroundColor: "#DCFCE7", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
-    activeText: { color: "#15803D", fontWeight: "900", fontSize: 14 },
-    priceBig: { fontSize: 20, fontWeight: "900", color: "#2D2D2D", marginTop: 6 },
-    currentPlanBtn: { backgroundColor: "#F1F5F9", borderRadius: 14, paddingVertical: 16, alignItems: "center", marginTop: 6 },
-    currentPlanText: { fontSize: 16, fontWeight: "800", color: "#64748B" },
+  featureRow: { flexDirection: "row", alignItems: "center", paddingVertical: 4 },
+  featureText: { fontSize: 14, fontWeight: "500", color: "#2D2D2D", flex: 1 },
 
-    proCard: {
-        backgroundColor: "#E9EEF9",
-        borderRadius: 26,
-        padding: 22,
-        borderWidth: 2,
-        borderColor: "#1D4ED8",
-        position: "relative",
-        overflow: "hidden",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 14,
-        elevation: 2,
-    },
-    ribbon: { position: "absolute", right: 0, top: 0, backgroundColor: "#1D4ED8", paddingHorizontal: 16, paddingVertical: 10, borderBottomLeftRadius: 18 },
-    ribbonText: { color: "#fff", fontWeight: "900", fontSize: 18, letterSpacing: 0.5 },
+  clicksRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#D1D5DB",
+  },
+  clicksText: { fontSize: 12, color: "#6B7280", fontWeight: "600" },
 
-    brandBlue: { fontSize: 18, fontWeight: "900", color: "#1D4ED8", letterSpacing: 1 },
-    brandGold: { fontSize: 18, fontWeight: "900", color: "#FBBF24", letterSpacing: 1 },
-    brandDark: { fontSize: 18, fontWeight: "900", color: "#111827", letterSpacing: 1 },
+  // Skeleton
+  skeletonCard: {
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: "flex-start",
+  },
+  skeletonLine: {
+    width: "70%",
+    height: 20,
+    borderRadius: 8,
+    backgroundColor: "#E9EDF3",
+  },
 
-    proPrice: { fontSize: 26, fontWeight: "900", color: "#2D2D2D", marginBottom: 8 },
-    upgradeBtn: {
-        backgroundColor: "#1D4ED8",
-        paddingVertical: 20,
-        borderRadius: 16,
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 6,
-    },
-    upgradeText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-
-    featureRow: { flexDirection: "row", alignItems: "center", paddingVertical: 5 },
-    featureText: { fontSize: 16, fontWeight: "500", color: "#2D2D2D" },
+  // Success modal
+  successOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.75)",
+    paddingHorizontal: 32,
+  },
+  successCard: {
+    backgroundColor: "#fff",
+    borderRadius: 28,
+    padding: 36,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 380,
+  },
+  successIconOuter: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 999,
+    padding: 16,
+    marginBottom: 8,
+  },
+  successIconInner: {
+    backgroundColor: "#DBEAFE",
+    padding: 18,
+    borderRadius: 999,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111827",
+    textAlign: "center",
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  successSub: {
+    fontSize: 15,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  spinnerWrap: {
+    width: 64,
+    height: 64,
+    marginTop: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

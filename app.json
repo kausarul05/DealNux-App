@@ -75,7 +75,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.example"
+          "merchantIdentifier": "merchant.com.ahmedrefu.savvyshopper"
         }
       ]
     ],
