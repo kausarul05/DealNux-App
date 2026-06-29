@@ -16,8 +16,10 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import AppleButtonSvg from '../../components/Apple';
 import GoogleButtonSvg from '../../components/Google';
 import { Images } from '../../constants';
@@ -37,11 +39,17 @@ const SignUp = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
+    // ─── Terms & Conditions State ──────────────────────────────────────────
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
+    const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+
     const validate = () => {
         if (!name.trim()) return 'Name required';
         if (!email.trim()) return 'Email required';
         if (!password) return 'Password required';
         if (password.length < 6) return 'Password must be at least 6 characters';
+        if (!agreedToTerms) return 'Please agree to the Terms & Conditions';
+        if (!agreedToPrivacy) return 'Please agree to the Privacy Policy';
         return null;
     };
 
@@ -59,6 +67,8 @@ const SignUp = () => {
                     name: name.trim(),
                     email: email.trim().toLowerCase(),
                     password,
+                    agreed_to_terms: "true",
+                    agreed_to_privacy: "true",
                 },
                 { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
             );
@@ -73,10 +83,20 @@ const SignUp = () => {
         }
     };
 
+    const openTerms = () => {
+        Linking.openURL('https://dealnux.com/terms').catch(() => {
+            Alert.alert('Error', 'Could not open terms page');
+        });
+    };
+
+    const openPrivacy = () => {
+        Linking.openURL('https://dealnux.com/privacy').catch(() => {
+            Alert.alert('Error', 'Could not open privacy page');
+        });
+    };
+
     return (
-        // ✅ FIX 1: 'bottom' edge added
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safe}>
-            {/* ✅ FIX 2: 'height' for Android, 'padding' for iOS */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -147,6 +167,43 @@ const SignUp = () => {
                             </TouchableOpacity>
                         </View>
 
+                        {/* ─── Terms & Conditions ────────────────────────────────── */}
+                        <View style={styles.termsContainer}>
+                            {/* Terms Checkbox */}
+                            <TouchableOpacity
+                                style={styles.termsRow}
+                                onPress={() => setAgreedToTerms(!agreedToTerms)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+                                    {agreedToTerms && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                                </View>
+                                <Text style={styles.termsText}>
+                                    I agree to the{' '}
+                                    <Text style={styles.termsLink} onPress={openTerms}>
+                                        Terms & Conditions
+                                    </Text>
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Privacy Checkbox */}
+                            <TouchableOpacity
+                                style={styles.termsRow}
+                                onPress={() => setAgreedToPrivacy(!agreedToPrivacy)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.checkbox, agreedToPrivacy && styles.checkboxChecked]}>
+                                    {agreedToPrivacy && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                                </View>
+                                <Text style={styles.termsText}>
+                                    I agree to the{' '}
+                                    <Text style={styles.termsLink} onPress={openPrivacy}>
+                                        Privacy Policy
+                                    </Text>
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
                         <TouchableOpacity
                             style={[styles.mainButton, { opacity: loading ? 0.7 : 1 }]}
                             disabled={loading}
@@ -209,7 +266,7 @@ const styles = StyleSheet.create({
     },
     logoImage: {
         width: width * 0.6,
-        height: height * 0.15, // ✅ slightly reduced for more form space
+        height: height * 0.15,
     },
     title: {
         fontSize: 30,
@@ -308,5 +365,41 @@ const styles = StyleSheet.create({
         fontSize: 18,
         color: 'red',
         fontWeight: '700',
+    },
+
+    // ─── Terms & Conditions Styles ──────────────────────────────────────────
+    termsContainer: {
+        marginTop: 16,
+        gap: 10,
+    },
+    termsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: '#D1D5DB',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    checkboxChecked: {
+        backgroundColor: '#2355B6',
+        borderColor: '#2355B6',
+    },
+    termsText: {
+        fontSize: 14,
+        color: '#4B5563',
+        flex: 1,
+        flexWrap: 'wrap',
+    },
+    termsLink: {
+        color: '#2355B6',
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
 });

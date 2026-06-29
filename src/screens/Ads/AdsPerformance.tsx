@@ -44,7 +44,6 @@ const StatCard = ({ iconBg, icon, label, value }: any) => {
                 </View>
                 <Text className="ml-3 text-lg font-bold text-[#6B7280]">{label}</Text>
             </View>
-
             <Text className="mt-3 text-xl font-extrabold text-[#111827]">{value}</Text>
         </View>
     );

@@ -25,7 +25,6 @@ const ComponentWrapper = ({
             }
             <View className={`h-full px-6 py-8 ${container_bg}`}>
                 {children}
-
                 <View className=""></View>
             </View>
         </SafeAreaView>
