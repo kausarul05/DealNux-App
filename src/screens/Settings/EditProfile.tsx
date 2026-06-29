@@ -38,7 +38,14 @@ type UserProfile = {
     email: string;
     profile_picture: string;
     address: string;
-    interests: string[]; // may be ["[\"Grocery\",...]" ] OR ["Grocery","..."]
+    address_2?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    country?: string;
+    first_name?: string;
+    last_name?: string;
+    interests: string[];
     refaradal_code: string;
     balance: number;
     has_claimed_referral: boolean;
@@ -59,8 +66,17 @@ const EditProfile = () => {
         null
     );
     const toast = useToast()
+    
+    // ─── Form Fields ──────────────────────────────────────────────────────────
     const [name, setName] = useState<string>("");
+    const [firstName, setFirstName] = useState<string>("");
+    const [lastName, setLastName] = useState<string>("");
     const [address, setAddress] = useState<string>("");
+    const [address2, setAddress2] = useState<string>("");
+    const [city, setCity] = useState<string>("");
+    const [state, setState] = useState<string>("");
+    const [zipCode, setZipCode] = useState<string>("");
+    const [country, setCountry] = useState<string>("");
     const [interestsItem, setInterestsItem] = useState<string[]>([]);
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -69,7 +85,7 @@ const EditProfile = () => {
     const [spinnerRotation, setSpinnerRotation] = useState(0);
 
     const interests = useMemo(
-        () => ["Grocery", "Electronics", "Pets", "Home", "Beauty", "Fashion", "Automotive"],
+        () => ["Grocery", "Electronics", "Pets", "Home", "Beauty", "Fashion", "Automotive", "Sports", "Books", "Toys", "Health", "Garden", "Others"],
         []
     );
 
@@ -77,7 +93,6 @@ const EditProfile = () => {
         if (!rawArr || rawArr.length === 0) return [];
         const first = rawArr[0];
 
-        // If backend sends: ["[\"Grocery\",\"Electronics\"]"]
         if (typeof first === "string" && first.trim().startsWith("[")) {
             try {
                 const parsed = JSON.parse(first);
@@ -86,8 +101,6 @@ const EditProfile = () => {
                 return [];
             }
         }
-
-        // If backend sends: ["Grocery","Electronics"]
         return rawArr;
     };
 
@@ -102,16 +115,24 @@ const EditProfile = () => {
                 });
 
                 const u: UserProfile = res.data.data;
+                console.log("Fetched user data:", u);
                 setUser(u);
 
+                // Set all form fields
                 setName(u?.name || "");
+                setFirstName(u?.first_name || "");
+                setLastName(u?.last_name || "");
                 setAddress(u?.address || "");
+                setAddress2(u?.address_2 || "");
+                setCity(u?.city || "");
+                setState(u?.state || "");
+                setZipCode(u?.zip_code || "");
+                setCountry(u?.country || "United States");
                 setInterestsItem(safeParseInterests(u?.interests));
             } catch (error: any) {
                 console.error("Error loading data:", error?.response?.data || error);
                 toast.show({
-                    message:
-                        ("Failed to load profile information."),
+                    message: "Failed to load profile information.",
                     type: 'error',
                     style: 'top',
                 });
@@ -128,10 +149,8 @@ const EditProfile = () => {
             await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permissionResult.granted) {
-
             toast.show({
-                message:
-                    ("Permission required" + "Permission to access the media library is required."),
+                message: "Permission to access the media library is required.",
                 type: 'error',
                 style: 'top',
             });
@@ -162,18 +181,16 @@ const EditProfile = () => {
 
         if (!token) {
             toast.show({
-                message:
-                    ("Token missing"),
+                message: "Token missing",
                 type: 'error',
                 style: 'top',
             });
             return;
         }
 
-        if (!name.trim()) {
+        if (!name.trim() && !firstName.trim()) {
             toast.show({
-                message:
-                    ("Please enter your name"),
+                message: "Please enter your name.",
                 type: 'error',
                 style: 'top',
             });
@@ -182,8 +199,34 @@ const EditProfile = () => {
 
         if (!address.trim()) {
             toast.show({
-                message:
-                    ("Please enter your address"),
+                message: "Please enter your address.",
+                type: 'error',
+                style: 'top',
+            });
+            return;
+        }
+
+        if (!city.trim()) {
+            toast.show({
+                message: "Please enter your city.",
+                type: 'error',
+                style: 'top',
+            });
+            return;
+        }
+
+        if (!state.trim()) {
+            toast.show({
+                message: "Please enter your state.",
+                type: 'error',
+                style: 'top',
+            });
+            return;
+        }
+
+        if (!zipCode.trim()) {
+            toast.show({
+                message: "Please enter your zip code.",
                 type: 'error',
                 style: 'top',
             });
@@ -191,8 +234,17 @@ const EditProfile = () => {
         }
 
         const formData = new FormData();
-        formData.append("name", name.trim()); // backend supports? if not, remove
+        
+        // ─── Add all fields to formData ──────────────────────────────────────
+        formData.append("name", name.trim());
+        formData.append("first_name", firstName.trim());
+        formData.append("last_name", lastName.trim());
         formData.append("address", address.trim());
+        formData.append("address_2", address2.trim());
+        formData.append("city", city.trim());
+        formData.append("state", state.trim());
+        formData.append("zip_code", zipCode.trim());
+        formData.append("country", country.trim());
         formData.append("interests", JSON.stringify(interestsItem));
 
         // only upload picture if user selected a new one
@@ -221,8 +273,7 @@ const EditProfile = () => {
                 setShowSuccessModal(true);
             } else {
                 toast.show({
-                    message:
-                        ("Profile update failed"),
+                    message: "Profile update failed",
                     type: 'warning',
                     style: 'top',
                 });
@@ -230,12 +281,10 @@ const EditProfile = () => {
         } catch (error: any) {
             console.error("PATCH error:", error?.response?.data || error);
             toast.show({
-                message:
-                    ("Error" + error?.response?.data?.message || "Update failed"),
+                message: error?.response?.data?.message || "Update failed",
                 type: 'warning',
                 style: 'top',
             });
-            return { ok: false, phone: '' };
         }
     };
 
@@ -282,9 +331,7 @@ const EditProfile = () => {
     const avatarUri = selectedImageUri || user?.profile_picture;
 
     return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1">
-
-
+        <SafeAreaView className="bg-[#F9F9FB] flex-1 pb-15">
             <View className="px-5">
                 <View className="flex-row items-center gap-4">
                     <AppHeader
@@ -294,7 +341,7 @@ const EditProfile = () => {
                 </View>
                 <KeyboardAvoidingView
                     behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // adjust if header overlaps
+                    keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
                 >
                     <ScrollView
                         contentContainerStyle={{ paddingBottom: 30 }}
@@ -341,10 +388,10 @@ const EditProfile = () => {
                             </View>
                         </TouchableOpacity>
 
-                        {/* Name */}
+                        {/* ─── Name ────────────────────────────────────────────────── */}
                         <Text className="text-[#636F85] font-bold text-xl my-2">Full Name</Text>
-                        <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
-                            <FontAwesome name="user" size={24} color="#334155" />
+                        <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4 " style={styles.inputRow}>
+                            <FontAwesome name="user" size={24} color="#334155"/>
                             <TextInput
                                 placeholder="Your Name ex: Ahmed ReFat"
                                 placeholderTextColor="#A0A0A0"
@@ -354,27 +401,124 @@ const EditProfile = () => {
                             />
                         </View>
 
-                        {/* Email */}
+                        {/* ─── First & Last Name ──────────────────────────────────── */}
+                        {/* <View className="flex-row gap-4 mt-2">
+                            <View className="flex-1">
+                                <Text className="text-[#636F85] font-bold text-base my-2">First Name</Text>
+                                <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                                    <FontAwesome name="user" size={20} color="#334155" />
+                                    <TextInput
+                                        placeholder="First Name"
+                                        placeholderTextColor="#A0A0A0"
+                                        value={firstName}
+                                        onChangeText={setFirstName}
+                                        style={styles.textInput}
+                                    />
+                                </View>
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-[#636F85] font-bold text-base my-2">Last Name</Text>
+                                <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                                    <FontAwesome name="user" size={20} color="#334155" />
+                                    <TextInput
+                                        placeholder="Last Name"
+                                        placeholderTextColor="#A0A0A0"
+                                        value={lastName}
+                                        onChangeText={setLastName}
+                                        style={styles.textInput}
+                                    />
+                                </View>
+                            </View>
+                        </View> */}
+
+                        {/* ─── Email ────────────────────────────────────────────────── */}
                         <Text className="text-[#636F85] font-bold text-xl my-2">Email address</Text>
                         <View className="bg-gray-200 border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4">
                             <MaterialIcons name="email" size={24} color="#334155" />
                             <Text className="text-lg p-3">{user?.email || ""}</Text>
                         </View>
 
-                        {/* Address */}
-                        <Text className="text-[#636F85] font-bold text-xl my-2">Location</Text>
+                        {/* ─── Address ────────────────────────────────────────────────── */}
+                        <Text className="text-[#636F85] font-bold text-xl my-2">Address Line 1</Text>
                         <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
                             <Ionicons name="location-sharp" size={24} color="black" />
                             <TextInput
                                 value={address}
                                 onChangeText={setAddress}
-                                placeholder="e.g. Gulshan, Dhaka"
+                                placeholder="123 Main St"
                                 style={styles.textInput}
                             />
                         </View>
 
-                        {/* Interests */}
-                        <Text className="text-xl my-4">Interests</Text>
+                        <Text className="text-[#636F85] font-bold text-xl my-2">Address Line 2 (Optional)</Text>
+                        <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                            <Ionicons name="location-sharp" size={24} color="black" />
+                            <TextInput
+                                value={address2}
+                                onChangeText={setAddress2}
+                                placeholder="Apt 4B"
+                                style={styles.textInput}
+                            />
+                        </View>
+
+                        {/* ─── City, State, Zip ──────────────────────────────────────── */}
+                        <View className="flex-row gap-4">
+                            <View className="flex-1">
+                                <Text className="text-[#636F85] font-bold text-base my-2">City</Text>
+                                <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                                    <Ionicons name="location-sharp" size={20} color="black" />
+                                    <TextInput
+                                        value={city}
+                                        onChangeText={setCity}
+                                        placeholder="Chicago"
+                                        style={styles.textInput}
+                                    />
+                                </View>
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-[#636F85] font-bold text-base my-2">State</Text>
+                                <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                                    <Ionicons name="location-sharp" size={20} color="black" />
+                                    <TextInput
+                                        value={state}
+                                        onChangeText={setState}
+                                        placeholder="IL"
+                                        style={styles.textInput}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        <View className="flex-row gap-4">
+                            <View className="flex-1">
+                                <Text className="text-[#636F85] font-bold text-base my-2">ZIP Code</Text>
+                                <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                                    <Ionicons name="location-sharp" size={20} color="black" />
+                                    <TextInput
+                                        value={zipCode}
+                                        onChangeText={setZipCode}
+                                        placeholder="60601"
+                                        keyboardType="numeric"
+                                        style={styles.textInput}
+                                    />
+                                </View>
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-[#636F85] font-bold text-base my-2">Country</Text>
+                                <View className="border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4" style={styles.inputRow}>
+                                    <Ionicons name="location-sharp" size={20} color="black" />
+                                    <TextInput
+                                        value={country}
+                                        onChangeText={setCountry}
+                                        placeholder="United States"
+                                        style={styles.textInput}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* ─── Interests ────────────────────────────────────────────────── */}
+                        <Text className="text-xl my-4 font-bold text-[#111827]">Interests</Text>
                         <View className="flex-row flex-wrap gap-3 my-3">
                             {interests.map((item, index) => {
                                 const active = interestsItem.includes(item);
@@ -395,11 +539,11 @@ const EditProfile = () => {
                             })}
                         </View>
 
-                        {/* Save */}
+                        {/* ─── Save Button ────────────────────────────────────────────────── */}
                         <TouchableOpacity
                             style={styles.mainButton}
                             onPress={handleSaveChanges}
-                            className="flex-row items-center justify-center gap-4"
+                            className="flex-row items-center justify-center gap-4 mb-28"
                             disabled={loading}
                         >
                             <Text style={styles.mainButtonText}>
@@ -410,7 +554,8 @@ const EditProfile = () => {
                     </ScrollView>
                 </KeyboardAvoidingView>
             </View>
-            {/* Success Modal */}
+            
+            {/* ─── Success Modal ────────────────────────────────────────────────── */}
             <Modal
                 transparent
                 animationType="fade"
@@ -464,6 +609,7 @@ const EditProfile = () => {
                     </View>
                 </View>
             </Modal>
+            
             <Toast
                 style={toast.style}
                 visible={toast.visible}
@@ -497,14 +643,14 @@ const styles = StyleSheet.create({
         backgroundColor: '#F5F5F5',
         borderRadius: 12,
         paddingHorizontal: 16,
-        paddingVertical: Platform.OS === 'ios' ? 14 : 10, // ✅ iOS fix
+        paddingVertical: Platform.OS === 'ios' ? 14 : 10,
         flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 12,
     },
     textInput: {
         flex: 1,
         fontSize: 18,
-        // ✅ iOS TextInput baseline/height fix
         paddingVertical: Platform.OS === 'ios' ? 0 : 2,
         color: '#111827',
     },

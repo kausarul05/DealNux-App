@@ -35,6 +35,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { WebView } from 'react-native-webview';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import { Toast, useToast } from '../../components/useToost';
@@ -360,6 +361,13 @@ const ShopDashboard = () => {
     const [expiresAt, setExpiresAt] = useState('');
     const [couponLoading, setCouponLoading] = useState(false);
 
+    // ─── Stripe Connect State ──────────────────────────────────────────────────
+    const [stripeConnectLoading, setStripeConnectLoading] = useState(false);
+    const [stripeOnboardingUrl, setStripeOnboardingUrl] = useState('');
+    const [stripeModalVisible, setStripeModalVisible] = useState(false);
+    const [stripeAccountId, setStripeAccountId] = useState('');
+    const [stripeOnboardingCompleted, setStripeOnboardingCompleted] = useState(false);
+
     // ─── Shipping Tab State ──────────────────────────────────────────────────
     const [pickupActive, setPickupActive] = useState(false);
     const [pickupStreet, setPickupStreet] = useState('');
@@ -413,6 +421,102 @@ const ShopDashboard = () => {
     const [utilityBill, setUtilityBill] = useState<any>(null);
 
     const [editingLoading, setEditingLoading] = useState(false);
+
+    // ─── Stripe Connect Functions ──────────────────────────────────────────────
+    const handleConnectStripe = async () => {
+        try {
+            setStripeConnectLoading(true);
+            const token = await AsyncStorage.getItem('vToken');
+
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            const response = await axios.post(
+                `${API_BASE_URL}payment/seller/connect/`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            console.log('Stripe Connect response:', response.data);
+
+            if (response.data?.success) {
+                const onboardingUrl = response.data?.data?.onboarding_url;
+                const accountId = response.data?.data?.stripe_account_id;
+
+                if (onboardingUrl) {
+                    setStripeOnboardingUrl(onboardingUrl);
+                    setStripeAccountId(accountId);
+                    setStripeModalVisible(true);
+                    
+                    toast.show({
+                        message: 'Redirecting to Stripe onboarding...',
+                        type: 'info',
+                        style: 'top',
+                    });
+                } else {
+                    toast.show({
+                        message: response.data?.message || 'Failed to get onboarding link',
+                        type: 'error',
+                        style: 'top',
+                    });
+                }
+            } else {
+                toast.show({
+                    message: response.data?.message || 'Failed to connect Stripe',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Stripe Connect error:', error?.response?.data || error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to connect Stripe',
+                type: 'error',
+                style: 'top',
+            });
+        } finally {
+            setStripeConnectLoading(false);
+        }
+    };
+
+    const handleStripeOnboardingComplete = () => {
+        setStripeModalVisible(false);
+        setStripeOnboardingCompleted(true);
+        toast.show({
+            message: 'Stripe account connected successfully!',
+            type: 'success',
+            style: 'top',
+        });
+        loadData();
+    };
+
+    const handleManageBank = async () => {
+        if (stripeOnboardingUrl) {
+            setStripeModalVisible(true);
+        } else {
+            await handleConnectStripe();
+        }
+    };
+
+    const handleWebViewNavigation = (navState: any) => {
+        // Check if the user has completed onboarding
+        // Stripe redirects to a success URL or the merchant's return URL
+        if (navState.url && navState.url.includes('return')) {
+            handleStripeOnboardingComplete();
+        }
+        // Also check for stripe.com/connect/setup/complete patterns
+        if (navState.url && navState.url.includes('complete')) {
+            handleStripeOnboardingComplete();
+        }
+    };
 
     // ─── Data Loading ──────────────────────────────────────────────────────────
     const loadData = useCallback(async () => {
@@ -512,6 +616,9 @@ const ShopDashboard = () => {
             if (profiles.length > 0) {
                 const p = profiles[0];
                 setProfile(p);
+                // Set Stripe status
+                setStripeAccountId(p.stripe_account_id || '');
+                setStripeOnboardingCompleted(p.stripe_onboarding_completed || false);
                 // Set edit form values
                 setShopName(p.shop_name || '');
                 setShopDescription(p.shop_description || '');
@@ -1209,8 +1316,6 @@ const ShopDashboard = () => {
                 contentContainerStyle={{ paddingBottom: 40 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1F56D8']} />}
             >
-                {/* {renderHeader()} */}
-
                 <View className="mt-4">
                     {/* ─── Local Pickup ─── */}
                     <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
@@ -1452,8 +1557,60 @@ const ShopDashboard = () => {
             </View>
         );
 
+        const hasStripeAccount = !!stripeAccountId;
+        const isOnboardingComplete = stripeOnboardingCompleted;
+
         return (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* ─── Stripe Connect Card ─── */}
+                <View className="bg-white rounded-3xl p-5 mb-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                    <View className="flex-row items-center justify-between mb-3">
+                        <View className="flex-row items-center gap-2">
+                            <Feather name="credit-card" size={20} color="#2355B6" />
+                            <Text className="text-[18px] font-bold text-[#111827]">Payment (Stripe)</Text>
+                        </View>
+                        <View className={`px-3 py-1 rounded-full ${hasStripeAccount ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                            <Text className={`text-[12px] font-semibold ${hasStripeAccount ? 'text-green-700' : 'text-yellow-700'}`}>
+                                {hasStripeAccount ? (isOnboardingComplete ? 'Active' : 'Pending') : 'Not Connected'}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {hasStripeAccount ? (
+                        <View>
+                            <Text className="text-[14px] text-[#6B7280]">ACCOUNT: {stripeAccountId}</Text>
+                            <View className="flex-row items-center mt-1">
+                                <Text className="text-[14px] text-[#6B7280] mr-2">ONBOARDING:</Text>
+                                <Text className={`text-[14px] font-semibold ${isOnboardingComplete ? 'text-green-700' : 'text-yellow-700'}`}>
+                                    {isOnboardingComplete ? '✓ Complete' : '⚠️ Incomplete'}
+                                </Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <View>
+                            <Text className="text-[14px] text-[#6B7280] mb-3">
+                                Link your bank account via Stripe Connect to start receiving payouts directly.
+                                Takes less than 2 minutes.
+                            </Text>
+                            <TouchableOpacity
+                                onPress={handleConnectStripe}
+                                disabled={stripeConnectLoading}
+                                className={`bg-[#2355B6] rounded-xl py-3 px-4 flex-row items-center justify-center gap-2 ${stripeConnectLoading ? 'opacity-70' : ''}`}
+                            >
+                                {stripeConnectLoading ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="link-outline" size={20} color="#FFFFFF" />
+                                        <Text className="text-white font-semibold">Connect Stripe Account</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+
+                {/* ─── Balance Cards ─── */}
                 <View className="flex-row flex-wrap justify-between">
                     <StatCard label="Available Balance" value={`$${payouts.available_balance?.toFixed(2) ?? '0.00'}`} icon="wallet" color="#16A34A" />
                     <StatCard label="Pending Balance" value={`$${payouts.pending_balance?.toFixed(2) ?? '0.00'}`} icon="clock" color="#F59E0B" />
@@ -1461,8 +1618,42 @@ const ShopDashboard = () => {
                     <StatCard label="Total Withdrawn" value={`$${payouts.total_withdrawn?.toFixed(2) ?? '0.00'}`} icon="arrow-up" color="#EF4444" />
                 </View>
 
+                {/* ─── Withdraw Section ─── */}
+                <View className="bg-white rounded-3xl p-5 mt-2" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                    <Text className="text-[16px] font-bold text-[#111827] mb-3">Withdraw Your Earnings</Text>
+                    <Text className="text-[13px] text-[#6B7280] mb-4">
+                        Payouts are processed via Stripe Connect directly to your linked bank account. Minimum payout is $10.00.
+                    </Text>
+                    
+                    {hasStripeAccount && isOnboardingComplete ? (
+                        <TouchableOpacity
+                            onPress={handleManageBank}
+                            className="bg-[#2355B6] rounded-xl py-3 px-4 flex-row items-center justify-center gap-2"
+                        >
+                            <Ionicons name="bank-outline" size={20} color="#FFFFFF" />
+                            <Text className="text-white font-semibold">Manage Bank</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            onPress={handleConnectStripe}
+                            disabled={stripeConnectLoading}
+                            className={`bg-[#E5E7EB] rounded-xl py-3 px-4 flex-row items-center justify-center gap-2 ${stripeConnectLoading ? 'opacity-70' : ''}`}
+                        >
+                            {stripeConnectLoading ? (
+                                <ActivityIndicator size="small" color="#6B7280" />
+                            ) : (
+                                <>
+                                    <Ionicons name="link-outline" size={20} color="#6B7280" />
+                                    <Text className="text-[#6B7280] font-semibold">Connect Stripe First</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {/* ─── Payout History ─── */}
                 {payouts.payout_history && payouts.payout_history.length > 0 ? (
-                    <View className="bg-white rounded-3xl p-5 mt-2" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                    <View className="bg-white rounded-3xl p-5 mt-4" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
                         <Text className="text-[18px] font-bold text-[#111827] mb-4">Payout History</Text>
                         {payouts.payout_history.map((item: any, index: number) => (
                             <View key={index} className="flex-row justify-between py-3 border-b border-[#E5E7EB] last:border-0">
@@ -1472,7 +1663,7 @@ const ShopDashboard = () => {
                         ))}
                     </View>
                 ) : (
-                    <View className="bg-white rounded-3xl p-5 mt-2 items-center" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
+                    <View className="bg-white rounded-3xl p-5 mt-4 items-center" style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
                         <Text className="text-[#7A8192] text-[14px]">No payout history yet.</Text>
                     </View>
                 )}
@@ -1480,7 +1671,7 @@ const ShopDashboard = () => {
         );
     };
 
-    // ── Seller Document Tab ──
+    // ─── Seller Document Tab ──
     const renderSellerDocument = () => {
         if (!sellerDocument) return (
             <View className="flex-1 items-center justify-center py-20">
@@ -1714,7 +1905,7 @@ const ShopDashboard = () => {
         );
     };
 
-    // ── Edit Profile Modal ──
+    // ─── Edit Profile Modal ──
     const renderEditProfileModal = () => (
         <Modal
             visible={editModalVisible}
@@ -2034,7 +2225,7 @@ const ShopDashboard = () => {
         </Modal>
     );
 
-    // ── Coupons Tab ──
+    // ─── Coupons Tab ──
     const renderCoupon = ({ item }: { item: CouponItem }) => {
         const isValid = item.is_valid && item.is_active;
         const badge = isValid ? { bg: '#EAF7EF', fg: '#2E9B63', text: 'Active' } : { bg: '#FDECEC', fg: '#E24A4A', text: 'Inactive' };
@@ -2234,6 +2425,39 @@ const ShopDashboard = () => {
 
                 {renderContent()}
                 {renderFAB()}
+
+                {/* ─── Stripe Connect WebView Modal ─── */}
+                <Modal
+                    visible={stripeModalVisible}
+                    animationType="slide"
+                    onRequestClose={() => setStripeModalVisible(false)}
+                    presentationStyle="fullScreen"
+                >
+                    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Connect Stripe Account</Text>
+                            <TouchableOpacity onPress={() => setStripeModalVisible(false)} style={{ padding: 8 }}>
+                                <Ionicons name="close" size={28} color="#1F2937" />
+                            </TouchableOpacity>
+                        </View>
+                        <WebView
+                            source={{ uri: stripeOnboardingUrl }}
+                            style={{ flex: 1 }}
+                            onNavigationStateChange={handleWebViewNavigation}
+                            startInLoadingState={true}
+                            renderLoading={() => (
+                                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                                    <ActivityIndicator size="large" color="#2355B6" />
+                                    <Text style={{ marginTop: 12, fontSize: 16, color: '#6B7280' }}>Loading Stripe...</Text>
+                                </View>
+                            )}
+                            javaScriptEnabled={true}
+                            domStorageEnabled={true}
+                            allowsInlineMediaPlayback={true}
+                            mediaPlaybackRequiresUserAction={false}
+                        />
+                    </SafeAreaView>
+                </Modal>
 
                 {/* Coupon Modal */}
                 <Modal

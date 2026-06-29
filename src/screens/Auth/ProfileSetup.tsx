@@ -18,6 +18,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import SuccessModal from '../../components/SuccessModal';
@@ -39,8 +40,18 @@ const ProfileSetup = () => {
 
     const [interestsItem, setInterestsItem] = useState<string[]>([]);
     const [image, setImage] = useState<any>(null);
-    const [address, setAddress] = useState<string>('Chicago IL');
     const [referCode, setReFerCode] = useState<string>('');
+
+    // ─── Shipping Address Fields ──────────────────────────────────────────────
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [addressLine1, setAddressLine1] = useState('');
+    const [addressLine2, setAddressLine2] = useState('');
+    const [city, setCity] = useState('');
+    const [state, setState] = useState('');
+    const [zipCode, setZipCode] = useState('');
+    const [country, setCountry] = useState('United States');
+
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -63,29 +74,67 @@ const ProfileSetup = () => {
             quality: 0.8,
         });
 
-        if (result.canceled) return; // ✅ important
+        if (result.canceled) return;
         setImage(result);
     };
 
     const selectedImageUri = image?.assets?.[0]?.uri;
 
     const handleSubmit = async () => {
-        
-        const selectedImage = image.assets[0];
+        // ─── Validations ──────────────────────────────────────────────────────
+        if (!firstName.trim()) {
+            Alert.alert('Error', 'Please enter your first name.');
+            return;
+        }
+        if (!lastName.trim()) {
+            Alert.alert('Error', 'Please enter your last name.');
+            return;
+        }
+        if (!addressLine1.trim()) {
+            Alert.alert('Error', 'Please enter your address.');
+            return;
+        }
+        if (!city.trim()) {
+            Alert.alert('Error', 'Please enter your city.');
+            return;
+        }
+        if (!state.trim()) {
+            Alert.alert('Error', 'Please enter your state.');
+            return;
+        }
+        if (!zipCode.trim()) {
+            Alert.alert('Error', 'Please enter your zip code.');
+            return;
+        }
+        if (!country.trim()) {
+            Alert.alert('Error', 'Please enter your country.');
+            return;
+        }
+
+        const selectedImage = image?.assets?.[0];
         const formData = new FormData();
         formData.append('email', params.email || '');
-        formData.append('address', address.trim());
+        formData.append('first_name', firstName.trim());
+        formData.append('last_name', lastName.trim());
+        formData.append('address', addressLine1.trim());
+        formData.append('address_2', addressLine2.trim());
+        formData.append('city', city.trim());
+        formData.append('state', state.trim());
+        formData.append('zip_code', zipCode.trim());
+        formData.append('country', country.trim());
         formData.append('interests', JSON.stringify(interestsItem));
         formData.append('referred_by_code', referCode.trim());
 
-        formData.append(
-            'profile_picture',
-            {
-                uri: selectedImage.uri,
-                type: selectedImage.mimeType || 'image/jpeg',
-                name: selectedImage.fileName || 'profile.jpg',
-            } as any,
-        );
+        if (selectedImage) {
+            formData.append(
+                'profile_picture',
+                {
+                    uri: selectedImage.uri,
+                    type: selectedImage.mimeType || 'image/jpeg',
+                    name: selectedImage.fileName || 'profile.jpg',
+                } as any,
+            );
+        }
 
         try {
             setLoading(true);
@@ -111,7 +160,10 @@ const ProfileSetup = () => {
         }
     };
 
-    const interests = ['Grocery', 'Electronics', 'Pets', 'Home', 'Beauty', 'Fashion', 'Automotive'];
+    const interests = [
+        'Grocery', 'Electronics', 'Pets', 'Home', 'Beauty', 'Fashion', 'Automotive',
+        'Sports', 'Books', 'Toys', 'Health', 'Garden', 'Others'
+    ];
 
     return (
         <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
@@ -134,7 +186,7 @@ const ProfileSetup = () => {
                         <Text style={styles.h1}>Let's get to know you</Text>
                         <Text style={styles.h2}>Customize your feed to see the best deals near you,</Text>
 
-                        {/* ✅ iOS-friendly avatar overlay (no absolute left-60) */}
+                        {/* Avatar */}
                         <View style={styles.avatarWrap}>
                             <TouchableOpacity onPress={pickImage} activeOpacity={0.9} style={styles.avatarTouch}>
                                 {selectedImageUri ? (
@@ -151,34 +203,140 @@ const ProfileSetup = () => {
 
                         <Text style={styles.uploadText}>Upload Photo</Text>
 
-                        <Text style={styles.label}>Location Address</Text>
+                        {/* ─── Shipping Address ────────────────────────────────── */}
+                        <Text style={styles.sectionTitle}>SHIPPING ADDRESS *</Text>
+
+                        <View style={styles.row}>
+                            <View style={[styles.halfInput, styles.mr2]}>
+                                <Text style={styles.label}>FIRST NAME *</Text>
+                                <View style={styles.inputRow}>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={firstName}
+                                        onChangeText={setFirstName}
+                                        placeholder="John"
+                                        placeholderTextColor="#9CA3AF"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+                            <View style={styles.halfInput}>
+                                <Text style={styles.label}>LAST NAME *</Text>
+                                <View style={styles.inputRow}>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={lastName}
+                                        onChangeText={setLastName}
+                                        placeholder="Doe"
+                                        placeholderTextColor="#9CA3AF"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        <Text style={styles.label}>ADDRESS LINE 1 *</Text>
                         <View style={styles.inputRow}>
                             <Ionicons name="location-sharp" size={24} color="#111827" style={styles.iconMr} />
                             <TextInput
                                 style={styles.textInput}
-                                value={address}
-                                onChangeText={setAddress}
-                                placeholder="Chicago IL"
+                                value={addressLine1}
+                                onChangeText={setAddressLine1}
+                                placeholder="123 Main St"
                                 placeholderTextColor="#9CA3AF"
                                 autoCorrect={false}
                             />
                         </View>
 
-                        <Text style={styles.label}>Referral Code</Text>
+                        <Text style={styles.label}>ADDRESS LINE 2 (APT/SUITE) (optional)</Text>
+                        <View style={styles.inputRow}>
+                            <Ionicons name="location-sharp" size={24} color="#111827" style={styles.iconMr} />
+                            <TextInput
+                                style={styles.textInput}
+                                value={addressLine2}
+                                onChangeText={setAddressLine2}
+                                placeholder="Apt 4B"
+                                placeholderTextColor="#9CA3AF"
+                                autoCorrect={false}
+                            />
+                        </View>
+
+                        <View style={styles.row}>
+                            <View style={[styles.halfInput, styles.mr2]}>
+                                <Text style={styles.label}>CITY *</Text>
+                                <View style={styles.inputRow}>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={city}
+                                        onChangeText={setCity}
+                                        placeholder="Chicago"
+                                        placeholderTextColor="#9CA3AF"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+                            <View style={styles.halfInput}>
+                                <Text style={styles.label}>STATE *</Text>
+                                <View style={styles.inputRow}>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={state}
+                                        onChangeText={setState}
+                                        placeholder="IL"
+                                        placeholderTextColor="#9CA3AF"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        <View style={styles.row}>
+                            <View style={[styles.halfInput, styles.mr2]}>
+                                <Text style={styles.label}>ZIP CODE *</Text>
+                                <View style={styles.inputRow}>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={zipCode}
+                                        onChangeText={setZipCode}
+                                        placeholder="60601"
+                                        placeholderTextColor="#9CA3AF"
+                                        keyboardType="numeric"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+                            <View style={styles.halfInput}>
+                                <Text style={styles.label}>COUNTRY *</Text>
+                                <View style={styles.inputRow}>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={country}
+                                        onChangeText={setCountry}
+                                        placeholder="United States"
+                                        placeholderTextColor="#9CA3AF"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* ─── Referral Code ───────────────────────────────────── */}
+                        <Text style={styles.label}>REFERRAL CODE (OPTIONAL)</Text>
                         <View style={styles.inputRow}>
                             <MaterialCommunityIcons name="account" size={24} color="#111827" style={styles.iconMr} />
                             <TextInput
                                 value={referCode}
                                 onChangeText={setReFerCode}
                                 style={styles.textInput}
-                                placeholder="Enter Referral Code (Optional)"
+                                placeholder="Enter code"
                                 placeholderTextColor="#9CA3AF"
                                 autoCorrect={false}
                                 autoCapitalize="none"
                             />
                         </View>
 
-                        <Text style={styles.interestsTitle}>Interests</Text>
+                        {/* ─── Interests ────────────────────────────────────────── */}
+                        <Text style={styles.interestsTitle}>INTERESTS</Text>
 
                         <View style={styles.chipsWrap}>
                             {interests.map((item) => {
@@ -196,6 +354,7 @@ const ProfileSetup = () => {
                             })}
                         </View>
 
+                        {/* ─── Submit Button ────────────────────────────────────── */}
                         <TouchableOpacity
                             style={[styles.mainButton, loading && { opacity: 0.7 }]}
                             onPress={handleSubmit}
@@ -203,7 +362,7 @@ const ProfileSetup = () => {
                             disabled={loading}
                         >
                             <View style={styles.btnRow}>
-                                <Text style={styles.mainButtonText}>{loading ? 'Saving...' : 'Save & Continue'}</Text>
+                                <Text style={styles.mainButtonText}>{loading ? 'Saving...' : 'Complete Setup'}</Text>
                                 <Fontisto name="arrow-right-l" size={22} color="white" />
                             </View>
                         </TouchableOpacity>
@@ -254,12 +413,28 @@ const styles = StyleSheet.create({
 
     uploadText: { color: '#2355B6', fontSize: 18, fontWeight: '800', textAlign: 'center', marginTop: 6 },
 
-    label: { color: '#636F85', fontSize: 18, marginTop: 16, marginBottom: 8, fontWeight: '600' },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#636F85',
+        marginTop: 20,
+        marginBottom: 12,
+        letterSpacing: 0.5,
+    },
+
+    label: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#636F85',
+        marginTop: 12,
+        marginBottom: 6,
+        letterSpacing: 0.3,
+    },
 
     inputRow: {
         borderWidth: 1,
         borderColor: '#D1D6DB',
-        borderRadius: 16,
+        borderRadius: 12,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 14,
@@ -274,9 +449,27 @@ const styles = StyleSheet.create({
         color: '#111827',
     },
 
-    interestsTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 18 },
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    halfInput: {
+        flex: 1,
+    },
+    mr2: {
+        marginRight: 10,
+    },
 
-    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+    interestsTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#111827',
+        marginTop: 20,
+        marginBottom: 8,
+        letterSpacing: 0.3,
+    },
+
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
     chip: { borderWidth: 2, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
     chipInactive: { borderColor: '#D1D6DB', backgroundColor: '#fff' },
     chipActive: { borderColor: '#2355B6', backgroundColor: '#EEF4FF' },
@@ -288,7 +481,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 18,
         alignItems: 'center',
-        marginTop: 18,
+        marginTop: 24,
     },
     btnRow: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
     mainButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
