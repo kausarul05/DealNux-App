@@ -1,4 +1,4 @@
-// ProductDetails.tsx - Fixed Version
+// ProductDetails.tsx - With Comparison Loading & Polling
 import {
     ADD_CART,
     ADD_FAVORITE,
@@ -18,7 +18,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
 import axios from 'axios'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
     ActivityIndicator,
     Animated,
@@ -34,10 +34,11 @@ import {
     TouchableOpacity,
     View,
     Share,
+    SafeAreaView,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
+import { WebView } from 'react-native-webview'
 
 import BackButton from '../../components/BackButton'
 import ChatModal from '../../components/ChatModal'
@@ -119,7 +120,84 @@ const getPlatformLogo = (platformName: string): ImageSourcePropType | null => {
     return null
 }
 
-// ─── Skeleton Loader (FIXED) ────────────────────────────────────────────────
+// ─── WebView Modal ────────────────────────────────────────────────────────────
+const WebViewModal = ({ 
+    visible, 
+    onClose, 
+    url,
+    title = 'External Link',
+}: { 
+    visible: boolean; 
+    onClose: () => void; 
+    url: string;
+    title?: string;
+}) => {
+    const [loading, setLoading] = useState(true);
+
+    if (!url) return null;
+
+    return (
+        <Modal
+            visible={visible}
+            animationType="slide"
+            onRequestClose={onClose}
+            presentationStyle="fullScreen"
+        >
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+                <View style={styles.webViewHeader}>
+                    <TouchableOpacity onPress={onClose} style={styles.webViewClose}>
+                        <Ionicons name="close" size={28} color="#1F2937" />
+                    </TouchableOpacity>
+                    <Text style={styles.webViewTitle} numberOfLines={1}>{title || 'External Link'}</Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(url)} style={styles.webViewOpen}>
+                        <Ionicons name="open-outline" size={22} color="#2355B6" />
+                    </TouchableOpacity>
+                </View>
+                {loading && (
+                    <View style={styles.webViewLoading}>
+                        <ActivityIndicator size="large" color="#2355B6" />
+                        <Text style={styles.webViewLoadingText}>Loading page...</Text>
+                    </View>
+                )}
+                <WebView
+                    source={{ uri: url }}
+                    style={styles.webView}
+                    onLoadStart={() => setLoading(true)}
+                    onLoadEnd={() => setLoading(false)}
+                    startInLoadingState={true}
+                    javaScriptEnabled={true}
+                    domStorageEnabled={true}
+                    allowsInlineMediaPlayback={true}
+                    mediaPlaybackRequiresUserAction={false}
+                />
+            </SafeAreaView>
+        </Modal>
+    )
+}
+
+// ─── Comparison Loading Component ────────────────────────────────────────────
+const ComparisonLoading = ({ progress, message }: { progress: number; message: string }) => {
+    return (
+        <View style={styles.compareLoadingContainer}>
+            <View style={styles.compareLoadingCard}>
+                <ActivityIndicator size="large" color="#2355B6" />
+                <Text style={styles.compareLoadingTitle}>Finding Best Prices</Text>
+                <Text style={styles.compareLoadingSubtitle}>{message}</Text>
+                <View style={styles.progressBarContainer}>
+                    <View style={[styles.progressBar, { width: `${progress}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{Math.round(progress)}%</Text>
+                <View style={styles.loadingDots}>
+                    <View style={[styles.loadingDot, styles.loadingDotActive]} />
+                    <View style={[styles.loadingDot, progress > 30 && styles.loadingDotActive]} />
+                    <View style={[styles.loadingDot, progress > 60 && styles.loadingDotActive]} />
+                </View>
+            </View>
+        </View>
+    )
+}
+
+// ─── Skeleton Loader ──────────────────────────────────────────────────────────
 const ProductDetailsSkeleton = () => {
     const shimmerAnim = useRef(new Animated.Value(0)).current
 
@@ -144,7 +222,6 @@ const ProductDetailsSkeleton = () => {
         return () => shimmer.stop()
     }, [])
 
-    // ✅ FIXED: Use number values for outputRange
     const SkeletonItem = ({ w, h, rounded = 8 }: { w: number; h: number; rounded?: number }) => {
         const translateX = shimmerAnim.interpolate({
             inputRange: [0, 1],
@@ -168,7 +245,7 @@ const ProductDetailsSkeleton = () => {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: 50 }}>
             <View style={{ paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <SkeletonItem w={40} h={40} rounded={20} />
                 <SkeletonItem w={120} h={20} rounded={6} />
@@ -280,6 +357,15 @@ const ProductDetails = () => {
 
     const [compareData, setCompareData] = useState<CompareData | null>(null)
     const [compareLoading, setCompareLoading] = useState(false)
+    const [compareProgress, setCompareProgress] = useState(0)
+    const [compareMessage, setCompareMessage] = useState('Checking prices...')
+    const [compareAttempts, setCompareAttempts] = useState(0)
+    const maxCompareAttempts = 5
+
+    // ─── WebView Modal State ──────────────────────────────────────────────────
+    const [webViewVisible, setWebViewVisible] = useState(false)
+    const [webViewUrl, setWebViewUrl] = useState('')
+    const [webViewTitle, setWebViewTitle] = useState('')
 
     const [actionLocked, setActionLocked] = useState(false)
     const [actionMessage, setActionMessage] = useState('Processing...')
@@ -297,6 +383,63 @@ const ProductDetails = () => {
         extrapolate: 'clamp',
     })
 
+    // ── Comparison Polling ────────────────────────────────────────────────────
+    const pollForCompareData = useCallback(async (slug: string, attempt = 0) => {
+        try {
+            const token = await AsyncStorage.getItem('vToken')
+            const url = `${API_BASE_URL}${COMPARE_PRODUCT}${slug}/`
+            const response = await axios.get(url, {
+                headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            })
+            
+            const data: CompareData = response?.data?.data ?? response?.data
+            
+            // Check if we have comparison data
+            if (data?.price_comparison && data.price_comparison.length > 0) {
+                setCompareData(data)
+                setCompareLoading(false)
+                setCompareProgress(100)
+                return true
+            }
+            
+            // If no data and we haven't exceeded max attempts
+            if (attempt < maxCompareAttempts) {
+                // Update progress based on attempt
+                const newProgress = Math.min(20 + (attempt * 16), 90)
+                setCompareProgress(newProgress)
+                
+                const messages = [
+                    'Searching across platforms...',
+                    'Checking Amazon...',
+                    'Checking eBay...',
+                    'Checking Walmart...',
+                    'Checking BestBuy...',
+                    'Almost done...'
+                ]
+                setCompareMessage(messages[Math.min(attempt, messages.length - 1)])
+                setCompareAttempts(attempt + 1)
+                
+                // Wait 2 seconds before next poll
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                return pollForCompareData(slug, attempt + 1)
+            }
+            
+            // Max attempts reached, show what we have or empty state
+            setCompareLoading(false)
+            setCompareProgress(100)
+            return false
+        } catch (err: any) {
+            console.log('compare error', err?.response?.data || err?.message)
+            if (attempt < maxCompareAttempts) {
+                setCompareProgress(Math.min(20 + (attempt * 16), 90))
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                return pollForCompareData(slug, attempt + 1)
+            }
+            setCompareLoading(false)
+            return false
+        }
+    }, [])
+
     // ── Fetch Functions ────────────────────────────────────────────────────────
     const fetchProductDetails = async () => {
         if (!productId) { setError('Product id missing'); return }
@@ -311,6 +454,14 @@ const ProductDetails = () => {
             setProduct(productData)
             setIsFavorite(productData?.is_favorite === true)
             setIsInCart(productData?.is_cart === true)
+            
+            // Start comparison fetch with polling
+            if (productData?.slug) {
+                setCompareLoading(true)
+                setCompareProgress(5)
+                setCompareMessage('Finding best deals...')
+                pollForCompareData(productData.slug, 0)
+            }
         } catch (err: any) {
             console.log('product details error', err?.response?.data || err?.message)
             setError('Failed to load product details')
@@ -318,23 +469,10 @@ const ProductDetails = () => {
     }
 
     const fetchCompare = async (slug: string) => {
-        if (!slug) return
-        try {
-            setCompareLoading(true)
-            const token = await AsyncStorage.getItem('vToken')
-            const url = `${API_BASE_URL}${COMPARE_PRODUCT}${slug}/`
-            const response = await axios.get(url, {
-                headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            })
-            const data: CompareData = response?.data?.data ?? response?.data
-            setCompareData(data)
-        } catch (err: any) {
-            console.log('compare error', err?.response?.data || err?.message)
-        } finally { setCompareLoading(false) }
+        // This is now handled by pollForCompareData
     }
 
     useEffect(() => { fetchProductDetails() }, [productId])
-    useEffect(() => { if (product?.slug) fetchCompare(product.slug) }, [product?.slug])
 
     // ── Toggle Favorite ──────────────────────────────────────────────────────
     const toggleFavorite = async () => {
@@ -387,32 +525,55 @@ const ProductDetails = () => {
         } finally { setCartLoading(false); setActionLocked(false) }
     }
 
-    // ── View / Open URL ──────────────────────────────────────────────────────
-    const viewControll = async () => {
-        if (actionLocked) return
-        const token = await AsyncStorage.getItem('vToken')
-        if (!token) { toast.show({ message: 'Token missing', type: 'error', style: 'top' }); return }
+    // ── View / Open URL with WebView ─────────────────────────────────────────
+    const openUrlInWebView = (url: string, title?: string) => {
+        if (!url) return
+        setWebViewUrl(url)
+        setWebViewTitle(title || 'External Link')
+        setWebViewVisible(true)
+    }
 
-        setActionLocked(true); setActionMessage('Opening product page...')
+    // ── View Deal ─────────────────────────────────────────────────────────────
+    const handleViewDeal = async () => {
+        if (actionLocked) return
+        
+        const token = await AsyncStorage.getItem('vToken')
+        if (!token) {
+            toast.show({ message: 'Token missing', type: 'error', style: 'top' })
+            return
+        }
+
+        setActionLocked(true)
+        setActionMessage('Opening product page...')
+
         try {
             axios.post(`${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`, {}, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
             }).catch(() => {})
-            if (mainListing?.external_url) {
-                const supported = await Linking.canOpenURL(mainListing.external_url)
-                if (supported) await Linking.openURL(mainListing.external_url)
-                else toast.show({ message: 'Cannot open this URL', type: 'error', style: 'top' })
+
+            const externalUrl = mainListing?.external_url
+            
+            if (externalUrl) {
+                openUrlInWebView(externalUrl, product?.title || 'Product Deal')
+            } else {
+                toast.show({ message: 'No external URL available', type: 'error', style: 'top' })
             }
-        } finally { setTimeout(() => setActionLocked(false), 500) }
+        } catch (error: any) {
+            console.error('View deal error:', error)
+            toast.show({ message: 'Failed to open product page', type: 'error', style: 'top' })
+        } finally {
+            setTimeout(() => setActionLocked(false), 500)
+        }
     }
 
-    const openUrl = async (url?: string) => {
-        if (!url) return
-        const supported = await Linking.canOpenURL(url)
-        if (supported) await Linking.openURL(url)
-        else toast.show({ message: 'Cannot open this URL', type: 'error', style: 'top' })
+    // ─── Handle Compare Item Press ────────────────────────────────────────────
+    const handleCompareItemPress = (item: CompareItem) => {
+        if (item.url) {
+            openUrlInWebView(item.url, item.seller || item.platform || 'Store')
+        }
     }
 
+    // ─── Handle Share ──────────────────────────────────────────────────────────
     const handleShare = async () => {
         try {
             await Share.share({
@@ -435,6 +596,7 @@ const ProductDetails = () => {
         : { uri: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400' }
 
     const isAvailable = mainListing?.is_available === true
+    const hasCompareData = sortedCompare.length > 0
 
     if (loading) return <ProductDetailsSkeleton />
     if (error || !product) return <EmptyState onRetry={fetchProductDetails} />
@@ -482,7 +644,7 @@ const ProductDetails = () => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Content */}
+                {/* Content - YOUR EXISTING DESIGN PRESERVED */}
                 <View style={styles.content}>
                     {/* Title & Meta */}
                     <View style={styles.titleSection}>
@@ -542,7 +704,7 @@ const ProductDetails = () => {
                             </TouchableOpacity>
 
                             {mainListing?.external_url ? (
-                                <TouchableOpacity style={styles.viewButton} onPress={viewControll} disabled={actionLocked}>
+                                <TouchableOpacity style={styles.viewButton} onPress={handleViewDeal} disabled={actionLocked}>
                                     <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.gradientBtn}>
                                         <MaterialCommunityIcons name="open-in-new" size={22} color="#FFF" />
                                         <Text style={styles.btnText}>View Deal</Text>
@@ -567,64 +729,69 @@ const ProductDetails = () => {
                         <Text style={styles.description}>{product?.description?.trim() || 'No description available.'}</Text>
                     </View>
 
-                    {/* Price Comparison */}
-                    {(compareLoading || sortedCompare.length > 0) && (
-                        <View style={styles.section}>
-                            <View style={styles.compareHeader}>
-                                <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
-                                {sortedCompare.length > 0 && <Text style={styles.compareCount}>{sortedCompare.length} stores</Text>}
-                            </View>
-
-                            {compareLoading ? (
-                                <View style={styles.compareLoading}>
-                                    <ActivityIndicator size="large" color="#2355B6" />
-                                    <Text style={styles.compareLoadingText}>Finding best prices...</Text>
-                                </View>
-                            ) : (
-                                <>
-                                    {compareData?.price_analysis?.potential_savings > 0 && (
-                                        <View style={styles.savingsBanner}>
-                                            <MaterialIcons name="savings" size={20} color="#16A34A" />
-                                            <Text style={styles.savingsText}>Save up to ${compareData.price_analysis.potential_savings.toFixed(2)}</Text>
-                                        </View>
-                                    )}
-
-                                    <FlatList
-                                        data={sortedCompare}
-                                        keyExtractor={(item, index) => String(item.listing_id ?? item.product_id ?? index)}
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={styles.compareList}
-                                        renderItem={({ item }) => (
-                                            <TouchableOpacity style={styles.compareItem} onPress={() => openUrl(item.url)} activeOpacity={0.8}>
-                                                <View style={styles.compareImageWrap}>
-                                                    {item.main_image ? (
-                                                        <Image source={{ uri: item.main_image }} style={styles.compareImage} resizeMode="cover" />
-                                                    ) : (
-                                                        <View style={styles.compareImageFallback}>
-                                                            <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
-                                                        </View>
-                                                    )}
-                                                    {item === sortedCompare[0] && (
-                                                        <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.bestDealBadge}>
-                                                            <Text style={styles.bestDealText}>⭐ BEST</Text>
-                                                        </LinearGradient>
-                                                    )}
-                                                </View>
-                                                <View style={styles.compareInfo}>
-                                                    <Text numberOfLines={1} style={styles.compareStore}>{item.seller || item.platform || 'Store'}</Text>
-                                                    <Text style={styles.comparePriceText}>${Number(item.total_price ?? item.price ?? 0).toFixed(2)}</Text>
-                                                    <View style={styles.compareArrow}>
-                                                        <MaterialCommunityIcons name="arrow-right" size={18} color="#2355B6" />
-                                                    </View>
-                                                </View>
-                                            </TouchableOpacity>
-                                        )}
-                                    />
-                                </>
-                            )}
+                    {/* Price Comparison Section */}
+                    <View style={styles.section}>
+                        <View style={styles.compareHeader}>
+                            <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
+                            {hasCompareData && <Text style={styles.compareCount}>{sortedCompare.length} stores</Text>}
                         </View>
-                    )}
+
+                        {compareLoading ? (
+                            <ComparisonLoading progress={compareProgress} message={compareMessage} />
+                        ) : hasCompareData ? (
+                            <>
+                                {compareData?.price_analysis?.potential_savings > 0 && (
+                                    <View style={styles.savingsBanner}>
+                                        <MaterialIcons name="savings" size={20} color="#16A34A" />
+                                        <Text style={styles.savingsText}>Save up to ${compareData.price_analysis.potential_savings.toFixed(2)}</Text>
+                                    </View>
+                                )}
+
+                                <FlatList
+                                    data={sortedCompare}
+                                    keyExtractor={(item, index) => String(item.listing_id ?? item.product_id ?? index)}
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.compareList}
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity 
+                                            style={styles.compareItem} 
+                                            onPress={() => handleCompareItemPress(item)} 
+                                            activeOpacity={0.8}
+                                        >
+                                            <View style={styles.compareImageWrap}>
+                                                {item.main_image ? (
+                                                    <Image source={{ uri: item.main_image }} style={styles.compareImage} resizeMode="cover" />
+                                                ) : (
+                                                    <View style={styles.compareImageFallback}>
+                                                        <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
+                                                    </View>
+                                                )}
+                                                {item === sortedCompare[0] && (
+                                                    <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.bestDealBadge}>
+                                                        <Text style={styles.bestDealText}>⭐ BEST</Text>
+                                                    </LinearGradient>
+                                                )}
+                                            </View>
+                                            <View style={styles.compareInfo}>
+                                                <Text numberOfLines={1} style={styles.compareStore}>{item.seller || item.platform || 'Store'}</Text>
+                                                <Text style={styles.comparePriceText}>${Number(item.total_price ?? item.price ?? 0).toFixed(2)}</Text>
+                                                <View style={styles.compareArrow}>
+                                                    <MaterialCommunityIcons name="arrow-right" size={18} color="#2355B6" />
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
+                                />
+                            </>
+                        ) : (
+                            <View style={styles.noCompareContainer}>
+                                <MaterialIcons name="compare-arrows" size={48} color="#D1D5DB" />
+                                <Text style={styles.noCompareTitle}>No price comparison available</Text>
+                                <Text style={styles.noCompareText}>We couldn't find this product on other platforms.</Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
             </Animated.ScrollView>
 
@@ -645,16 +812,28 @@ const ProductDetails = () => {
                 style={toast.style}
                 onHide={toast.hide}
             />
+
+            {/* ─── WebView Modal ──────────────────────────────────────────────── */}
+            <WebViewModal
+                visible={webViewVisible}
+                onClose={() => {
+                    setWebViewVisible(false)
+                    setWebViewUrl('')
+                    setWebViewTitle('')
+                }}
+                url={webViewUrl}
+                title={webViewTitle}
+            />
         </SafeAreaView>
     )
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    container: { flex: 1, backgroundColor: '#F8FAFC', marginTop: 50 },
     
     // Floating Header
-    floatingHeader: { position: 'absolute', top: 40, left: 0, right: 0, zIndex: 100, paddingTop: 8, backgroundColor: '#F8FAFC' },
+    floatingHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, paddingTop: 8, backgroundColor: '#F8FAFC' },
     blurHeader: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
     headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' },
@@ -713,8 +892,18 @@ const styles = StyleSheet.create({
     // Compare
     compareHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     compareCount: { fontSize: 13, color: '#64748B' },
-    compareLoading: { alignItems: 'center', paddingVertical: 30 },
-    compareLoadingText: { marginTop: 8, fontSize: 14, color: '#64748B' },
+    
+    compareLoadingContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
+    compareLoadingCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: '#E5E7EB' },
+    compareLoadingTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginTop: 16 },
+    compareLoadingSubtitle: { fontSize: 14, color: '#64748B', marginTop: 4, textAlign: 'center' },
+    progressBarContainer: { width: '100%', height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, marginTop: 16, overflow: 'hidden' },
+    progressBar: { height: '100%', backgroundColor: '#2355B6', borderRadius: 3 },
+    progressText: { fontSize: 12, color: '#64748B', marginTop: 6 },
+    loadingDots: { flexDirection: 'row', gap: 8, marginTop: 12 },
+    loadingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E5E7EB' },
+    loadingDotActive: { backgroundColor: '#2355B6' },
+    
     savingsBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#ECFDF5', borderRadius: 12, marginBottom: 16 },
     savingsText: { fontSize: 14, fontWeight: '600', color: '#065F46' },
     compareList: { gap: 12, paddingBottom: 8 },
@@ -729,9 +918,40 @@ const styles = StyleSheet.create({
     comparePriceText: { fontSize: 20, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
     compareArrow: { alignItems: 'flex-end' },
     
+    noCompareContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
+    noCompareTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginTop: 12 },
+    noCompareText: { fontSize: 14, color: '#64748B', marginTop: 4, textAlign: 'center' },
+    
     // Chat Button
     chatButton: { position: 'absolute', bottom: 24, right: 24, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
     chatGradient: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
+
+    // ─── WebView Styles ──────────────────────────────────────────────────────
+    webViewHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+    },
+    webViewClose: { padding: 8 },
+    webViewTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937', flex: 1, marginLeft: 8 },
+    webViewOpen: { padding: 8 },
+    webView: { flex: 1 },
+    webViewLoading: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    webViewLoadingText: { marginTop: 12, fontSize: 14, color: '#64748B' },
 })
 
 export default ProductDetails
