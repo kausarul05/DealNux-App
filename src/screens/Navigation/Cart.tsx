@@ -711,7 +711,7 @@ const CartInner = () => {
         Alert.alert(
           '🎉 Payment Successful!',
           'Your order has been placed successfully.',
-          [{ text: 'OK', onPress: () => navigation.navigate('SavingsSummary') }]
+          [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
         )
       }
     } catch {

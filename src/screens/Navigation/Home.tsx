@@ -779,11 +779,11 @@ const Home = () => {
             )}
 
             {/* Chat Button */}
-            <TouchableOpacity onPress={() => setChatModalVisible(true)} style={styles.chatButton}>
+            {/* <TouchableOpacity onPress={() => setChatModalVisible(true)} style={styles.chatButton}>
                 <LinearGradient colors={['#FFC649', '#F59E0B']} style={styles.chatGradient}>
                     <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
                 </LinearGradient>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <ChatModal
                 visible={chatModalVisible} onClose={() => setChatModalVisible(false)} />
