@@ -121,14 +121,14 @@ const getPlatformLogo = (platformName: string): ImageSourcePropType | null => {
 }
 
 // ─── WebView Modal ────────────────────────────────────────────────────────────
-const WebViewModal = ({ 
-    visible, 
-    onClose, 
+const WebViewModal = ({
+    visible,
+    onClose,
     url,
     title = 'External Link',
-}: { 
-    visible: boolean; 
-    onClose: () => void; 
+}: {
+    visible: boolean;
+    onClose: () => void;
     url: string;
     title?: string;
 }) => {
@@ -391,9 +391,9 @@ const ProductDetails = () => {
             const response = await axios.get(url, {
                 headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             })
-            
+
             const data: CompareData = response?.data?.data ?? response?.data
-            
+
             // Check if we have comparison data
             if (data?.price_comparison && data.price_comparison.length > 0) {
                 setCompareData(data)
@@ -401,13 +401,13 @@ const ProductDetails = () => {
                 setCompareProgress(100)
                 return true
             }
-            
+
             // If no data and we haven't exceeded max attempts
             if (attempt < maxCompareAttempts) {
                 // Update progress based on attempt
                 const newProgress = Math.min(20 + (attempt * 16), 90)
                 setCompareProgress(newProgress)
-                
+
                 const messages = [
                     'Searching across platforms...',
                     'Checking Amazon...',
@@ -418,12 +418,12 @@ const ProductDetails = () => {
                 ]
                 setCompareMessage(messages[Math.min(attempt, messages.length - 1)])
                 setCompareAttempts(attempt + 1)
-                
+
                 // Wait 2 seconds before next poll
                 await new Promise(resolve => setTimeout(resolve, 2000))
                 return pollForCompareData(slug, attempt + 1)
             }
-            
+
             // Max attempts reached, show what we have or empty state
             setCompareLoading(false)
             setCompareProgress(100)
@@ -454,7 +454,7 @@ const ProductDetails = () => {
             setProduct(productData)
             setIsFavorite(productData?.is_favorite === true)
             setIsInCart(productData?.is_cart === true)
-            
+
             // Start comparison fetch with polling
             if (productData?.slug) {
                 setCompareLoading(true)
@@ -518,7 +518,7 @@ const ProductDetails = () => {
             toast.show({ message: 'Added to cart successfully', type: 'success', style: 'top' })
             axios.post(`${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`, {}, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
-            }).catch(() => {})
+            }).catch(() => { })
         } catch (error: any) {
             const msg: string = error?.response?.data?.message || ''
             toast.show({ message: msg || 'Failed to add to cart', type: 'error', style: 'top' })
@@ -536,7 +536,7 @@ const ProductDetails = () => {
     // ── View Deal ─────────────────────────────────────────────────────────────
     const handleViewDeal = async () => {
         if (actionLocked) return
-        
+
         const token = await AsyncStorage.getItem('vToken')
         if (!token) {
             toast.show({ message: 'Token missing', type: 'error', style: 'top' })
@@ -549,10 +549,10 @@ const ProductDetails = () => {
         try {
             axios.post(`${API_BASE_URL}${TOTAL_SUMMERY_POST}${product?.slug}/record_purchase_intent/`, {}, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
-            }).catch(() => {})
+            }).catch(() => { })
 
             const externalUrl = mainListing?.external_url
-            
+
             if (externalUrl) {
                 openUrlInWebView(externalUrl, product?.title || 'Product Deal')
             } else {
@@ -591,9 +591,39 @@ const ProductDetails = () => {
         return [...compareData.price_comparison].sort((a, b) => a.total_price - b.total_price)
     }, [compareData])
 
-    const imageSource = product?.main_image
-        ? { uri: product.main_image }
-        : { uri: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400' }
+    const getProductImage = useCallback(() => {
+        // 1. First try: product's main_image
+        if (product?.main_image && product.main_image.trim() !== '') {
+            return { uri: product.main_image };
+        }
+
+        // 2. Second try: best deal image from compare data
+        if (compareData?.best_deal?.main_image && compareData.best_deal.main_image.trim() !== '') {
+            return { uri: compareData.best_deal.main_image };
+        }
+
+        // 3. Third try: first price comparison image
+        if (compareData?.price_comparison && compareData.price_comparison.length > 0) {
+            const firstItem = compareData.price_comparison[0];
+            if (firstItem.main_image && firstItem.main_image.trim() !== '') {
+                return { uri: firstItem.main_image };
+            }
+        }
+
+        // 4. Fourth try: check all price comparisons for any image
+        if (compareData?.price_comparison) {
+            for (const item of compareData.price_comparison) {
+                if (item.main_image && item.main_image.trim() !== '') {
+                    return { uri: item.main_image };
+                }
+            }
+        }
+
+        // 5. Fallback: placeholder
+        return { uri: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400' };
+    }, [product, compareData]);
+
+    const imageSource = getProductImage();
 
     const isAvailable = mainListing?.is_available === true
     const hasCompareData = sortedCompare.length > 0
@@ -631,11 +661,11 @@ const ProductDetails = () => {
                 <View style={styles.imageContainer}>
                     <Image source={imageSource} style={styles.heroImage} resizeMode="cover" />
                     <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)']} style={styles.imageGradient} />
-                    
+
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backOverlay}>
                         <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity onPress={toggleFavorite} disabled={favLoading} style={styles.favOverlay}>
                         <BlurView intensity={60} tint="dark" style={styles.favBlur}>
                             {favLoading ? <ActivityIndicator size="small" color="#EF4444" /> :
@@ -754,9 +784,9 @@ const ProductDetails = () => {
                                     showsHorizontalScrollIndicator={false}
                                     contentContainerStyle={styles.compareList}
                                     renderItem={({ item }) => (
-                                        <TouchableOpacity 
-                                            style={styles.compareItem} 
-                                            onPress={() => handleCompareItemPress(item)} 
+                                        <TouchableOpacity
+                                            style={styles.compareItem}
+                                            onPress={() => handleCompareItemPress(item)}
                                             activeOpacity={0.8}
                                         >
                                             <View style={styles.compareImageWrap}>
@@ -831,14 +861,14 @@ const ProductDetails = () => {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8FAFC', marginTop: 50 },
-    
+
     // Floating Header
     floatingHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, paddingTop: 8, backgroundColor: '#F8FAFC' },
     blurHeader: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
     headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' },
     headerTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: '#1F2937' },
-    
+
     // Hero Image
     imageContainer: { position: 'relative', width: '100%', height: 300, backgroundColor: '#F1F5F9' },
     heroImage: { width: '100%', height: '100%' },
@@ -846,10 +876,10 @@ const styles = StyleSheet.create({
     backOverlay: { position: 'absolute', top: 12, left: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
     favOverlay: { position: 'absolute', top: 12, right: 16, width: 44, height: 44, borderRadius: 22, overflow: 'hidden' },
     favBlur: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-    
+
     // Content
     content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
-    
+
     // Title Section
     titleSection: { marginBottom: 20 },
     productTitle: { fontSize: 22, fontWeight: '700', color: '#1F2937', lineHeight: 28, marginBottom: 8 },
@@ -859,7 +889,7 @@ const styles = StyleSheet.create({
     ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#FEF3C7', borderRadius: 20 },
     ratingText: { fontSize: 12, fontWeight: '700', color: '#92400E' },
     reviewCount: { fontSize: 11, color: '#92400E', opacity: 0.7 },
-    
+
     // Price Card
     priceCard: { padding: 20, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: '#BFDBFE' },
     priceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
@@ -875,7 +905,7 @@ const styles = StyleSheet.create({
     shippingCost: { fontSize: 13, color: '#64748B' },
     conditionBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 12 },
     conditionText: { fontSize: 11, fontWeight: '500', color: '#16A34A' },
-    
+
     // Action Row
     actionRow: { flexDirection: 'row', gap: 12 },
     shareButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB' },
@@ -883,16 +913,16 @@ const styles = StyleSheet.create({
     viewButton: { flex: 1 },
     gradientBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
     btnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-    
+
     // Section
     section: { marginBottom: 24 },
     sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 12 },
     description: { fontSize: 14, lineHeight: 22, color: '#64748B' },
-    
+
     // Compare
     compareHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     compareCount: { fontSize: 13, color: '#64748B' },
-    
+
     compareLoadingContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
     compareLoadingCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: '#E5E7EB' },
     compareLoadingTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginTop: 16 },
@@ -903,7 +933,7 @@ const styles = StyleSheet.create({
     loadingDots: { flexDirection: 'row', gap: 8, marginTop: 12 },
     loadingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E5E7EB' },
     loadingDotActive: { backgroundColor: '#2355B6' },
-    
+
     savingsBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#ECFDF5', borderRadius: 12, marginBottom: 16 },
     savingsText: { fontSize: 14, fontWeight: '600', color: '#065F46' },
     compareList: { gap: 12, paddingBottom: 8 },
@@ -917,11 +947,11 @@ const styles = StyleSheet.create({
     compareStore: { fontSize: 12, fontWeight: '500', color: '#64748B', marginBottom: 4 },
     comparePriceText: { fontSize: 20, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
     compareArrow: { alignItems: 'flex-end' },
-    
+
     noCompareContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
     noCompareTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginTop: 12 },
     noCompareText: { fontSize: 14, color: '#64748B', marginTop: 4, textAlign: 'center' },
-    
+
     // Chat Button
     chatButton: { position: 'absolute', bottom: 24, right: 24, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
     chatGradient: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },

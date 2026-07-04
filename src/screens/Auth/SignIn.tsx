@@ -1,4 +1,4 @@
-import { IPA_BASE, LOGIN } from '@env';
+import { IPA_BASE, LOGIN, REGISTER } from '@env';
 import { Entypo, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -62,6 +62,8 @@ const SignIn = () => {
         };
         loadRememberedData();
     }, []);
+
+
 
     const handleRememberMeChange = async (value: boolean) => {
         setRememberMe(value);
