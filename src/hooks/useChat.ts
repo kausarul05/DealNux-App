@@ -1,4 +1,3 @@
-// hooks/useChat.ts
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { chatService, ChatMessage } from '../services/chatService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -12,11 +11,6 @@ export interface ChatState {
     suggestedReplies: string[]
 }
 
-// All reconnect/backoff/token-refresh decisions live here, in ONE place.
-// The service (chatService.ts) does not auto-reconnect on its own anymore —
-// it just opens a socket and reports what happened. This file is the only
-// place that decides what to do next, so there's no race between two
-// independent retry loops fighting over the same token.
 export const useChat = () => {
     const [state, setState] = useState<ChatState>({
         messages: [],
@@ -33,9 +27,13 @@ export const useChat = () => {
     const triedFreshTokenRef = useRef(false)
     const maxAttempts = 4
     const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // Until the user actually sends a message, ignore unsolicited server
+    // pushes (e.g. the proactive "I found some price drops" greeting that
+    // fires right after connecting). Without this it repeats on every
+    // reconnect.
+    const hasUserSentRef = useRef(false)
 
     const setupListeners = useCallback(() => {
-        // Clear old listeners so they don't pile up across re-init calls.
         chatService['messageListeners'] = []
         chatService['connectListeners'] = []
         chatService['disconnectListeners'] = []
@@ -72,10 +70,16 @@ export const useChat = () => {
         })
 
         chatService.onMessage((data) => {
+            // Drop server-pushed messages that arrive before the user has
+            // asked anything.
+            if (!hasUserSentRef.current) {
+                console.log('🙈 Ignoring unsolicited pre-chat message')
+                return
+            }
             console.log('📥 Message received')
             setState(prev => ({
                 ...prev,
-                messages: [...prev.messages, data],
+                messages: [...prev.messages, { ...data, sender: 'assistant' }],
                 products: data.products || [],
                 suggestedReplies: data.suggested_replies || [],
                 isLoading: false,
@@ -87,14 +91,11 @@ export const useChat = () => {
     const handleConnectFailure = useCallback((error: any) => {
         const isHandshakeRejection = !!error?.isHandshakeRejection
 
-        // Case 1: server rejected the handshake itself (likely a stale/expired
-        // guest token). Try exactly once with a freshly-fetched token.
         if (isHandshakeRejection && !triedFreshTokenRef.current) {
             triedFreshTokenRef.current = true
             console.log('🔄 Handshake rejected — fetching a fresh token and retrying once')
             isLoadingRef.current = false
             setState(prev => ({ ...prev, error: null }))
-            // Small delay so we don't hammer the server immediately.
             retryTimerRef.current = setTimeout(() => doInitialize(true), 800)
             return
         }
@@ -130,12 +131,8 @@ export const useChat = () => {
             const token = await chatService.getGuestToken(forceFreshToken)
             setupListeners()
             await chatService.connect(token)
-            // onConnect listener handles success state.
         } catch (error: any) {
             console.error('❌ Chat initialization error:', error?.message ?? error)
-            // connect() rejecting here means onConnectError already ran via the
-            // listener in most cases, but guard in case it threw before listeners
-            // were attached (e.g. getGuestToken failed).
             if (error?.isHandshakeRejection || /403|forbidden/i.test(error?.message || '')) {
                 handleConnectFailure({ ...error, isHandshakeRejection: true })
             } else {
@@ -162,12 +159,12 @@ export const useChat = () => {
             return
         }
 
+        hasUserSentRef.current = true
         setState(prev => ({ ...prev, isLoading: true }))
 
         const userMessage: ChatMessage = {
             reply_text: message,
-            products: [],
-            suggested_replies: [],
+            sender: 'user',
         }
         setState(prev => ({
             ...prev,
@@ -199,6 +196,7 @@ export const useChat = () => {
     }, [])
 
     const clearMessages = useCallback(() => {
+        hasUserSentRef.current = false
         setState(prev => ({
             ...prev,
             messages: [],

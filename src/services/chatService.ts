@@ -1,5 +1,7 @@
 // services/chatService.ts
 import AsyncStorage from '@react-native-async-storage/async-storage'
+// IMPORTANT: Use this library instead of React Native's built-in WebSocket
+// import WebSocket from 'react-native-websocket'
 
 const CHAT_API_URL = 'https://ai.dealnux.shop'
 const CHAT_WS_URL = 'wss://ai.dealnux.shop'
@@ -22,6 +24,7 @@ export interface ChatMessage {
     reply_text: string
     products?: ChatProduct[]
     suggested_replies?: string[]
+    sender?: 'user' | 'assistant'   // NEW
 }
 
 export interface GuestTokenResponse {
@@ -30,8 +33,7 @@ export interface GuestTokenResponse {
 }
 
 class ChatService {
-    // Use the global WebSocket type that React Native ships with.
-    private socket: WebSocket | null = null
+    private socket: any = null
     private token: string | null = null
     private userId: string | null = null
     private isConnecting = false
@@ -58,7 +60,7 @@ class ChatService {
                     return storedToken
                 }
             } else {
-                console.log('🔄 Forcing fresh guest token (previous one was rejected)...')
+                console.log('🔄 Forcing fresh guest token...')
                 await AsyncStorage.removeItem('chat_guest_token')
                 await AsyncStorage.removeItem('chat_guest_user_id')
             }
@@ -96,7 +98,7 @@ class ChatService {
         }
     }
 
-    async connect(token: string): Promise<WebSocket> {
+    async connect(token: string): Promise<any> {
         if (this.isConnecting) {
             console.log('⏳ Connection already in progress...')
             return new Promise((resolve, reject) => {
@@ -131,7 +133,6 @@ class ChatService {
         this.reconnectAttempts = 0
         this.token = token
 
-        // Use wss:// (not ws://) since the API is served over https.
         const wsUrl = `${CHAT_WS_URL}/api/chat?token=${encodeURIComponent(token)}`
         console.log(`🔗 Connecting to: ${wsUrl}`)
 
@@ -140,8 +141,14 @@ class ChatService {
             let connectionTimeout: ReturnType<typeof setTimeout>
 
             try {
-                // React Native's built-in global WebSocket — same API as the browser.
-                const socket = new WebSocket(wsUrl)
+                // FIX: Use react-native-websocket with headers matching curl
+                // @ts-expect-error - RN's WebSocket type defs don't declare the 3rd (options) arg, but it works at runtime
+                const socket = new WebSocket(wsUrl, [], {
+                    headers: {
+                        'User-Agent': 'DealnuxMobileApp/1.0',
+                    },
+                }) as WebSocket
+
                 this.socket = socket
 
                 connectionTimeout = setTimeout(() => {
@@ -149,17 +156,16 @@ class ChatService {
                         settled = true
                         this.isConnecting = false
                         console.log('❌ Connection timeout')
-                        // Tear down the half-open socket so it doesn't linger.
                         try {
                             socket.close()
-                        } catch {}
+                        } catch { }
                         reject(new Error('Connection timeout'))
                     }
                 }, 15000)
 
                 socket.onopen = () => {
                     clearTimeout(connectionTimeout)
-                    console.log('✅ WebSocket connected successfully')
+                    console.log('✅ WebSocket connected successfully!')
                     this.isConnecting = false
                     this.reconnectAttempts = 0
                     this.connectListeners.forEach(listener => listener())
@@ -171,24 +177,26 @@ class ChatService {
 
                 socket.onmessage = (event: any) => {
                     try {
-                        const data = JSON.parse(event.data)
+                        // Handle different message formats
+                        let data
+                        if (typeof event.data === 'string') {
+                            data = JSON.parse(event.data)
+                        } else if (event.data instanceof ArrayBuffer) {
+                            // Handle binary data if needed
+                            const text = new TextDecoder().decode(event.data)
+                            data = JSON.parse(text)
+                        } else {
+                            data = event.data
+                        }
                         console.log('📥 Received message:', data)
                         this.messageListeners.forEach(listener => listener(data))
                     } catch (error) {
-                        console.log('❌ Failed to parse message:', error)
+                        console.log('❌ Failed to parse message:', error, 'Raw data:', event.data)
                     }
                 }
 
                 socket.onerror = (error: any) => {
-                    // IMPORTANT: on Android/RN, onerror fires with a near-empty
-                    // Event object (no .message, no .code, no .reason) BEFORE
-                    // onclose fires with the actually useful info (close code +
-                    // reason, e.g. "1006 ... 403 Forbidden"). If we reject the
-                    // connect promise here, we lock in `settled = true` with
-                    // garbage, and onclose's real diagnostic info never reaches
-                    // the caller. So: just log and notify error listeners here,
-                    // and let onclose be the only place that settles the promise.
-                    console.log('❌ WebSocket error (see onclose for real reason):', error?.message ?? 'no message')
+                    console.log('❌ WebSocket error:', error?.message ?? 'no message')
                     this.errorListeners.forEach(listener => listener(error))
                 }
 
@@ -199,41 +207,21 @@ class ChatService {
                     this.lastCloseReason = event.reason || ''
                     this.disconnectListeners.forEach(listener => listener())
 
-                    // If we never got past onopen, the server rejected the handshake
-                    // itself (auth, CORS, bad path, etc — common cause: 403 on a
-                    // stale/expired guest token). Mark this clearly so the caller
-                    // knows NOT to just retry with the same token blindly.
                     if (!settled) {
                         settled = true
                         clearTimeout(connectionTimeout)
                         const reasonText = event.reason || ''
-                        // A 1006 WITH a reason string (e.g. "Expected HTTP 101
-                        // response but was '403 Forbidden'") means the server
-                        // actively rejected the upgrade — that's an auth/token
-                        // problem worth retrying with a fresh token. A bare 1006
-                        // with NO reason is usually just a dropped connection
-                        // (no wifi, DNS hiccup, etc) and retrying with a new
-                        // token won't help — that should go through normal
-                        // backoff instead.
                         const looksLikeAuthRejection =
                             (event.code === 1006 && reasonText.length > 0) ||
                             event.code === 1008 ||
                             /403|forbidden|unauthorized|401/i.test(reasonText)
                         const err = new Error(reasonText || `Socket closed before connecting (code ${event.code})`)
-                        ;(err as any).closeCode = event.code
-                        ;(err as any).isHandshakeRejection = looksLikeAuthRejection
+                            ; (err as any).closeCode = event.code
+                            ; (err as any).isHandshakeRejection = looksLikeAuthRejection
                         this.connectErrorListeners.forEach(listener => listener(err))
                         reject(err)
                         return
                     }
-
-                    // NOTE: No internal auto-reconnect here on purpose. Retrying
-                    // with the same token from inside the service caused it to
-                    // loop forever on a 403 (stale token) without ever letting
-                    // the caller fetch a fresh one. Reconnection/backoff is the
-                    // caller's responsibility (see useChat.ts), since only the
-                    // caller knows whether the close was an auth rejection that
-                    // needs a new token vs. a transient network drop.
                 }
             } catch (error: any) {
                 console.log('❌ Connection error:', error)
