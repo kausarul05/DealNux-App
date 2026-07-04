@@ -1,4 +1,4 @@
-// Cart.tsx - With Shipping Address + Stripe Payment Sheet
+// Cart.tsx - With Shipping Address + Stripe Payment Sheet + Referral Balance
 import { CART_PRODUCT, CART_REMOVE, CART_UPDATE, IPA_BASE, STRIPE_PUBLISHABLE_KEY } from '@env'
 import {
   MaterialIcons,
@@ -27,6 +27,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -126,6 +127,11 @@ type CheckoutResponse = {
   breakdown: CheckoutBreakdown
 }
 
+type ReferralBalance = {
+  referral_reward_amount: number
+  user_referral_amount: number
+}
+
 const DEFAULT_COUPON_STATE: CouponState = {
   expanded: false, code: '', applied: false,
   applying: false, message: '', discountAmount: 0,
@@ -148,15 +154,26 @@ const PLACEHOLDER_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(`
 
 // ─── Shipping Address Modal ───────────────────────────────────────────────────
 const ShippingAddressModal = ({
-  visible, onClose, onContinue, loading,
+  visible, onClose, onContinue, loading, referralBalance,
 }: {
   visible: boolean
   onClose: () => void
-  onContinue: (address: ShippingAddress) => void
+  onContinue: (address: ShippingAddress, useBalance: boolean) => void
   loading: boolean
+  referralBalance: ReferralBalance | null
 }) => {
   const [form, setForm] = useState<ShippingAddress>(DEFAULT_SHIPPING)
   const [errors, setErrors] = useState<Partial<ShippingAddress>>({})
+  const [useBalance, setUseBalance] = useState(false)
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (visible) {
+      setForm(DEFAULT_SHIPPING)
+      setErrors({})
+      setUseBalance(false)
+    }
+  }, [visible])
 
   const set = (key: keyof ShippingAddress, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -176,7 +193,9 @@ const ShippingAddressModal = ({
     return Object.keys(e).length === 0
   }
 
-  const handleContinue = () => { if (validate()) onContinue(form) }
+  const handleContinue = () => {
+    if (validate()) onContinue(form, useBalance)
+  }
 
   const Field = ({
     label, fieldKey, placeholder, half = false, keyboardType = 'default', autoCapitalize = 'words',
@@ -198,6 +217,8 @@ const ShippingAddressModal = ({
       {!!errors[fieldKey] && <Text style={styles.fieldError}>{errors[fieldKey]}</Text>}
     </View>
   )
+
+  const hasBalance = referralBalance && referralBalance.user_referral_amount > 0
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -234,6 +255,40 @@ const ShippingAddressModal = ({
                 <Field label="ZIP Code *" fieldKey="zip_code" placeholder="60601" half keyboardType="numeric" autoCapitalize="none" />
                 <Field label="Country *" fieldKey="country" placeholder="US" half autoCapitalize="characters" />
               </View>
+
+              {/* Referral Balance Toggle */}
+              <View style={styles.balanceSection}>
+                <View style={styles.balanceHeader}>
+                  <View style={styles.balanceInfo}>
+                    <Ionicons name="wallet-outline" size={20} color="#2355B6" />
+                    <Text style={styles.balanceTitle}>Use Referral Balance</Text>
+                  </View>
+                  <Switch
+                    value={useBalance}
+                    onValueChange={setUseBalance}
+                    trackColor={{ false: '#D1D5DB', true: '#2355B6' }}
+                    thumbColor={useBalance ? '#FFFFFF' : '#FFFFFF'}
+                    disabled={!hasBalance}
+                  />
+                </View>
+                {hasBalance ? (
+                  <Text style={styles.balanceAmount}>
+                    Available: ${referralBalance.user_referral_amount.toFixed(2)}
+                  </Text>
+                ) : (
+                  <Text style={styles.balanceEmpty}>
+                    No referral balance available
+                  </Text>
+                )}
+                {useBalance && hasBalance && (
+                  <View style={styles.balanceNoteContainer}>
+                    <Ionicons name="information-circle" size={16} color="#6B7280" />
+                    <Text style={styles.balanceNote}>
+                      Your referral balance will be applied to this order
+                    </Text>
+                  </View>
+                )}
+              </View>
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -264,12 +319,14 @@ const ShippingAddressModal = ({
 // ─── Payment Summary Modal ────────────────────────────────────────────────────
 const PaymentSummaryModal = ({
   visible, onClose, onConfirmPayment, breakdown, currency,
-  platformEntries, paymentLoading, shippingAddress,
+  platformEntries, paymentLoading, shippingAddress, useBalance, referralBalance,
 }: {
   visible: boolean; onClose: () => void; onConfirmPayment: () => void
   breakdown: CheckoutBreakdown | null; currency: string
   platformEntries: [string, CartUiItem[]][]; paymentLoading: boolean
   shippingAddress: ShippingAddress | null
+  useBalance: boolean
+  referralBalance: ReferralBalance | null
 }) => {
   const fmt = (amount: number, cur = 'USD') => {
     const c = cur?.toUpperCase?.() || 'USD'
@@ -279,6 +336,10 @@ const PaymentSummaryModal = ({
   const totalItems = platformEntries.reduce(
     (sum, [, items]) => sum + items.reduce((acc, i) => acc + i.selectedQty, 0), 0
   )
+
+  const balanceAmount = useBalance && referralBalance ? referralBalance.user_referral_amount : 0
+  const grandTotal = breakdown?.grand_total || 0
+  const finalTotal = Math.max(0, grandTotal - balanceAmount)
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -371,11 +432,33 @@ const PaymentSummaryModal = ({
                     <Text style={styles.breakdownValue}>{fmt(breakdown.tax, currency)}</Text>
                   </View>
                 )}
+
+                {/* Referral Balance */}
+                {useBalance && balanceAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: '#16A34A' }]}>
+                      Referral Balance Applied
+                    </Text>
+                    <Text style={[styles.breakdownValue, { color: '#16A34A' }]}>
+                      -{fmt(balanceAmount, currency)}
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.divider} />
                 <View style={styles.breakdownRow}>
                   <Text style={styles.grandTotalLabel}>Grand Total</Text>
-                  <Text style={styles.grandTotalValue}>{fmt(breakdown.grand_total, currency)}</Text>
+                  <Text style={styles.grandTotalValue}>{fmt(finalTotal, currency)}</Text>
                 </View>
+
+                {useBalance && balanceAmount > 0 && (
+                  <View style={styles.savedContainer}>
+                    <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                    <Text style={styles.savedText}>
+                      You saved {fmt(balanceAmount, currency)} using referral balance!
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
           </ScrollView>
@@ -392,7 +475,7 @@ const PaymentSummaryModal = ({
                   <View style={styles.payButtonContent}>
                     <Ionicons name="card-outline" size={22} color="#FFFFFF" />
                     <Text style={styles.payButtonText}>
-                      Pay {breakdown ? `$${breakdown.grand_total.toFixed(2)}` : 'Now'}
+                      Pay {finalTotal > 0 ? fmt(finalTotal, currency) : '$0.00'}
                     </Text>
                     <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                   </View>
@@ -409,7 +492,7 @@ const PaymentSummaryModal = ({
 
 // ─── Sticky Bottom Bar ────────────────────────────────────────────────────────
 const StickyBottomBar = ({
-  onCheckout, disabled, bottomInset = 0,
+  totalItems, totalPrice, currency, onCheckout, disabled, bottomInset = 0,
 }: {
   totalItems: number; totalPrice: number; currency: string
   onCheckout: () => void; disabled: boolean; bottomInset?: number
@@ -420,10 +503,21 @@ const StickyBottomBar = ({
   }, [])
   const translateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [100, 0] })
 
+  const fmt = (amount: number, cur = 'USD') => {
+    const c = cur?.toUpperCase?.() || 'USD'
+    return `${c === 'USD' ? '$' : `${c} `}${amount.toFixed(2)}`
+  }
+
   return (
     <Animated.View style={{ transform: [{ translateY }], position: 'absolute', bottom: bottomInset, left: 0, right: 0, zIndex: 50 }}>
       <LinearGradient colors={['rgba(255,255,255,0)', '#FFFFFF', '#FFFFFF']} style={{ paddingTop: 20 }}>
         <View style={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 16, backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 8, borderTopWidth: 1, borderColor: '#E5E7EB' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ color: '#6B7280', fontSize: 14 }}>Total:</Text>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#2355B6' }}>
+              {fmt(totalPrice, currency)}
+            </Text>
+          </View>
           <TouchableOpacity onPress={onCheckout} disabled={disabled} activeOpacity={0.8}>
             <LinearGradient colors={disabled ? ['#94A3B8', '#64748B'] : ['#2355B6', '#1A4D8F']} style={{ borderRadius: 16, overflow: 'hidden' }}>
               <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
@@ -493,6 +587,10 @@ const CartInner = () => {
   const [couponMap, setCouponMap] = useState<CouponMapState>({})
   const [scrollEnabled, setScrollEnabled] = useState(true)
 
+  // Referral Balance
+  const [referralBalance, setReferralBalance] = useState<ReferralBalance | null>(null)
+  const [useBalance, setUseBalance] = useState(false)
+
   // Checkout flow
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [shippingModalVisible, setShippingModalVisible] = useState(false)
@@ -556,6 +654,20 @@ const CartInner = () => {
     return nextState
   }
 
+  // ── Fetch Referral Balance ────────────────────────────────────────────────
+  const fetchReferralBalance = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('vToken')
+      if (!token) return
+      const res = await axios.get(`${API_BASE_URL}account/site-settings/`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      })
+      setReferralBalance(res.data)
+    } catch (error) {
+      console.error('Error fetching referral balance:', error)
+    }
+  }, [])
+
   // ── Fetch Cart ─────────────────────────────────────────────────────────────
   const fetchCart = useCallback(async (showLoading = true) => {
     try {
@@ -586,19 +698,24 @@ const CartInner = () => {
     }
   }, [])
 
-  useFocusEffect(useCallback(() => { fetchCart(true) }, [fetchCart]))
+  useFocusEffect(useCallback(() => {
+    fetchCart(true)
+    fetchReferralBalance()
+  }, [fetchCart, fetchReferralBalance]))
 
   const onRefresh = async () => {
-    try { setRefreshing(true); await fetchCart(false) } catch { setRefreshing(false) }
+    try {
+      setRefreshing(true)
+      await Promise.all([fetchCart(false), fetchReferralBalance()])
+    } catch { setRefreshing(false) }
   }
 
-  // ── Computed (needs to be before buildCheckoutItems) ──────────────────────
+  // ── Computed ──────────────────────────────────────────────────────────────
   const platformEntries = useMemo(() =>
     Object.entries(platformItems ?? {}).sort(([, a], [, b]) => (a[0]?._orderIndex ?? 0) - (b[0]?._orderIndex ?? 0)),
     [platformItems]
   )
 
-  // ── ✅ Build checkout body ─────────────────────────────────────────────────
   const buildCheckoutItems = () => {
     const items: { seller_product: number; quantity: number; coupon_code: string }[] = []
     platformEntries.forEach(([platformName, cartItems]) => {
@@ -615,16 +732,24 @@ const CartInner = () => {
   }
 
   // ── ✅ Step 1: Open shipping modal ─────────────────────────────────────────
-  const handleCheckout = () => setShippingModalVisible(true)
+  const handleCheckout = () => {
+    setUseBalance(false)
+    setShippingModalVisible(true)
+  }
 
   // ── ✅ Step 2: Shipping done → hit checkout API ────────────────────────────
-  const handleShippingSubmit = async (address: ShippingAddress) => {
+  const handleShippingSubmit = async (address: ShippingAddress, useReferralBalance: boolean) => {
     try {
       setCheckoutLoading(true)
       setShippingAddress(address)
+      setUseBalance(useReferralBalance)
 
       const token = await AsyncStorage.getItem('vToken')
-      if (!token) { Alert.alert('Error', 'Please login to continue.'); return }
+      if (!token) {
+        Alert.alert('Error', 'Please login to continue.')
+        setCheckoutLoading(false)
+        return
+      }
 
       const body = {
         items: buildCheckoutItems(),
@@ -638,6 +763,7 @@ const CartInner = () => {
           zip_code: address.zip_code,
           country: address.country,
         },
+        use_balance: useReferralBalance,
       }
 
       console.log('📦 Checkout body:', JSON.stringify(body, null, 2))
@@ -653,6 +779,29 @@ const CartInner = () => {
       console.log('✅ Checkout response:', res.data)
       const data: CheckoutResponse = res.data
 
+      // ✅ Check if order was placed successfully using balance (no payment intent needed)
+      if (data.success === true && !data.payment_intent_client_secret) {
+        // Order placed successfully using referral balance
+        setShippingModalVisible(false)
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        // Show success message
+        Alert.alert(
+          '🎉 Order Placed!',
+          data.message || 'Your order has been placed successfully using your referral balance.',
+          [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
+        )
+
+        // Clear checkout data and refresh cart
+        setCheckoutData(null)
+        setShippingAddress(null)
+        setCheckoutLoading(false)
+        await fetchCart(false)
+        await fetchReferralBalance()
+        return
+      }
+
+      // ✅ Normal flow - requires Stripe payment
       if (!data.payment_intent_client_secret) {
         Alert.alert('Error', 'Could not initialize payment. Please try again.')
         return
@@ -673,7 +822,21 @@ const CartInner = () => {
 
   // ── ✅ Step 3: Stripe Payment Sheet ───────────────────────────────────────
   const handleConfirmPayment = async () => {
-    if (!checkoutData?.payment_intent_client_secret) return
+    // If there's no payment intent secret, the order was already placed using balance
+    if (!checkoutData?.payment_intent_client_secret) {
+      Alert.alert(
+        '🎉 Order Placed!',
+        'Your order has been placed successfully using your referral balance.',
+        [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
+      )
+      setCheckoutData(null)
+      setShippingAddress(null)
+      setSummaryModalVisible(false)
+      await fetchCart(false)
+      await fetchReferralBalance()
+      return
+    }
+
     try {
       setPaymentLoading(true)
 
@@ -681,11 +844,12 @@ const CartInner = () => {
         paymentIntentClientSecret: checkoutData.payment_intent_client_secret,
         merchantDisplayName: 'DealNux',
         appearance: { colors: { primary: '#2355B6' } },
-        returnURL: 'savvyshopper://payment-complete', 
+        returnURL: 'savvyshopper://payment-complete',
       })
 
       if (initError) {
         Alert.alert('Payment Error', initError.message || 'Failed to initialize payment.')
+        setPaymentLoading(false)
         return
       }
 
@@ -700,21 +864,22 @@ const CartInner = () => {
         } else {
           Alert.alert('Payment Failed', payError.message || 'Payment could not be completed.')
         }
-      } else {
-        // ✅ Clear payment state
-        setCheckoutData(null)
-        setShippingAddress(null)
-
-        // ✅ Refresh cart so cleared items show immediately
-        await fetchCart(false)
-
-        Alert.alert(
-          '🎉 Payment Successful!',
-          'Your order has been placed successfully.',
-          [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
-        )
+        setPaymentLoading(false)
+        return
       }
-    } catch {
+
+      // ✅ Payment successful
+      setCheckoutData(null)
+      setShippingAddress(null)
+      await fetchCart(false)
+      await fetchReferralBalance()
+
+      Alert.alert(
+        '🎉 Payment Successful!',
+        'Your order has been placed successfully.',
+        [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
+      )
+    } catch (error) {
       Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
       setPaymentLoading(false)
@@ -1056,6 +1221,7 @@ const CartInner = () => {
         onClose={() => setShippingModalVisible(false)}
         onContinue={handleShippingSubmit}
         loading={checkoutLoading}
+        referralBalance={referralBalance}
       />
 
       {/* ✅ Step 2 — Order Summary + Pay Modal */}
@@ -1068,6 +1234,8 @@ const CartInner = () => {
         platformEntries={platformEntries}
         paymentLoading={paymentLoading}
         shippingAddress={shippingAddress}
+        useBalance={useBalance}
+        referralBalance={referralBalance}
       />
     </SafeAreaView>
   )
@@ -1126,4 +1294,67 @@ const styles = StyleSheet.create({
   payButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   payButtonText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
   secureText: { fontSize: 12, color: '#94A3B8', marginTop: 10 },
+  // Balance styles
+  balanceSection: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  balanceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  balanceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  balanceAmount: {
+    fontSize: 14,
+    color: '#16A34A',
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  balanceEmpty: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+  balanceNoteContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+  },
+  balanceNote: {
+    fontSize: 12,
+    color: '#6B7280',
+    flex: 1,
+  },
+  savedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+  },
+  savedText: {
+    fontSize: 12,
+    color: '#16A34A',
+    fontWeight: '500',
+  },
 })
