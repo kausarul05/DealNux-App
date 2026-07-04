@@ -132,6 +132,7 @@ const Profile = () => {
     const toast = useToast();
     const [user, setUser] = useState<UserProfile | null>(null);
     const [payOpen, setPayOpen] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -161,7 +162,7 @@ const Profile = () => {
         }, [])
     );
 
-    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    console.log("user", JSON.stringify(user, null, 2));
 
     const shop = () => {
 

@@ -13,10 +13,14 @@ import {
     Animated,
     Dimensions,
     TouchableOpacity,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppHeader from "../../components/AppHeader";
 import BackButton from "../../components/BackButton";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { IPA_BASE } from '@env';
 
 const { width } = Dimensions.get('window');
 
@@ -44,8 +48,43 @@ const ReferAndEarn = () => {
 
     const [copied, setCopied] = useState(false);
     const [showToast, setShowToast] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [referralReward, setReferralReward] = useState(10); // Default $10
+    const [userBalance, setUserBalance] = useState(0);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+    // Fetch referral settings
+    useEffect(() => {
+        fetchReferralSettings();
+    }, []);
+
+    const fetchReferralSettings = async () => {
+        try {
+            setLoading(true);
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) return;
+
+            const response = await axios.get(`${IPA_BASE}account/site-settings/`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                },
+            });
+
+            console.log('📊 Referral settings:', response.data);
+            
+            if (response.data) {
+                setReferralReward(response.data.referral_reward_amount || 10);
+                setUserBalance(response.data.user_referral_amount || 0);
+            }
+        } catch (error) {
+            console.error('❌ Error fetching referral settings:', error);
+            // Keep default $10 if API fails
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (showToast) {
@@ -92,11 +131,16 @@ const ReferAndEarn = () => {
     const onShare = async () => {
         try {
             await Share.share({
-                message: `🎉 Use my referral code ${user.refaradal_code} and get $10 off your first purchase on DealNux! 🛍️`,
+                message: `🎉 Use my referral code ${user.refaradal_code} and get $${referralReward} off your first purchase on DealNux! 🛍️`,
             });
         } catch (error) {
             console.log(error);
         }
+    };
+
+    // Format currency
+    const formatCurrency = (amount: number) => {
+        return `$${amount.toFixed(2)}`;
     };
 
     return (
@@ -131,10 +175,29 @@ const ReferAndEarn = () => {
                                 <Ionicons name="gift" size={32} color="#FFD700" />
                             </View>
                             <Text style={styles.heroTitle}>Refer a Friend &</Text>
-                            <Text style={styles.heroAmount}>Both Get $10</Text>
+                            {loading ? (
+                                <View style={styles.loadingContainer}>
+                                    <ActivityIndicator size="small" color="#FFD700" />
+                                    <Text style={[styles.heroAmount, { fontSize: 24 }]}>Loading...</Text>
+                                </View>
+                            ) : (
+                                <Text style={styles.heroAmount}>
+                                    Both Get ${referralReward}
+                                </Text>
+                            )}
                             <Text style={styles.heroDescription}>
                                 Give your friends a discount and earn credits for your next smart purchase.
                             </Text>
+                            
+                            {/* Balance Display */}
+                            {!loading && userBalance > 0 && (
+                                <View style={styles.balanceDisplay}>
+                                    <Ionicons name="wallet-outline" size={16} color="#FFD700" />
+                                    <Text style={styles.balanceText}>
+                                        Your balance: {formatCurrency(userBalance)}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                     </LinearGradient>
 
@@ -147,7 +210,7 @@ const ReferAndEarn = () => {
                             </View>
                             <View style={styles.premiumBadge}>
                                 <Ionicons name="star" size={14} color="#FFD700" />
-                                <Text style={styles.premiumBadgeText}>Earn $10</Text>
+                                <Text style={styles.premiumBadgeText}>Earn ${referralReward}</Text>
                             </View>
                         </View>
 
@@ -192,12 +255,12 @@ const ReferAndEarn = () => {
                         {/* Stats */}
                         <View style={styles.statsRow}>
                             <View style={styles.statItem}>
-                                <Text style={styles.statValue}>$10</Text>
+                                <Text style={styles.statValue}>${referralReward}</Text>
                                 <Text style={styles.statLabel}>You Earn</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
-                                <Text style={styles.statValue}>$10</Text>
+                                <Text style={styles.statValue}>${referralReward}</Text>
                                 <Text style={styles.statLabel}>Friend Gets</Text>
                             </View>
                             <View style={styles.statDivider} />
@@ -246,7 +309,7 @@ const ReferAndEarn = () => {
                                     </View>
                                     <Text style={styles.stepTitle}>They join & save</Text>
                                     <Text style={styles.stepDescription}>
-                                        Your friend signs up and gets $10 off their first purchase
+                                        Your friend signs up and gets ${referralReward} off their first purchase
                                     </Text>
                                 </View>
                             </View>
@@ -260,7 +323,7 @@ const ReferAndEarn = () => {
                                     <View style={styles.stepIconWrapper}>
                                         <Ionicons name="cash-outline" size={24} color="#2355B6" />
                                     </View>
-                                    <Text style={styles.stepTitle}>You both earn $10</Text>
+                                    <Text style={styles.stepTitle}>You both earn ${referralReward}</Text>
                                     <Text style={styles.stepDescription}>
                                         Credits are automatically applied to your wallet instantly
                                     </Text>
@@ -379,6 +442,29 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 12,
         lineHeight: 20,
+    },
+    loadingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 2,
+    },
+    balanceDisplay: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: 'rgba(255,215,0,0.15)',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 20,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,215,0,0.2)',
+    },
+    balanceText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#FFD700',
     },
 
     // Code Card
