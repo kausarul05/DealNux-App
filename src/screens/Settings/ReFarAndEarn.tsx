@@ -72,7 +72,7 @@ const ReferAndEarn = () => {
                 },
             });
 
-            console.log('📊 Referral settings:', response.data);
+            // console.log('📊 Referral settings:', response.data);
             
             if (response.data) {
                 setReferralReward(response.data.referral_reward_amount || 8);

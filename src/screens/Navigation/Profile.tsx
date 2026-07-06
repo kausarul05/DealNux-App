@@ -164,7 +164,7 @@ const Profile = () => {
 
 
     const shop = () => {
-
+        console.log(user?.seller_status)
         if (user?.seller_status.status == "not_applied") {
             navigation.navigate("ShopCreate")
         } else if (user?.seller_status.status == "pending") {
@@ -281,6 +281,7 @@ const Profile = () => {
                             title="Review App"
                             icon={<Ionicons name="star" size={20} color="#F59E0B" />}
                             iconBg="#FEF3C7"
+                            onPress={() => (navigation as any).navigate("AppReview")}
                         />
                     </View>
                     {/* Shop Create and Manage */}
@@ -361,11 +362,13 @@ const Profile = () => {
 
                         <RowItem
                             title="About Us"
+                            onPress={() => navigation.navigate("aboutus")}
                             leftIcon={<Ionicons name="information-circle-outline" size={16} color="#636F85" />}
                         />
                         <Divider />
                         <RowItem
                             title="Contact Us"
+                            onPress={() => navigation.navigate("contactus")}
                             leftIcon={<Ionicons name="person-circle-outline" size={16} color="#636F85" />}
                         />
                         {/* <Divider />
@@ -397,6 +400,7 @@ const Profile = () => {
                         <Divider />
                         <RowItem
                             title="Terms of Service"
+                            onPress={() => navigation.navigate("TermsOfService")}
                             leftIcon={<MaterialCommunityIcons name="music-note-outline" size={16} color="#636F85" />}
                         />
                     </Card>

@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import "./global.css";
+import React from 'react';
 import { AuthStackParamList } from './src/Navigation/types';
 import AdsPerformance from './src/screens/Ads/AdsPerformance';
 import CreateAds from './src/screens/Ads/CreateAds';
@@ -35,6 +36,10 @@ import ShopDashboard from './src/screens/Shop/ShopDashboard';
 import AddProduct from './src/screens/Shop/AddProduct';
 import EditProduct from './src/screens/Shop/EditProduct';
 import TermsOfService from './src/screens/Settings/TermsOfService';
+import AboutUs from './src/screens/Settings/aboutus';
+import ContactUs from './src/screens/Settings/ContactUs';
+import AppReview from './src/screens/Settings/AppReview';
+import { NotificationProvider } from './src/context/NotificationContext';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
@@ -50,6 +55,9 @@ function AuthStack() {
       <Stack.Screen name="ReFarAndEarn" component={ReFarAndEarn} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="MyAds" component={MyAds} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="TermsOfService" component={TermsOfService} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="aboutus" component={AboutUs} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="contactus" component={ContactUs} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="AppReview" component={AppReview} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AdsPerformance" component={AdsPerformance} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettings} options={{ animation: "slide_from_right" }} />
@@ -75,15 +83,15 @@ function AuthStack() {
       <Stack.Screen name="ProfileSetup" component={ProfileSetup} options={{ animation: "slide_from_right" }} />
     </Stack.Navigator>
   );
-} 
-
+}
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <StatusBar style='auto' />
-      <AuthStack />
-    </NavigationContainer>
+    <NotificationProvider>
+      <NavigationContainer>
+        <StatusBar style='auto' />
+        <AuthStack />
+      </NavigationContainer>
+    </NotificationProvider>
   );
 }
-

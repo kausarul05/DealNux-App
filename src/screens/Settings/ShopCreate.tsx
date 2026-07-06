@@ -5,7 +5,7 @@ import { NavigationProp, useNavigation } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import axios from 'axios'
 import * as DocumentPicker from 'expo-document-picker'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
     ActivityIndicator,
     FlatList,
@@ -27,6 +27,7 @@ import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import { Toast, useToast } from '../../components/useToost'
 import { AuthStackParamList } from '../../Navigation/types'
+const SAVE_KEY = 'seller_application_draft';
 
 const { width } = Dimensions.get('window');
 type AuthNavProp = NativeStackNavigationProp<AuthStackParamList>;
@@ -552,7 +553,15 @@ const Step5ReturnPolicy = ({ data, onChange, onFilePick }: { data: SellerFormDat
 );
 
 // Step 6: Compliance
-const Step6Compliance = ({ data, onChange }: { data: SellerFormData; onChange: (updates: Partial<SellerFormData>) => void }) => {
+const Step6Compliance = ({
+    data,
+    onChange,
+    navigation  // ✅ navigation প্রপস যোগ করুন
+}: {
+    data: SellerFormData;
+    onChange: (updates: Partial<SellerFormData>) => void;
+    navigation: any;  // ✅ টাইপ যোগ করুন
+}) => {
     const allChecked = COMPLIANCE_ITEMS.every((item) => data.complianceChecks[item.key]);
 
     const toggle = (key: string) => {
@@ -570,6 +579,15 @@ const Step6Compliance = ({ data, onChange }: { data: SellerFormData; onChange: (
         onChange({ complianceChecks: all });
     };
 
+    // ✅ navigation check ফাংশন
+    const handleNavigation = (routeName: string) => {
+        if (navigation && navigation.navigate) {
+            navigation.navigate(routeName);
+        } else {
+            console.warn('Navigation not available');
+        }
+    };
+
     return (
         <View style={styles.stepContainer}>
             <View style={styles.headerRow}>
@@ -583,19 +601,55 @@ const Step6Compliance = ({ data, onChange }: { data: SellerFormData; onChange: (
             </View>
 
             <View style={[styles.infoBox, styles.infoBoxAmber]}>
-                <Text style={[styles.infoBoxText, styles.infoBoxTextAmber]}>Required: All items must be checked to proceed. Read each statement carefully before agreeing.</Text>
+                <Text style={[styles.infoBoxText, styles.infoBoxTextAmber]}>
+                    Required: All items must be checked to proceed. Read each statement carefully before agreeing.
+                </Text>
             </View>
 
             {COMPLIANCE_ITEMS.map((item) => {
                 const checked = !!data.complianceChecks[item.key];
+                const isTerms = item.key === 'seller_terms';
+                const isPrivacy = item.key === 'privacy_policy';
+
                 return (
-                    <TouchableOpacity key={item.key} onPress={() => toggle(item.key)} style={[styles.checkCard, checked && styles.checkCardActive]}>
+                    <TouchableOpacity
+                        key={item.key}
+                        onPress={() => toggle(item.key)}
+                        style={[styles.checkCard, checked && styles.checkCardActive]}
+                    >
                         <View style={[styles.checkbox, checked && styles.checkboxActive]}>
                             {checked && <Feather name="check" size={12} color="white" />}
                         </View>
-                        <Text style={[styles.checkCardLabel, checked && styles.checkCardLabelActive, styles.checkCardLabelLarge]}>
-                            {item.label}
-                        </Text>
+                        <View style={styles.checkCardContent}>
+                            <Text style={[styles.checkCardLabel, checked && styles.checkCardLabelActive, styles.checkCardLabelLarge]}>
+                                {item.label}
+                            </Text>
+                            {(isTerms || isPrivacy) && (
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        if (isTerms) {
+                                            handleNavigation('TermsOfService');
+                                        } else if (isPrivacy) {
+                                            handleNavigation('PrivacyPolicy');
+                                        }
+                                    }}
+                                    style={styles.linkButton}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={styles.linkContainer}>
+                                        <Ionicons
+                                            name={isTerms ? "document-text-outline" : "shield-checkmark-outline"}
+                                            size={14}
+                                            color="#2355B6"
+                                        />
+                                        <Text style={styles.linkText}>
+                                            {isTerms ? 'Read Terms & Conditions' : 'Read Privacy Policy'}
+                                        </Text>
+                                        <Ionicons name="arrow-forward" size={12} color="#2355B6" />
+                                    </View>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </TouchableOpacity>
                 );
             })}
@@ -880,7 +934,20 @@ const Step10Signature = ({ data, onChange }: { data: SellerFormData; onChange: (
 );
 
 // Step 11: Certification
-const Step11Certification = ({ data, onChange, onSubmit, submitting }: { data: SellerFormData; onChange: (updates: Partial<SellerFormData>) => void; onSubmit: () => void; submitting: boolean }) => {
+const Step11Certification = ({
+    data,
+    onChange,
+    onSubmit,
+    submitting,
+    onBack
+}: {
+    data: SellerFormData;
+    onChange: (updates: Partial<SellerFormData>) => void;
+    onSubmit: () => void;
+    submitting: boolean;
+    onBack: () => void;
+}) => {
+    // ✅ এখানে allCertified ডিফাইন করুন
     const allCertified = CERTIFICATION_ITEMS.every((item) => data.certifications[item.key]);
 
     const toggle = (key: string) => {
@@ -890,6 +957,14 @@ const Step11Certification = ({ data, onChange, onSubmit, submitting }: { data: S
                 [key]: !data.certifications[key],
             },
         });
+    };
+
+    const handleSubmit = () => {
+        if (!allCertified) {
+            Alert.alert('Error', 'Please complete all certifications before submitting.');
+            return;
+        }
+        onSubmit();
     };
 
     return (
@@ -905,13 +980,21 @@ const Step11Certification = ({ data, onChange, onSubmit, submitting }: { data: S
             </View>
 
             <View style={[styles.infoBox, styles.infoBoxBlue]}>
-                <Text style={[styles.infoBoxText, styles.infoBoxTextBlue]}>This is the final step. After submitting, our team will review your application. You will receive an email notification within 2–5 business days.</Text>
+                <Text style={[styles.infoBoxText, styles.infoBoxTextBlue]}>
+                    This is the final step. After submitting, our team will review your application.
+                    You will receive an email notification within 2–5 business days.
+                </Text>
             </View>
 
             {CERTIFICATION_ITEMS.map((item) => {
                 const checked = !!data.certifications[item.key];
                 return (
-                    <TouchableOpacity key={item.key} onPress={() => toggle(item.key)} style={[styles.checkCard, checked && styles.checkCardActive]}>
+                    <TouchableOpacity
+                        key={item.key}
+                        onPress={() => toggle(item.key)}
+                        style={[styles.checkCard, checked && styles.checkCardActive]}
+                        activeOpacity={0.7}
+                    >
                         <View style={[styles.checkbox, checked && styles.checkboxActive]}>
                             {checked && <Feather name="check" size={12} color="white" />}
                         </View>
@@ -923,26 +1006,49 @@ const Step11Certification = ({ data, onChange, onSubmit, submitting }: { data: S
             })}
 
             <View style={styles.complianceFooter}>
-                <Text style={styles.complianceCount}>
+                <Text style={[styles.complianceCount, !allCertified && { color: '#EF4444' }]}>
                     {CERTIFICATION_ITEMS.filter((i) => data.certifications[i.key]).length} of {CERTIFICATION_ITEMS.length} certified
                 </Text>
-                {!allCertified && <Text style={styles.certRequired}>All certifications are required to submit</Text>}
+                {!allCertified && (
+                    <Text style={styles.certRequired}>⚠️ All certifications are required to submit</Text>
+                )}
             </View>
 
-            <TouchableOpacity
-                onPress={onSubmit}
-                disabled={!allCertified || submitting}
-                style={[styles.submitButton, (!allCertified || submitting) && styles.submitButtonDisabled]}
-            >
-                {submitting ? (
-                    <View style={styles.submitLoading}>
-                        <ActivityIndicator color="white" />
-                        <Text style={styles.submitButtonText}>Submitting...</Text>
-                    </View>
-                ) : (
-                    <Text style={styles.submitButtonText}>Submit Seller Application</Text>
-                )}
-            </TouchableOpacity>
+            {/* ✅ এখানে বাটনগুলো রাখুন - কম্পোনেন্টের ভিতরে */}
+            <View style={styles.footerButtons}>
+                {/* <TouchableOpacity
+                    onPress={onBack}
+                    style={styles.backButtonFooter}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="arrow-back" size={20} color="#4B5563" />
+                    <Text style={styles.backButtonText}>Back</Text>
+                </TouchableOpacity> */}
+
+                <TouchableOpacity
+                    onPress={handleSubmit}
+                    disabled={!allCertified || submitting}
+                    style={[
+                        styles.submitButton,
+                        (!allCertified || submitting) && styles.submitButtonDisabled
+                    ]}
+                    activeOpacity={0.7}
+                >
+                    {submitting ? (
+                        <View style={styles.submitLoading}>
+                            <ActivityIndicator color="white" />
+                            <Text style={styles.submitButtonText}>Submitting...</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.submitContent}>
+                            <Ionicons name="checkmark-circle" size={20} color="white" />
+                            <Text style={styles.submitButtonText}>
+                                {!allCertified ? 'Complete All Certifications' : 'Submit Application'}
+                            </Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+            </View>
         </View>
     );
 };
@@ -1024,13 +1130,83 @@ const ShopCreate = () => {
         }
     };
 
+    // const handleNext = () => {
+    //     if (currentStep < STEPS.length) {
+    //         setCurrentStep(currentStep + 1);
+    //     }
+    // };
+
+    const handleBack = () => {
+        if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
+        }
+    };
+
+    // Auto-save function
+    const saveDraft = async (data: SellerFormData) => {
+        try {
+            await AsyncStorage.setItem(SAVE_KEY, JSON.stringify(data));
+            console.log('💾 Draft saved');
+        } catch (error) {
+            console.error('Error saving draft:', error);
+        }
+    };
+
+    // Load draft on mount
+    useEffect(() => {
+        const loadDraft = async () => {
+            try {
+                const saved = await AsyncStorage.getItem(SAVE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    setFormData(parsed);
+                    console.log('📂 Draft loaded');
+                }
+            } catch (error) {
+                console.error('Error loading draft:', error);
+            }
+        };
+        loadDraft();
+    }, []);
+
+    // Auto-save on form data change
+    useEffect(() => {
+        if (formData.tradeName || formData.fullName) {
+            saveDraft(formData);
+        }
+    }, [formData]);
+
+    // Clear draft after successful submission
+    const clearDraft = async () => {
+        try {
+            await AsyncStorage.removeItem(SAVE_KEY);
+            console.log('🗑️ Draft cleared');
+        } catch (error) {
+            console.error('Error clearing draft:', error);
+        }
+    };
+
+    const handleBackPress = () => {
+        // Save current data before going back
+        saveDraft(formData);
+        if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
+        } else {
+            navigation.goBack();
+        }
+    };
+
     const handleNext = () => {
+        // Save before proceeding
+        saveDraft(formData);
         if (currentStep < STEPS.length) {
             setCurrentStep(currentStep + 1);
         }
     };
 
-    const handleBack = () => {
+
+    const handleFooterBack = () => {
+        saveDraft(formData);
         if (currentStep > 1) {
             setCurrentStep(currentStep - 1);
         }
@@ -1265,7 +1441,11 @@ const ShopCreate = () => {
             case 5:
                 return <Step5ReturnPolicy data={formData} onChange={updateForm} onFilePick={handleFilePick} />;
             case 6:
-                return <Step6Compliance data={formData} onChange={updateForm} />;
+                return <Step6Compliance
+                    data={formData}
+                    onChange={updateForm}
+                    navigation={navigation}
+                />;
             case 7:
                 return <Step7ProhibitedItems data={formData} onChange={updateForm} />;
             case 8:
@@ -1275,7 +1455,13 @@ const ShopCreate = () => {
             case 10:
                 return <Step10Signature data={formData} onChange={updateForm} />;
             case 11:
-                return <Step11Certification data={formData} onChange={updateForm} onSubmit={handleSubmit} submitting={submitting} />;
+                return <Step11Certification
+                    data={formData}
+                    onChange={updateForm}
+                    onSubmit={handleSubmit}
+                    submitting={submitting}
+                    onBack={handleBack}
+                />;
             default:
                 return null;
         }
@@ -1286,7 +1472,7 @@ const ShopCreate = () => {
             <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <View style={styles.header}>
                     <View style={styles.headerRow}>
-                        <AppHeader left={() => <BackButton />} />
+                        <AppHeader left={() => <BackButton onPress={handleBackPress} />} />
                         <Text style={styles.headerTitle}>Apply as Seller</Text>
                     </View>
                 </View>
@@ -1304,7 +1490,8 @@ const ShopCreate = () => {
                 {currentStep < 11 && (
                     <View style={styles.footer}>
                         {currentStep > 1 && (
-                            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <TouchableOpacity onPress={handleBack} style={[styles.backButton, {flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}]}>
+                                <Ionicons name="arrow-back" size={20} color="#4B5563" />
                                 <Text style={styles.backButtonText}>Back</Text>
                             </TouchableOpacity>
                         )}
@@ -1313,7 +1500,7 @@ const ShopCreate = () => {
                             style={[styles.continueButton, currentStep === 1 && styles.continueButtonFull]}
                         >
                             <Text style={styles.continueButtonText}>
-                                {currentStep === 10 ? 'Review & Submit' : 'Continue'}
+                                {currentStep === 10 ? 'Review & Submit' : 'Continue →'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -1928,6 +2115,77 @@ const styles = StyleSheet.create({
     reviewEmpty: {
         color: '#9CA3AF',
         fontWeight: '400',
+    },
+    linkButton: {
+        marginTop: 6,
+        paddingVertical: 4,
+        alignSelf: 'flex-start',
+    },
+    // linkText: {
+    //     fontSize: 13,
+    //     color: '#2355B6',
+    //     fontWeight: '600',
+    //     textDecorationLine: 'underline',
+    // },
+    // footerButtons: {
+    //     flexDirection: 'row',
+    //     gap: 12,
+    //     marginTop: 16,
+    // },
+    // backButtonFooter: {
+    //     flex: 1,
+    //     paddingVertical: 14,
+    //     borderRadius: 12,
+    //     borderWidth: 1,
+    //     borderColor: '#D1D5DB',
+    //     alignItems: 'center',
+    // },
+    // continueButtonDisabled: {
+    //     backgroundColor: '#9CA3AF',
+    //     opacity: 0.5,
+    // },
+    linkContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#EFF6FF',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
+    },
+    linkText: {
+        fontSize: 12,
+        color: '#2355B6',
+        fontWeight: '600',
+    },
+    submitContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    backButtonFooter: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        backgroundColor: '#FFFFFF',
+        gap: 8,
+    },
+    footerButtons: {
+        flex: 1,
+        // flexDirection: 'row',
+        gap: 12,
+        marginTop: 16,
+    },
+    continueButtonDisabled: {
+        backgroundColor: '#9CA3AF',
+        opacity: 0.5,
     },
 });
 
