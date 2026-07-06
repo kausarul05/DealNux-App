@@ -4,6 +4,7 @@ import { NavigationProp, useNavigation, useRoute } from '@react-navigation/nativ
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -18,7 +19,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import SuccessModal from '../../components/SuccessModal';
@@ -144,16 +144,43 @@ const ProfileSetup = () => {
             });
 
             const data = res.data;
+            console.log('✅ Profile setup response:', data);
+
             if (data?.success === true) {
+                // ✅ STEP 1: Store access token
+                if (data.data?.access) {
+                    await AsyncStorage.setItem('vToken', data.data.access);
+                    console.log('✅ Access token stored');
+                }
+
+                // ✅ STEP 2: Store refresh token (if needed)
+                if (data.data?.refresh) {
+                    await AsyncStorage.setItem('vRefreshToken', data.data.refresh);
+                    console.log('✅ Refresh token stored');
+                }
+
+                // ✅ STEP 3: Store user profile data
+                if (data.data?.profile) {
+                    await AsyncStorage.setItem('userData', JSON.stringify(data.data.profile));
+                    console.log('✅ User profile stored');
+                }
+
+                // ✅ STEP 4: Store user email
+                if (params.email) {
+                    await AsyncStorage.setItem('userEmail', params.email);
+                }
+
                 setShowSuccessModal(true);
                 setTimeout(() => {
                     setShowSuccessModal(false);
-                    (navigation as any).navigate('SignIn' as any);
+                    // ✅ STEP 5: Direct navigation to MainTabs (no need to login again)
+                    navigation.navigate('MainTabs' as any);
                 }, 2000);
             } else {
                 Alert.alert('Profile Set', data?.message || 'Invalid Information');
             }
         } catch (e: any) {
+            console.error('❌ Profile setup error:', e);
             Alert.alert('Profile Set Failed', e?.response?.data?.message || e?.message || 'Something went wrong');
         } finally {
             setLoading(false);
