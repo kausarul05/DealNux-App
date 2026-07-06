@@ -49,7 +49,7 @@ const ReferAndEarn = () => {
     const [copied, setCopied] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [referralReward, setReferralReward] = useState(10); // Default $10
+    const [referralReward, setReferralReward] = useState(8); // Default $8
     const [userBalance, setUserBalance] = useState(0);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -75,12 +75,11 @@ const ReferAndEarn = () => {
             console.log('📊 Referral settings:', response.data);
             
             if (response.data) {
-                setReferralReward(response.data.referral_reward_amount || 10);
+                setReferralReward(response.data.referral_reward_amount || 8);
                 setUserBalance(response.data.user_referral_amount || 0);
             }
         } catch (error) {
             console.error('❌ Error fetching referral settings:', error);
-            // Keep default $10 if API fails
         } finally {
             setLoading(false);
         }
@@ -138,7 +137,6 @@ const ReferAndEarn = () => {
         }
     };
 
-    // Format currency
     const formatCurrency = (amount: number) => {
         return `$${amount.toFixed(2)}`;
     };
@@ -158,63 +156,53 @@ const ReferAndEarn = () => {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 40 }}
                 >
-                    {/* Hero Section */}
+                    {/* Hero Section - Refer a Friend and Win a Prize */}
                     <LinearGradient
                         colors={['#1E2F73', '#2946A6', '#2355B6']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.heroCard}
                     >
-                        {/* Decorative Circles */}
                         <View style={styles.decorativeCircle1} />
                         <View style={styles.decorativeCircle2} />
                         <View style={styles.decorativeCircle3} />
 
                         <View style={styles.heroContent}>
                             <View style={styles.giftIconContainer}>
-                                <Ionicons name="gift" size={32} color="#FFD700" />
+                                <Ionicons name="gift" size={28} color="#FFD700" />
                             </View>
                             <Text style={styles.heroTitle}>Refer a Friend &</Text>
+                            <Text style={styles.heroSubtitle}>Win a Prize</Text>
                             {loading ? (
                                 <View style={styles.loadingContainer}>
                                     <ActivityIndicator size="small" color="#FFD700" />
-                                    <Text style={[styles.heroAmount, { fontSize: 24 }]}>Loading...</Text>
                                 </View>
                             ) : (
-                                <Text style={styles.heroAmount}>
-                                    Both Get ${referralReward}
-                                </Text>
+                                <>
+                                    <Text style={styles.heroAmount}>
+                                        Earn {referralReward} Credits
+                                    </Text>
+                                    <Text style={styles.heroPerReferral}>
+                                        for each Referral
+                                    </Text>
+                                </>
                             )}
                             <Text style={styles.heroDescription}>
-                                Give your friends a discount and earn credits for your next smart purchase.
+                                Invite your friends to join DEALNUX and earn credits towards your next smart purchase.
                             </Text>
-                            
-                            {/* Balance Display */}
-                            {!loading && userBalance > 0 && (
-                                <View style={styles.balanceDisplay}>
-                                    <Ionicons name="wallet-outline" size={16} color="#FFD700" />
-                                    <Text style={styles.balanceText}>
-                                        Your balance: {formatCurrency(userBalance)}
-                                    </Text>
-                                </View>
-                            )}
                         </View>
                     </LinearGradient>
 
                     {/* Referral Code Card */}
                     <View style={styles.codeCard}>
                         <View style={styles.codeHeader}>
-                            <View>
-                                <Text style={styles.codeTitle}>Your Referral Code</Text>
-                                <Text style={styles.codeSubtitle}>Share this code with friends</Text>
-                            </View>
+                            <Text style={styles.codeTitle}>Your Referral Code</Text>
                             <View style={styles.premiumBadge}>
-                                <Ionicons name="star" size={14} color="#FFD700" />
+                                <Ionicons name="star" size={12} color="#FFD700" />
                                 <Text style={styles.premiumBadgeText}>Earn ${referralReward}</Text>
                             </View>
                         </View>
 
-                        {/* Code Display */}
                         <View style={styles.codeContainer}>
                             <View style={styles.codeBox}>
                                 <Text style={styles.codeText}>{user.refaradal_code}</Text>
@@ -228,7 +216,7 @@ const ReferAndEarn = () => {
                                     colors={['#2355B6', '#1A4D8F']}
                                     style={styles.copyGradient}
                                 >
-                                    <Ionicons name="copy-outline" size={20} color="#FFFFFF" />
+                                    <Ionicons name="copy-outline" size={18} color="#FFFFFF" />
                                     <Text style={styles.copyButtonText}>
                                         {copied ? 'Copied!' : 'Copy'}
                                     </Text>
@@ -246,11 +234,42 @@ const ReferAndEarn = () => {
                                 colors={['#FFC649', '#F59E0B']}
                                 style={styles.shareGradient}
                             >
-                                <Ionicons name="share-social-outline" size={22} color="#1F2937" />
+                                <Ionicons name="share-social-outline" size={20} color="#1F2937" />
                                 <Text style={styles.shareButtonText}>Share Referral Link</Text>
-                                <Feather name="arrow-right" size={18} color="#1F2937" />
+                                <Feather name="arrow-right" size={16} color="#1F2937" />
                             </LinearGradient>
                         </TouchableOpacity>
+
+                        {/* Savings Trends / Rules */}
+                        {/* <View style={styles.rulesCard}>
+                            <Text style={styles.rulesTitle}>📋 Savings Trends</Text>
+                            <View style={styles.rulesList}>
+                                <View style={styles.ruleItem}>
+                                    <View style={styles.bulletPoint} />
+                                    <Text style={styles.ruleText}>Credits are valid for 12 months.</Text>
+                                </View>
+                                <View style={styles.ruleItem}>
+                                    <View style={styles.bulletPoint} />
+                                    <Text style={styles.ruleText}>One referral reward per new user.</Text>
+                                </View>
+                                <View style={styles.ruleItem}>
+                                    <View style={styles.bulletPoint} />
+                                    <Text style={styles.ruleText}>
+                                        Friends you refer must purchase a subscription and complete their first purchase on DEALNUX for you to earn.
+                                    </Text>
+                                </View>
+                                <View style={styles.ruleItem}>
+                                    <View style={styles.bulletPoint} />
+                                    <Text style={styles.ruleText}>1 credit earned equals $1.</Text>
+                                </View>
+                                <View style={styles.ruleItem}>
+                                    <View style={styles.bulletPoint} />
+                                    <Text style={styles.ruleText}>
+                                        Referral points are redeemable only on eligible local DEALNUX products and cannot be used with external retailers.
+                                    </Text>
+                                </View>
+                            </View>
+                        </View> */}
 
                         {/* Stats */}
                         <View style={styles.statsRow}>
@@ -277,10 +296,9 @@ const ReferAndEarn = () => {
                             <View style={styles.sectionIcon}>
                                 <Ionicons name="bulb-outline" size={20} color="#2355B6" />
                             </View>
-                            <Text style={styles.sectionTitle}>How It Works</Text>
+                            <Text style={styles.sectionTitle}>HOW IT WORKS</Text>
                         </View>
 
-                        {/* Steps */}
                         <View style={styles.stepsContainer}>
                             {/* Step 1 */}
                             <View style={styles.stepCard}>
@@ -289,12 +307,14 @@ const ReferAndEarn = () => {
                                 </View>
                                 <View style={styles.stepContent}>
                                     <View style={styles.stepIconWrapper}>
-                                        <Ionicons name="share-outline" size={24} color="#2355B6" />
+                                        <Ionicons name="share-outline" size={22} color="#2355B6" />
                                     </View>
-                                    <Text style={styles.stepTitle}>Invite a friend</Text>
-                                    <Text style={styles.stepDescription}>
-                                        Share your unique code via text, email, or social media
-                                    </Text>
+                                    <View style={styles.stepTextContainer}>
+                                        <Text style={styles.stepTitle}>Invite a friend</Text>
+                                        <Text style={styles.stepDescription}>
+                                            Share your unique link or code via text, email or social media.
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
 
@@ -305,12 +325,14 @@ const ReferAndEarn = () => {
                                 </View>
                                 <View style={styles.stepContent}>
                                     <View style={styles.stepIconWrapper}>
-                                        <Ionicons name="person-add-outline" size={24} color="#2355B6" />
+                                        <Ionicons name="person-add-outline" size={22} color="#2355B6" />
                                     </View>
-                                    <Text style={styles.stepTitle}>They join & save</Text>
-                                    <Text style={styles.stepDescription}>
-                                        Your friend signs up and gets ${referralReward} off their first purchase
-                                    </Text>
+                                    <View style={styles.stepTextContainer}>
+                                        <Text style={styles.stepTitle}>Your friend joins DEALNUX</Text>
+                                        <Text style={styles.stepDescription}>
+                                            Your friend signs up, purchases any of our subscription plans and completes the first purchase on DEALNUX.
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
 
@@ -321,24 +343,62 @@ const ReferAndEarn = () => {
                                 </View>
                                 <View style={styles.stepContent}>
                                     <View style={styles.stepIconWrapper}>
-                                        <Ionicons name="cash-outline" size={24} color="#2355B6" />
+                                        <Ionicons name="cash-outline" size={22} color="#2355B6" />
                                     </View>
-                                    <Text style={styles.stepTitle}>You both earn ${referralReward}</Text>
-                                    <Text style={styles.stepDescription}>
-                                        Credits are automatically applied to your wallet instantly
-                                    </Text>
+                                    <View style={styles.stepTextContainer}>
+                                        <Text style={styles.stepTitle}>You earn credits</Text>
+                                        <Text style={styles.stepDescription}>
+                                            Credits are automatically applied to your wallet instantly.
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
                         </View>
                     </View>
 
-                    {/* Footer Note */}
-                    <View style={styles.footerNote}>
-                        <Ionicons name="information-circle-outline" size={18} color="#94A3B8" />
-                        <Text style={styles.footerNoteText}>
-                            Terms & Conditions apply. Credits expire in 30 days.
-                        </Text>
+                    {/* Terms Section */}
+                    <View style={styles.termsCard}>
+                        <View style={styles.termsHeader}>
+                            <Ionicons name="document-text-outline" size={20} color="#2355B6" />
+                            <Text style={styles.termsTitle}>TERMS</Text>
+                        </View>
+                        <View style={styles.termsList}>
+                            <View style={styles.termItem}>
+                                <View style={styles.termBullet} />
+                                <Text style={styles.termText}>Credits are valid for 12 months.</Text>
+                            </View>
+                            <View style={styles.termItem}>
+                                <View style={styles.termBullet} />
+                                <Text style={styles.termText}>One referral reward per new user.</Text>
+                            </View>
+                            <View style={styles.termItem}>
+                                <View style={styles.termBullet} />
+                                <Text style={styles.termText}>
+                                    Friends you refer must purchase a subscription and complete their first purchase on DEALNUX for you to earn.
+                                </Text>
+                            </View>
+                            <View style={styles.termItem}>
+                                <View style={styles.termBullet} />
+                                <Text style={styles.termText}>1 credit earned equals $1.</Text>
+                            </View>
+                            <View style={styles.termItem}>
+                                <View style={styles.termBullet} />
+                                <Text style={styles.termText}>
+                                    Referral points are redeemable only on eligible local DEALNUX products and cannot be used with external retailers.
+                                </Text>
+                            </View>
+                        </View>
                     </View>
+
+                    {/* Balance Display */}
+                    {!loading && userBalance > 0 && (
+                        <View style={styles.balanceCard}>
+                            <Ionicons name="wallet-outline" size={20} color="#2355B6" />
+                            <Text style={styles.balanceCardText}>
+                                Your current balance: <Text style={styles.balanceCardAmount}>{formatCurrency(userBalance)}</Text>
+                            </Text>
+                        </View>
+                    )}
                 </ScrollView>
             </View>
 
@@ -357,7 +417,7 @@ const ReferAndEarn = () => {
                         colors={['#10B981', '#059669']}
                         style={styles.toastGradient}
                     >
-                        <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                        <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
                         <Text style={styles.toastText}>Code copied successfully!</Text>
                     </LinearGradient>
                 </Animated.View>
@@ -370,7 +430,7 @@ const styles = StyleSheet.create({
     // Hero Card
     heroCard: {
         borderRadius: 24,
-        paddingVertical: 36,
+        paddingVertical: 32,
         paddingHorizontal: 20,
         marginTop: 8,
         overflow: 'hidden',
@@ -413,26 +473,40 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     giftIconContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         backgroundColor: 'rgba(255,215,0,0.15)',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 12,
+        marginBottom: 10,
         borderWidth: 2,
         borderColor: 'rgba(255,215,0,0.2)',
     },
     heroTitle: {
-        fontSize: 28,
+        fontSize: 22,
         fontWeight: '700',
         color: '#FFFFFF',
         textAlign: 'center',
     },
-    heroAmount: {
-        fontSize: 38,
+    heroSubtitle: {
+        fontSize: 28,
         fontWeight: '800',
         color: '#FFD700',
+        textAlign: 'center',
+        marginTop: 2,
+    },
+    heroAmount: {
+        fontSize: 32,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        textAlign: 'center',
+        marginTop: 12,
+    },
+    heroPerReferral: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.8)',
         textAlign: 'center',
         marginTop: 2,
     },
@@ -444,27 +518,7 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     loadingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginTop: 2,
-    },
-    balanceDisplay: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(255,215,0,0.15)',
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 20,
-        marginTop: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255,215,0,0.2)',
-    },
-    balanceText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#FFD700',
+        marginTop: 8,
     },
 
     // Code Card
@@ -483,74 +537,69 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 14,
     },
     codeTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: '#1F2937',
-    },
-    codeSubtitle: {
-        fontSize: 12,
-        color: '#94A3B8',
-        marginTop: 2,
     },
     premiumBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
         backgroundColor: '#FEF3C7',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 16,
     },
     premiumBadgeText: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '600',
         color: '#92400E',
     },
     codeContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
     },
     codeBox: {
         flex: 1,
         backgroundColor: '#F8FAFC',
         borderWidth: 1,
         borderColor: '#E5E7EB',
-        borderRadius: 14,
+        borderRadius: 12,
         paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
     },
     codeText: {
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: '700',
         letterSpacing: 3,
         color: '#1F2937',
     },
     copyButton: {
-        borderRadius: 14,
+        borderRadius: 12,
         overflow: 'hidden',
     },
     copyGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         paddingVertical: 12,
     },
     copyButtonText: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '600',
         color: '#FFFFFF',
     },
 
     // Share Button
     shareButton: {
-        marginTop: 16,
-        borderRadius: 14,
+        marginTop: 14,
+        borderRadius: 12,
         overflow: 'hidden',
     },
     shareGradient: {
@@ -558,21 +607,58 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        paddingVertical: 14,
+        paddingVertical: 12,
     },
     shareButtonText: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '700',
         color: '#1F2937',
     },
 
-    // Stats Row
+    // Rules Card
+    rulesCard: {
+        backgroundColor: '#F8FAFC',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    rulesTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 10,
+    },
+    rulesList: {
+        gap: 6,
+    },
+    ruleItem: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
+    bulletPoint: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#2355B6',
+        marginTop: 7,
+    },
+    ruleText: {
+        fontSize: 13,
+        color: '#4B5563',
+        flex: 1,
+        lineHeight: 20,
+    },
+
+    // Stats
     statsRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
-        marginTop: 20,
-        paddingTop: 16,
+        marginTop: 16,
+        paddingTop: 14,
         borderTopWidth: 1,
         borderTopColor: '#F3F4F6',
     },
@@ -603,7 +689,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        marginBottom: 16,
+        marginBottom: 14,
     },
     sectionIcon: {
         width: 32,
@@ -614,19 +700,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     sectionTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: '#1F2937',
+        letterSpacing: 0.5,
     },
     stepsContainer: {
-        gap: 12,
+        gap: 10,
     },
     stepCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
         borderRadius: 16,
-        padding: 16,
+        padding: 14,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
@@ -639,17 +726,17 @@ const styles = StyleSheet.create({
         marginBottom: 0,
     },
     stepNumber: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         backgroundColor: '#2355B6',
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 14,
+        marginRight: 12,
         flexShrink: 0,
     },
     stepNumberText: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '700',
         color: '#FFFFFF',
     },
@@ -660,49 +747,101 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     stepIconWrapper: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: '#EFF6FF',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
     },
+    stepTextContainer: {
+        flex: 1,
+    },
     stepTitle: {
         fontSize: 14,
         fontWeight: '600',
         color: '#1F2937',
-        flex: 1,
     },
     stepDescription: {
         fontSize: 12,
         color: '#6B7280',
-        flex: 2,
+        lineHeight: 18,
+        marginTop: 2,
+    },
+
+    // Terms Card
+    termsCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    termsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
+    },
+    termsTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        letterSpacing: 0.5,
+    },
+    termsList: {
+        gap: 6,
+    },
+    termItem: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
+    termBullet: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#9CA3AF',
+        marginTop: 7,
+    },
+    termText: {
+        fontSize: 12,
+        color: '#6B7280',
+        flex: 1,
         lineHeight: 18,
     },
 
-    // Footer Note
-    footerNote: {
+    // Balance Card
+    balanceCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
+        gap: 10,
+        backgroundColor: '#EFF6FF',
+        padding: 14,
+        borderRadius: 12,
         marginTop: 16,
-        paddingVertical: 12,
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
     },
-    footerNoteText: {
-        fontSize: 12,
-        color: '#94A3B8',
-        textAlign: 'center',
+    balanceCardText: {
+        fontSize: 14,
+        color: '#1F2937',
+        fontWeight: '500',
+    },
+    balanceCardAmount: {
+        fontWeight: '700',
+        color: '#2355B6',
     },
 
-    // Toast Notification
+    // Toast
     toastContainer: {
         position: 'absolute',
         bottom: 40,
         left: 20,
         right: 20,
-        borderRadius: 16,
+        borderRadius: 14,
         overflow: 'hidden',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
@@ -715,11 +854,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        paddingVertical: 14,
+        paddingVertical: 12,
         paddingHorizontal: 20,
     },
     toastText: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '600',
         color: '#FFFFFF',
     },
