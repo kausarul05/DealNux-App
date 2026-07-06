@@ -104,7 +104,7 @@ const FULFILLMENT_METHODS = [
     { value: 'self', label: 'Self-fulfilled', description: 'I pack and ship orders myself' },
     { value: '3pl', label: 'Third-Party Logistics (3PL)', description: 'A fulfillment center handles shipping' },
     { value: 'dropship', label: 'Dropshipping', description: 'Supplier ships directly to buyer' },
-    { value: 'pickup', label: 'Local Pickup Only', description: 'Buyers collect in person' },
+    { value: 'pickup', label: 'Local Pickup', description: 'Buyers collect in person' },
 ];
 
 const SHIPPING_REGIONS = [

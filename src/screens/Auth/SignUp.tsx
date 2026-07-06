@@ -84,16 +84,13 @@ const SignUp = () => {
     };
 
     const openTerms = () => {
-        Linking.openURL('https://dealnux.com/terms').catch(() => {
-            Alert.alert('Error', 'Could not open terms page');
-        });
+        navigation.navigate('TermsOfService' as any);
     };
 
     const openPrivacy = () => {
-        Linking.openURL('https://dealnux.com/privacy').catch(() => {
-            Alert.alert('Error', 'Could not open privacy page');
-        });
+        navigation.navigate('PrivacyPolicy' as any);
     };
+
 
     return (
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safe}>

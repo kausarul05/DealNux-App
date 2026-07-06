@@ -1,4 +1,4 @@
-// MainTabs.tsx - Fixed with Proper Radius & Text
+// MainTabs.tsx - Fixed with Proper Labels & Layout
 import { AntDesign, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
@@ -27,9 +27,9 @@ const TabBarBackground = () => {
 // ─── Center Scan Button ──────────────────────────────────────────────────────
 function CenterButton({ children, onPress }: any) {
     return (
-        <TouchableOpacity 
-            onPress={onPress} 
-            activeOpacity={0.85} 
+        <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.85}
             style={styles.fabContainer}
         >
             <LinearGradient
@@ -50,9 +50,23 @@ export default function MainTabs() {
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
-                tabBarStyle: styles.tabBar,
-                tabBarShowLabel: false,
-                tabBarBackground: () => <TabBarBackground />,
+                tabBarStyle: {
+                    ...styles.tabBar,
+                    height: Platform.OS === 'ios' ? 95 : 80,
+                },
+                tabBarShowLabel: true,
+                tabBarLabelPosition: 'below-icon',
+                tabBarActiveTintColor: '#2563EB',
+                tabBarInactiveTintColor: '#9CA3AF',
+                tabBarLabelStyle: {
+                    fontSize: 11,
+                    fontWeight: '500',
+                    marginTop: 2,
+                    marginBottom: Platform.OS === 'ios' ? 4 : 0,
+                },
+                tabBarIconStyle: {
+                    marginTop: Platform.OS === 'ios' ? 4 : 0,
+                },
             }}
         >
             {/* Home Tab */}
@@ -60,22 +74,13 @@ export default function MainTabs() {
                 name="HomeTab"
                 component={Home}
                 options={{
-                    tabBarIcon: ({ focused }) => (
-                        <View style={styles.tabItem}>
-                            <Ionicons
-                                name={focused ? "home" : "home-outline"}
-                                size={26}
-                                color={focused ? "#2563EB" : "#9CA3AF"}
-                            />
-                            <Text 
-                                style={[styles.tabLabel, focused && styles.tabLabelActive]}
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                            >
-                                Home
-                            </Text>
-                            {focused && <View style={styles.activeDot} />}
-                        </View>
+                    tabBarLabel: 'Home',
+                    tabBarIcon: ({ focused, color, size }) => (
+                        <Ionicons
+                            name={focused ? "home" : "home-outline"}
+                            size={26}
+                            color={color}
+                        />
                     ),
                 }}
             />
@@ -85,31 +90,23 @@ export default function MainTabs() {
                 name="CartTab"
                 component={Cart}
                 options={{
-                    tabBarIcon: ({ focused }) => (
-                        <View style={styles.tabItem}>
-                            <Ionicons
-                                name={focused ? "cart" : "cart-outline"}
-                                size={26}
-                                color={focused ? "#2563EB" : "#9CA3AF"}
-                            />
-                            <Text 
-                                style={[styles.tabLabel, focused && styles.tabLabelActive]}
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                            >
-                                Cart
-                            </Text>
-                            {focused && <View style={styles.activeDot} />}
-                        </View>
+                    tabBarLabel: 'Cart',
+                    tabBarIcon: ({ focused, color, size }) => (
+                        <Ionicons
+                            name={focused ? "cart" : "cart-outline"}
+                            size={26}
+                            color={color}
+                        />
                     ),
                 }}
             />
 
-            {/* Center Scan Button */}
+            {/* Center Scan Button - No Label */}
             <Tab.Screen
                 name="ScanTab"
                 component={Scanning}
                 options={{
+                    tabBarLabel: '', // ✅ লেবেল খালি
                     tabBarIcon: () => null,
                     tabBarButton: (props) => <CenterButton {...props} />,
                 }}
@@ -120,22 +117,13 @@ export default function MainTabs() {
                 name="MenuTab"
                 component={Dashboard}
                 options={{
-                    tabBarIcon: ({ focused }) => (
-                        <View style={styles.tabItem}>
-                            <MaterialCommunityIcons
-                                name={focused ? "view-dashboard" : "view-dashboard-outline"}
-                                size={26}
-                                color={focused ? "#2563EB" : "#9CA3AF"}
-                            />
-                            <Text 
-                                style={[styles.tabLabel, focused && styles.tabLabelActive]}
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                            >
-                                Dashboard
-                            </Text>
-                            {focused && <View style={styles.activeDot} />}
-                        </View>
+                    tabBarLabel: 'Dashboard',
+                    tabBarIcon: ({ focused, color, size }) => (
+                        <MaterialCommunityIcons
+                            name={focused ? "view-dashboard" : "view-dashboard-outline"}
+                            size={26}
+                            color={color}
+                        />
                     ),
                 }}
             />
@@ -145,22 +133,13 @@ export default function MainTabs() {
                 name="ProfileTab"
                 component={Profile}
                 options={{
-                    tabBarIcon: ({ focused }) => (
-                        <View style={styles.tabItem}>
-                            <Ionicons
-                                name={focused ? "person" : "person-outline"}
-                                size={26}
-                                color={focused ? "#2563EB" : "#9CA3AF"}
-                            />
-                            <Text 
-                                style={[styles.tabLabel, focused && styles.tabLabelActive]}
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                            >
-                                Profile
-                            </Text>
-                            {focused && <View style={styles.activeDot} />}
-                        </View>
+                    tabBarLabel: 'Profile',
+                    tabBarIcon: ({ focused, color, size }) => (
+                        <Ionicons
+                            name={focused ? "person" : "person-outline"}
+                            size={26}
+                            color={color}
+                        />
                     ),
                 }}
             />
@@ -176,12 +155,12 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        height: Platform.OS === 'ios' ? 85 : 75,
-        backgroundColor: 'rgba(255,255,255,0.95)',
+        height: Platform.OS === 'ios' ? 90 : 75, // ✅ বড় করা হয়েছে লেবেলের জন্য
+        backgroundColor: 'rgba(255,255,255,0.98)',
         borderTopWidth: 0,
         paddingHorizontal: 8,
         paddingTop: 8,
-        paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+        paddingBottom: Platform.OS === 'ios' ? 28 : 12, // ✅ iOS এর জন্য বেশি
         shadowColor: "#000",
         shadowOffset: {
             width: 0,
@@ -190,52 +169,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.08,
         shadowRadius: 16,
         elevation: 25,
-        // ✅ Proper border radius for top corners only
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         overflow: 'visible',
         borderWidth: 0.5,
         borderColor: 'rgba(0,0,0,0.04)',
-    },
-
-    // ── Tab Item ─────────────────────────────────────────────────────────────
-    tabItem: {
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 2,
-        flex: 1,
-        paddingVertical: 2,
-        position: 'relative',
-        // ✅ Prevent text from breaking
-        flexShrink: 1,
-        minWidth: 0,
-    },
-    tabLabel: {
-        fontSize: 10,
-        fontWeight: "500",
-        color: "#9CA3AF",
-        // ✅ Prevent text wrapping
-        flexShrink: 1,
-        flexWrap: "nowrap",
-        textAlign: "center",
-        maxWidth: 80, // ✅ Limit width to prevent overflow
-    },
-    tabLabelActive: {
-        color: "#2563EB",
-        fontWeight: "600",
-    },
-    activeDot: {
-        position: 'absolute',
-        top: -2,
-        width: 18,
-        height: 3,
-        borderRadius: 2,
-        backgroundColor: "#2563EB",
-        shadowColor: "#2563EB",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 3,
     },
 
     // ── Center FAB Button ────────────────────────────────────────────────────

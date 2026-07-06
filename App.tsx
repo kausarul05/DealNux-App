@@ -34,6 +34,7 @@ import ShopCreate from './src/screens/Settings/ShopCreate';
 import ShopDashboard from './src/screens/Shop/ShopDashboard';
 import AddProduct from './src/screens/Shop/AddProduct';
 import EditProduct from './src/screens/Shop/EditProduct';
+import TermsOfService from './src/screens/Settings/TermsOfService';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
@@ -48,6 +49,7 @@ function AuthStack() {
       <Stack.Screen name="CreateAds" component={CreateAds} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="ReFarAndEarn" component={ReFarAndEarn} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="MyAds" component={MyAds} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="TermsOfService" component={TermsOfService} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AdsPerformance" component={AdsPerformance} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettings} options={{ animation: "slide_from_right" }} />
