@@ -31,6 +31,8 @@ import SuccessModal from '../../components/SuccessModal';
 import { Images } from '../../constants';
 import { AuthStackParamList } from '../../Navigation/types';
 
+import * as Google from 'expo-auth-session/providers/google';
+
 const { width, height } = Dimensions.get('window');
 
 type AuthNavProp = NativeStackNavigationProp<AuthStackParamList>;
@@ -42,9 +44,9 @@ const WEB_CLIENT_ID = '678612451976-pdavdee95f0e5vbbeoko8kvhdhmstu7e.apps.google
 WebBrowser.maybeCompleteAuthSession();
 
 const discovery = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-  revocationEndpoint: 'https://accounts.google.com/o/oauth2/revoke',
+    authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenEndpoint: 'https://oauth2.googleapis.com/token',
+    revocationEndpoint: 'https://accounts.google.com/o/oauth2/revoke',
 };
 
 const SignIn = () => {
@@ -58,18 +60,14 @@ const SignIn = () => {
     const [googleLoading, setGoogleLoading] = useState(false);
     const [appleLoading, setAppleLoading] = useState(false);
 
+    // console.log('Redirect URI:', makeRedirectUri({ scheme: 'savvyshopper', path: 'auth/google' }));
+
+
     // ─── Google Auth Request ──────────────────────────────────────────────
-    const [request, response, promptAsync] = AuthSession.useAuthRequest(
-        {
-            clientId: WEB_CLIENT_ID,
-            scopes: ['openid', 'profile', 'email'],
-            redirectUri: makeRedirectUri({
-                scheme: 'savvyshopper',
-                path: 'auth/google',
-            }),
-        },
-        discovery
-    );
+    const [request, response, promptAsync] = Google.useAuthRequest({
+        androidClientId: '678612451976-ii1sg4n7559d8b487hu9ge5q2bu6piqd.apps.googleusercontent.com',
+        webClientId: WEB_CLIENT_ID, // your existing one, used for id_token verification
+    });
 
     // ─── Handle Google Auth Response ──────────────────────────────────────
     useEffect(() => {
@@ -246,15 +244,15 @@ const SignIn = () => {
                 Alert.alert('Apple Sign-In', 'identityToken not found. Please try again.');
                 return;
             }
-            
+
             // Send to backend
             const res = await axios.post(
                 `${API_BASE_URL}auth/apple/`,
                 {
                     identity_token: identityToken,
                     email: credential.email || '',
-                    name: credential.fullName?.givenName 
-                        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}` 
+                    name: credential.fullName?.givenName
+                        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`
                         : '',
                 },
                 {
@@ -428,8 +426,8 @@ const SignIn = () => {
 
                         <View style={styles.socialRow}>
                             {/* Google Button */}
-                            <TouchableOpacity 
-                                style={[styles.socialBtn, googleLoading && styles.socialBtnDisabled]} 
+                            <TouchableOpacity
+                                style={[styles.socialBtn, googleLoading && styles.socialBtnDisabled]}
                                 onPress={handleGoogleSignIn}
                                 disabled={googleLoading}
                                 activeOpacity={0.8}
@@ -442,8 +440,8 @@ const SignIn = () => {
                             </TouchableOpacity>
 
                             {/* Apple Button */}
-                            <TouchableOpacity 
-                                style={[styles.socialBtn, appleLoading && styles.socialBtnDisabled]} 
+                            <TouchableOpacity
+                                style={[styles.socialBtn, appleLoading && styles.socialBtnDisabled]}
                                 onPress={handleAppleSignIn}
                                 disabled={appleLoading}
                                 activeOpacity={0.8}
