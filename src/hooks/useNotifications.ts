@@ -84,7 +84,3 @@ export const useNotifications = () => {
     }
   }, [])
 }
-
-// Use in App.tsx or root component
-// import { useNotifications } from './hooks/useNotifications'
-// useNotifications()

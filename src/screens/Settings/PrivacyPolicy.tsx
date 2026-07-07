@@ -25,7 +25,7 @@ const PrivacyPolicy = () => {
         `${IPA_BASE}policy/emi-payment-policy/`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            // Authorization: `Bearer ${token}`,
             Accept: 'application/json',
           },
         }

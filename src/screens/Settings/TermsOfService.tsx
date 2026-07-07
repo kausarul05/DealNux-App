@@ -26,7 +26,7 @@ const TermsOfService = () => {
         `${IPA_BASE}policy/terms-of-service/`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            // Authorization: `Bearer ${token}`,
             Accept: 'application/json',
           },
         }

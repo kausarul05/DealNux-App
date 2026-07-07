@@ -15,15 +15,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs camera access to scan product barcodes and QR codes.",
         "NSPhotoLibraryUsageDescription": "This app needs photo library access to upload product images.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "SKAdNetworkItems": [
-          {
-            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
-          },
-          {
-            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
-          }
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -77,7 +69,8 @@
         {
           "merchantIdentifier": "merchant.com.ahmedrefu.savvyshopper"
         }
-      ]
+      ],
+      "expo-build-properties"
     ],
     "extra": {
       "eas": {

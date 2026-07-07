@@ -3,6 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useNotification } from '../../context/NotificationContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { IPA_BASE } from '@env';
 
 interface HomeHeaderProps {
   userName?: string;
@@ -11,6 +15,9 @@ interface HomeHeaderProps {
 export const HomeHeader: React.FC<HomeHeaderProps> = ({ userName = 'User' }) => {
   const navigation = useNavigation();
   const [greeting, setGreeting] = useState('Good Morning');
+  
+  // ✅ Notification Context থেকে unreadCount নিন
+  const { unreadCount, refreshNotifications } = useNotification();
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -19,6 +26,14 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ userName = 'User' }) => 
     else setGreeting('Good Night');
   }, []);
 
+  // ✅ Page focus এ refresh করুন
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      refreshNotifications();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   return (
     <View style={styles.header}>
       <View style={styles.leftContainer}>
@@ -26,24 +41,20 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ userName = 'User' }) => 
         <Text style={styles.userName}>{userName}</Text>
       </View>
       <View style={styles.rightContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.notificationButton}
           onPress={() => navigation.navigate('Notification' as never)}
         >
           <Ionicons name="notifications-outline" size={24} color="#1F2937" />
-          <View style={styles.notificationBadge}>
-            <Text style={styles.badgeText}>3</Text>
-          </View>
+          {/* ✅ Dynamic Badge */}
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.badgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
-        {/* <TouchableOpacity 
-          style={styles.avatarButton}
-          onPress={() => navigation.navigate('Profile' as never)}
-        >
-          <Image 
-            source={require('../assets/images/avatar.png')} 
-            style={styles.avatar}
-          />
-        </TouchableOpacity> */}
       </View>
     </View>
   );
@@ -88,8 +99,8 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 2,
+    right: 2,
     backgroundColor: '#EF4444',
     borderRadius: 10,
     minWidth: 18,
@@ -97,6 +108,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   badgeText: {
     color: '#FFFFFF',

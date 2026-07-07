@@ -1,4 +1,4 @@
-// screens/Notification.tsx
+// screens/Notification.tsx - আপডেটেড
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Image,
@@ -10,16 +10,17 @@ import {
   RefreshControl,
   Alert,
   Linking,
+  Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
 import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
-import { Images } from '../../constants'
+import * as Notifications from 'expo-notifications'
+import Constants from 'expo-constants'
 
 type NotificationItem = {
   id: number
@@ -40,7 +41,90 @@ const Notification = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
 
-  // Fetch notifications
+  // ─── Register Device Token (Expo Go Support) ──────────────────────────────
+  const registerDeviceToken = async () => {
+    try {
+      // console.log('🔄 Starting device token registration...')
+      
+      const token = await AsyncStorage.getItem('vToken')
+      if (!token) {
+        // console.log('❌ No auth token found, skipping device registration')
+        return
+      }
+
+      // ✅ Expo Go তেও কাজ করবে
+      const isExpoGo = Constants.appOwnership === 'expo'
+      // console.log(`📱 App ownership: ${Constants.appOwnership}`)
+      
+      // ✅ Expo Go তেও permission নিন
+      // console.log('📱 Requesting notification permissions...')
+      const { status: existingStatus } = await Notifications.getPermissionsAsync()
+      // console.log(`📱 Existing permission status: ${existingStatus}`)
+      
+      let finalStatus = existingStatus
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync()
+        finalStatus = status
+        // console.log(`📱 New permission status: ${finalStatus}`)
+      }
+
+      if (finalStatus !== 'granted') {
+        // console.log('❌ Push notification permission denied')
+        return
+      }
+
+      // ✅ Expo Go তে projectId ছাড়া কাজ করে
+      let fcmToken
+      
+      if (isExpoGo) {
+        // ✅ Expo Go তে সরাসরি token নিন
+        // console.log('📱 Getting Expo push token (Expo Go)...')
+        fcmToken = await Notifications.getExpoPushTokenAsync()
+        // console.log('📱 Expo Token received:', fcmToken.data)
+      } else {
+        // ✅ Standalone build এর জন্য projectId সহ
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
+                          Constants.manifest?.extra?.eas?.projectId ||
+                          ''
+        // console.log(`📱 Project ID: ${projectId}`)
+
+        if (!projectId) {
+          // console.warn('⚠️ No projectId found for push notifications')
+          return
+        }
+
+        // console.log('📱 Getting FCM token...')
+        fcmToken = await Notifications.getExpoPushTokenAsync({
+          projectId: projectId,
+        })
+        // console.log('📱 FCM Token received:', fcmToken.data)
+      }
+
+      // ✅ Token টি ব্যাকএন্ডে পাঠান
+      // console.log('📤 Sending device token to backend...')
+      const response = await axios.post(
+        `${IPA_BASE}notifications/device-token/`,
+        {
+          fcm_token: fcmToken.data,
+          device_type: Platform.OS === 'ios' ? 'ios' : 'android',
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      // console.log('✅ Device token registered successfully:', response.data)
+    } catch (error: any) {
+      // console.error('❌ Error registering device token:', error?.response?.data || error.message)
+    }
+  }
+
+  // ─── Fetch Notifications ──────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true)
@@ -77,6 +161,10 @@ const Notification = () => {
 
   useEffect(() => {
     fetchNotifications()
+    // ✅ 2 সেকেন্ড delay করে registerDeviceToken চালান
+    setTimeout(() => {
+      registerDeviceToken()
+    }, 2000)
   }, [fetchNotifications])
 
   const onRefresh = () => {
@@ -84,7 +172,7 @@ const Notification = () => {
     fetchNotifications()
   }
 
-  // Mark all as read
+  // ─── Mark All as Read ──────────────────────────────────────────────────────
   const markAllAsRead = async () => {
     try {
       const token = await AsyncStorage.getItem('vToken')
@@ -101,10 +189,7 @@ const Notification = () => {
         }
       )
 
-      console.log('✅ Mark all read:', response.data)
-
       if (response.data?.success) {
-        // Update local state
         setNotifications(prev =>
           prev.map(item => ({ ...item, is_read: true }))
         )
@@ -116,52 +201,7 @@ const Notification = () => {
     }
   }
 
-  // Mark single notification as read
-  const markAsRead = async (notificationId: number) => {
-    try {
-      const token = await AsyncStorage.getItem('vToken')
-      if (!token) return
-
-      await axios.post(
-        `${IPA_BASE}notifications/notifications/${notificationId}/read/`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
-          },
-        }
-      )
-
-      // Update local state
-      setNotifications(prev =>
-        prev.map(item =>
-          item.id === notificationId ? { ...item, is_read: true } : item
-        )
-      )
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    } catch (error) {
-      console.error('❌ Error marking as read:', error)
-    }
-  }
-
-  // Handle notification press
-  const handleNotificationPress = async (item: NotificationItem) => {
-    // Mark as read
-    if (!item.is_read) {
-      await markAsRead(item.id)
-    }
-
-    // Handle deep link
-    if (item.cta_link) {
-      // Navigate based on the link
-      // You can use navigation.navigate or Linking
-      console.log('🔗 Navigate to:', item.cta_link)
-      // Example: navigation.navigate(item.cta_link)
-    }
-  }
-
-  // Format date
+  // ─── Format Date ───────────────────────────────────────────────────────────
   const formatDate = (dateString: string) => {
     if (!dateString) return ''
     const date = new Date(dateString)
@@ -181,7 +221,7 @@ const Notification = () => {
     })
   }
 
-  // Get icon based on channel
+  // ─── Get Icon Based on Channel ───────────────────────────────────────────
   const getNotificationIcon = (channel: string) => {
     switch (channel?.toUpperCase()) {
       case 'SYSTEM':
@@ -192,12 +232,14 @@ const Notification = () => {
         return 'cube'
       case 'PRICE_ALERT':
         return 'pricetag'
+      case 'REFERRAL':
+        return 'gift'
       default:
         return 'notifications'
     }
   }
 
-  // Get color based on channel
+  // ─── Get Color Based on Channel ───────────────────────────────────────────
   const getNotificationColor = (channel: string) => {
     switch (channel?.toUpperCase()) {
       case 'SYSTEM':
@@ -208,54 +250,67 @@ const Notification = () => {
         return '#10B981'
       case 'PRICE_ALERT':
         return '#EF4444'
+      case 'REFERRAL':
+        return '#8B5CF6'
       default:
         return '#6B7280'
     }
   }
 
-  // Render single notification
+  // ─── Render Single Notification ───────────────────────────────────────────
   const renderNotification = ({ item }: { item: NotificationItem }) => {
     const iconName = getNotificationIcon(item.channel)
     const color = getNotificationColor(item.channel)
 
     return (
       <TouchableOpacity
-        onPress={() => handleNotificationPress(item)}
         activeOpacity={0.7}
-        className={`flex-row items-start gap-3 mb-3 p-4 rounded-2xl ${
-          item.is_read ? 'bg-white' : 'bg-blue-50'
-        } border ${item.is_read ? 'border-gray-100' : 'border-blue-100'}`}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: 12,
+          marginBottom: 12,
+          padding: 16,
+          borderRadius: 16,
+          backgroundColor: item.is_read ? '#FFFFFF' : '#EFF6FF',
+          borderWidth: 1,
+          borderColor: item.is_read ? '#F3F4F6' : '#BFDBFE',
+        }}
       >
-        {/* Icon */}
         <View
-          className="w-12 h-12 rounded-full items-center justify-center"
-          style={{ backgroundColor: `${color}15` }}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: `${color}15`,
+          }}
         >
           <Ionicons name={iconName as any} size={24} color={color} />
         </View>
 
-        {/* Content */}
-        <View className="flex-1">
-          <View className="flex-row items-center justify-between">
-            <Text className={`text-sm font-semibold ${item.is_read ? 'text-gray-500' : 'text-gray-900'}`}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: item.is_read ? '#6B7280' : '#1F2937' }}>
               {item.title}
             </Text>
             {!item.is_read && (
-              <View className="w-2 h-2 rounded-full bg-blue-500" />
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#2563EB' }} />
             )}
           </View>
           <Text
-            className={`text-sm mt-1 ${item.is_read ? 'text-gray-400' : 'text-gray-600'}`}
+            style={{ fontSize: 14, marginTop: 4, color: item.is_read ? '#9CA3AF' : '#4B5563' }}
             numberOfLines={2}
           >
             {item.body}
           </Text>
-          <View className="flex-row items-center justify-between mt-2">
-            <Text className="text-xs text-gray-400">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <Text style={{ fontSize: 12, color: '#9CA3AF' }}>
               {formatDate(item.created_at)}
             </Text>
             {item.cta_text && (
-              <Text className="text-xs text-blue-600 font-semibold">
+              <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>
                 {item.cta_text} →
               </Text>
             )}
@@ -265,63 +320,59 @@ const Notification = () => {
     )
   }
 
-  // Render empty state
+  // ─── Render Empty State ────────────────────────────────────────────────────
   const renderEmpty = () => (
-    <View className="items-center justify-center py-16">
-      <View className="w-24 h-24 rounded-full bg-gray-100 items-center justify-center">
+    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 64 }}>
+      <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="notifications-off-outline" size={48} color="#9CA3AF" />
       </View>
-      <Text className="text-xl font-bold text-gray-700 mt-4">No Notifications</Text>
-      <Text className="text-gray-400 text-center mt-2">
-        You're all caught up! {'\n'}
+      <Text style={{ fontSize: 20, fontWeight: '700', color: '#1F2937', marginTop: 16 }}>No Notifications</Text>
+      <Text style={{ fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginTop: 8 }}>
+        You're all caught up!{'\n'}
         We'll notify you when something arrives.
       </Text>
     </View>
   )
 
   return (
-    <SafeAreaView className="bg-[#F9F9FB] flex-1">
-      <View className="px-5 flex-1">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
+      <View style={{ paddingHorizontal: 20, flex: 1 }}>
         {/* Header */}
-        <View className="flex-row items-center gap-4 py-2">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 8 }}>
           <AppHeader
             left={() => <BackButton />}
-            middle={() => <Text className="text-lg font-semibold text-[#1F2937]">Notifications</Text>}
+            middle={() => <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937' }}>Notifications</Text>}
           />
         </View>
 
         {/* Header Actions */}
-        <View className="flex-row justify-between items-center mb-3">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-base font-semibold text-gray-700">All</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937' }}>All</Text>
             {unreadCount > 0 && (
-              <View className="bg-blue-500 px-2 py-0.5 rounded-full">
-                <Text className="text-white text-xs font-bold">{unreadCount}</Text>
+              <View style={{ backgroundColor: '#2563EB', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>{unreadCount}</Text>
               </View>
             )}
           </View>
           {notifications.length > 0 && (
-            <TouchableOpacity
-              onPress={markAllAsRead}
-              className="flex-row items-center gap-1"
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={markAllAsRead} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="checkmark-done-circle-outline" size={18} color="#2563EB" />
-              <Text className="text-sm text-blue-600 font-medium">Mark all as read</Text>
+              <Text style={{ fontSize: 14, color: '#2563EB', fontWeight: '500' }}>Mark all as read</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Loading State */}
         {loading ? (
-          <View className="flex-1 items-center justify-center">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator size="large" color="#2563EB" />
-            <Text className="text-gray-500 mt-3">Loading notifications...</Text>
+            <Text style={{ color: '#6B7280', marginTop: 12 }}>Loading notifications...</Text>
           </View>
         ) : (
           <ScrollView
             showsVerticalScrollIndicator={false}
-            className="flex-1"
+            style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: 20 }}
             refreshControl={
               <RefreshControl
