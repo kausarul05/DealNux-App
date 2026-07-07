@@ -1,3 +1,4 @@
+// Profile.tsx - Updated Logout Function
 import { IPA_BASE, PROFILE } from "@env";
 import {
     Entypo,
@@ -37,32 +38,21 @@ const PaymentMethodModal = ({
 }) => {
     return (
         <Modal transparent visible={visible} animationType="fade">
-
             <Pressable onPress={onClose} className="flex-1 bg-black/40" />
-
-
             <View className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[28px] px-6 pt-4 pb-7 items-center justify-center">
-                
-
                 <View className="bg-[#2354b62a] rounded-full p-4 items-center justify-center mx-auto mb-4">
                     <View className="bg-[#2354b62a] rounded-full p-5 items-center justify-center">
                         <Ionicons name="help-circle" size={40} color="#2355B6" />
-                  </View>
+                    </View>
                 </View>
-                <Text className="text-3xl font-bold text-[#2D2D2D] text-center mb-4">
-                    Logout
-                </Text>
-                <Text className="text-xl text-center mb-5">
-                    Are you sure you want
-                    to log out?
-                </Text>
-
+                <Text className="text-3xl font-bold text-[#2D2D2D] text-center mb-4">Logout</Text>
+                <Text className="text-xl text-center mb-5">Are you sure you want to log out?</Text>
                 <View className="flex-row gap-5 items-center justify-center my-5">
                     <TouchableOpacity onPress={onClose} className="bg-[#2354b623] rounded-2xl px-6 py-3 mt-5">
                         <Text className="text-black font-bold text-xl">Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={onConfirm} className="bg-[#2355B6] rounded-2xl px-6 py-3 mt-5" >
-                        <Text className="text-white font-bold text-xl">Yes, Logout </Text>
+                    <TouchableOpacity onPress={onConfirm} className="bg-[#2355B6] rounded-2xl px-6 py-3 mt-5">
+                        <Text className="text-white font-bold text-xl">Yes, Logout</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -95,10 +85,7 @@ const RowItem = ({ leftIcon, title, rightIcon = true, onPress }: any) => (
             </View>
             <Text className="text-[15px] text-[#2D2D2D] font-semibold">{title}</Text>
         </View>
-
-        {rightIcon ? (
-            <Feather name="external-link" size={18} color="#636F85" />
-        ) : null}
+        {rightIcon ? <Feather name="external-link" size={18} color="#636F85" /> : null}
     </TouchableOpacity>
 );
 
@@ -110,7 +97,7 @@ type UserProfile = {
     email: string;
     profile_picture: string;
     address: string;
-    interests: string[]; 
+    interests: string[];
     refaradal_code: string;
     balance: number;
     advertiser_status: {
@@ -122,7 +109,6 @@ type UserProfile = {
     has_claimed_referral: boolean;
     referred_by: string | null;
 };
-
 
 const API_BASE_URL = IPA_BASE;
 const END_POINTS = PROFILE;
@@ -137,10 +123,7 @@ const Profile = () => {
     useFocusEffect(
         useCallback(() => {
             const loadData = async () => {
-                // console.log("Profile Screen Focused 🔄");
-
                 const token = await AsyncStorage.getItem("vToken");
-
                 try {
                     const res = await axios.get(
                         `${API_BASE_URL}${END_POINTS}`,
@@ -150,18 +133,61 @@ const Profile = () => {
                             },
                         }
                     );
-                    // console.log(res.data)
                     setUser(res.data.data);
-                    // console.log(user?.advertiser_status?.status)
                 } catch (error) {
                     console.error("Error loading data:", error);
                 }
             };
-
             loadData();
         }, [])
     );
 
+    // ─── ✅ Logout Handler - Clear All Local Storage ──────────────────────────
+    const handleLogout = async () => {
+        try {
+            // ✅ Clear all auth related data
+            await AsyncStorage.removeItem('vToken');
+            await AsyncStorage.removeItem('vRefreshToken');
+            await AsyncStorage.removeItem('userData');
+            await AsyncStorage.removeItem('userEmail');
+            
+            // ✅ Clear remember me data
+            await AsyncStorage.removeItem('rememberMe');
+            await AsyncStorage.removeItem('rememberedEmail');
+            
+            // ✅ Clear notification related data
+            await AsyncStorage.removeItem('notificationPreferences');
+            
+            // ✅ Clear seller application draft (if any)
+            await AsyncStorage.removeItem('seller_application_draft');
+            
+            // ✅ Clear any other app specific data
+            await AsyncStorage.removeItem('appSettings');
+            
+            console.log('✅ All local storage cleared successfully');
+            
+            // ✅ Show success message
+            toast.show({
+                message: 'Logged out successfully',
+                type: 'success',
+                style: 'top',
+            });
+            
+            // ✅ Reset navigation and go to SignIn
+            navigation.reset({
+                index: 0,
+                routes: [{ name: "SignIn" }],
+            });
+            
+        } catch (error) {
+            console.error('❌ Logout error:', error);
+            toast.show({
+                message: 'Error during logout. Please try again.',
+                type: 'error',
+                style: 'top',
+            });
+        }
+    };
 
     const shop = () => {
         console.log(user?.seller_status)
@@ -169,13 +195,11 @@ const Profile = () => {
             navigation.navigate("ShopCreate")
         } else if (user?.seller_status.status == "pending") {
             toast.show({
-                message:
-                    ("Your Shop Request Is Pending."),
+                message: ("Your Shop Request Is Pending."),
                 type: 'error',
                 style: 'top',
             });
-        }
-        else {
+        } else {
             navigation.navigate("ShopDashboard")
         }
     }
@@ -185,24 +209,21 @@ const Profile = () => {
             navigation.navigate("AdsApply")
         } else if (user?.advertiser_status.status == "pending") {
             toast.show({
-                message:
-                    ("Your Business Profile Request Is Pending."),
+                message: ("Your Business Profile Request Is Pending."),
                 type: 'error',
                 style: 'top',
             });
-        }
-        else {
+        } else {
             navigation.navigate("MyAds")
         }
-
     }
+
     return (
         <SafeAreaView className="flex-1 bg-[#F9F9FB]">
-
-            <View className="px-5 ">
+            <View className="px-5">
                 {/* Header */}
                 <View className="items-center my-2">
-                        <Text className="text-lg font-bold text-[#2D2D2D]">My Profile</Text>
+                    <Text className="text-lg font-bold text-[#2D2D2D]">My Profile</Text>
                 </View>
                 <ScrollView className="mb-28" showsVerticalScrollIndicator={false}>
                     {/* Avatar */}
@@ -226,31 +247,21 @@ const Profile = () => {
                     <Text className="text-lg text-center mt-1 text-[#636F85] font-semibold">
                         {user?.email}
                     </Text>
-                    
-                        <LinearGradient
+
+                    <LinearGradient
                         style={styles.balanceCard}
                         colors={['#0057FF', '#61B3FF']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            className="mt-4 rounded-[28px] px-5 py-5 items-center justify-center"
-                            
-                        >
-                            <Text className="text-[28px] font-bold text-white">
-                                ${Number(user?.balance || 0.00).toFixed(2)}
-                            </Text>
-                            <Text className="text-[14px] text-white mt-1 font-medium">
-                                USD Balance
-                            </Text>
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        className="mt-4 rounded-[28px] px-5 py-5 items-center justify-center"
+                    >
+                        <Text className="text-[28px] font-bold text-white">
+                            ${Number(user?.balance || 0.00).toFixed(2)}
+                        </Text>
+                        <Text className="text-[14px] text-white mt-1 font-medium">
+                            USD Balance
+                        </Text>
                     </LinearGradient>
-                   
-                    {/* style={{
-                                backgroundColor: '#CDEFD4',
-                                shadowColor: '#000',
-                                shadowOpacity: 0.06,
-                                shadowRadius: 10,
-                                shadowOffset: { width: 0, height: 4 },
-                                elevation: 3,
-                            }} */}
 
                     {/* Quick actions */}
                     <View className="flex-row gap-4 mt-6">
@@ -284,13 +295,12 @@ const Profile = () => {
                             onPress={() => (navigation as any).navigate("AppReview")}
                         />
                     </View>
+
                     {/* Shop Create and Manage */}
                     <Card className="mt-5 px-4">
                         <RowItem
-                            title={user?.seller_status.status == "approved" ? "Seller dashboard": "Become a seller" }
-                            leftIcon={
-                                <Entypo name="shop" size={16} color="#2355B6" />
-                            }
+                            title={user?.seller_status.status == "approved" ? "Seller dashboard" : "Become a seller"}
+                            leftIcon={<Entypo name="shop" size={16} color="#2355B6" />}
                             onPress={shop}
                         />
                     </Card>
@@ -303,6 +313,7 @@ const Profile = () => {
                             onPress={myAds}
                         />
                     </Card>
+
                     {/* Personal Information */}
                     <Card className="mt-5 px-4 pt-4">
                         <View className="flex-row items-center justify-between mb-2">
@@ -311,7 +322,6 @@ const Profile = () => {
                                 <MaterialIcons name="edit" size={24} color="#636F85" />
                             </TouchableOpacity>
                         </View>
-
                         <RowItem
                             title={user?.name}
                             rightIcon={false}
@@ -340,26 +350,16 @@ const Profile = () => {
                     {/* Settings */}
                     <Card className="mt-5 px-4 pt-4">
                         <Text className="text-lg font-bold text-[#2D2D2D] mb-2">Settings</Text>
-{/* 
-                        <RowItem
-                            title="Notifications"
-                            leftIcon={<Ionicons name="notifications-outline" size={16} color="#636F85" />}
-                            onPress={() => navigation.navigate("NotificationSettings")}
-                        />
-                        <Divider /> */}
-
                         <RowItem
                             title="Change Password"
                             leftIcon={<Ionicons name="key-outline" size={16} color="#636F85" />}
                             onPress={() => navigation.navigate("UpdatePassword")}
                         />
-
                     </Card>
 
                     {/* Company */}
                     <Card className="mt-5 px-4 pt-4">
                         <Text className="text-base font-bold text-[#2D2D2D] mb-2">Company</Text>
-
                         <RowItem
                             title="About Us"
                             onPress={() => navigation.navigate("aboutus")}
@@ -371,27 +371,11 @@ const Profile = () => {
                             onPress={() => navigation.navigate("contactus")}
                             leftIcon={<Ionicons name="person-circle-outline" size={16} color="#636F85" />}
                         />
-                        {/* <Divider />
-                        <RowItem
-                            title="Video Demo"
-                            leftIcon={<Ionicons name="videocam-outline" size={16} color="#636F85" />}
-                        /> */}
-                        {/* <Divider /> */}
-                        {/* <RowItem
-                            title="Press"
-                            leftIcon={<MaterialCommunityIcons name="newspaper-variant-outline" size={16} color="#636F85" />}
-                        /> */}
-                        {/* <Divider /> */}
-                        {/* <RowItem
-                            title="Events"
-                            leftIcon={<Ionicons name="calendar-outline" size={16} color="#636F85" />}
-                        /> */}
                     </Card>
 
                     {/* Legal */}
                     <Card className="mt-5 px-4 pt-4">
                         <Text className="text-base font-bold text-[#2D2D2D] mb-2">Legal</Text>
-
                         <RowItem
                             title="Privacy policy"
                             leftIcon={<MaterialCommunityIcons name="shield-check-outline" size={16} color="#636F85" />}
@@ -408,17 +392,10 @@ const Profile = () => {
                     {/* Connect */}
                     <Card className="mt-5 px-4 pt-4">
                         <Text className="text-base font-bold text-[#2D2D2D] mb-3">Connect</Text>
-
                         <View className="flex-row justify-between px-1 mb-3">
-                            {/* <View className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
-                                <Ionicons name="logo-whatsapp" size={20} color="green" />
-                            </View> */}
                             <Pressable onPress={() => Linking.openURL("https://www.tiktok.com/@dealnux")} className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
                                 <Ionicons name="logo-tiktok" size={20} color="black" />
                             </Pressable>
-                            {/* <Pressable onPress={() => Linking.canOpenURL("https://www.tiktok.com/@dealnux ")} className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
-                                <AntDesign name="x" size={18} color="black" />
-                            </Pressable> */}
                             <Pressable onPress={() => Linking.openURL("https://www.facebook.com/profile.php?id=61588412872195")} className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
                                 <Ionicons name="logo-facebook" size={20} color="blue" />
                             </Pressable>
@@ -429,14 +406,8 @@ const Profile = () => {
                                 <Ionicons name="logo-instagram" size={20} color="red" />
                             </Pressable>
                         </View>
-
                         <Divider />
-
-                        {/* <RowItem
-                            title="Request Our Services"
-                            leftIcon={<MaterialCommunityIcons name="file-document-outline" size={16} color="#636F85" />}
-                        /> */}
-                    </Card> 
+                    </Card>
 
                     {/* Logout */}
                     <TouchableOpacity
@@ -452,21 +423,14 @@ const Profile = () => {
                 </ScrollView>
             </View>
 
+            {/* ✅ Logout Confirmation Modal */}
             <PaymentMethodModal
                 visible={payOpen}
                 onClose={() => setPayOpen(false)}
-                onAddCard={() => {
-
-                    setPayOpen(false);
-                }}
-                onConfirm={() => {
-
-                    navigation.reset({
-                        index: 0,
-                        routes: [{ name: "SignIn" }],
-                    });
-                }}
+                onAddCard={() => setPayOpen(false)}
+                onConfirm={handleLogout} // ✅ This calls the logout handler
             />
+            
             <Toast
                 style={toast.style}
                 visible={toast.visible}
@@ -493,4 +457,4 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 0,
     },
-})
+});
