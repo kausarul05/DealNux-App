@@ -697,7 +697,9 @@ const Home = () => {
                 onPressAd={handleAds}
             />
 
-            <PremiumCard onPress={() => setSubscriptionModalVisible(true)} />
+            {!isSubscriptionActive && (
+                <PremiumCard onPress={() => setSubscriptionModalVisible(true)} />
+            )}
 
             {recommendedProducts.length > 0 && (
                 <View style={styles.recommendedSection}>
@@ -1045,21 +1047,21 @@ const styles = StyleSheet.create({
         marginTop: 40,
         fontSize: 16,
     },
-    chatButton: { 
-        position: 'absolute', 
-        bottom: 100, 
-        right: 24, 
-        shadowColor: '#F59E0B', 
-        shadowOffset: { width: 0, height: 4 }, 
-        shadowOpacity: 0.3, 
-        shadowRadius: 8, 
-        elevation: 6 
+    chatButton: {
+        position: 'absolute',
+        bottom: 100,
+        right: 24,
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6
     },
-    chatGradient: { 
-        width: 60, 
-        height: 60, 
-        borderRadius: 30, 
-        alignItems: 'center', 
+    chatGradient: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        alignItems: 'center',
         justifyContent: 'center'
     },
 })
