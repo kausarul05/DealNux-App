@@ -92,7 +92,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             <View style={styles.crownIcon}>
                                 <MaterialCommunityIcons name="crown-circle" size={32} color="#FFD700" />
                             </View>
-                            <Text style={styles.headerTitle}>Go Premium</Text>
+                            <Text style={styles.headerTitle}>Go Premium </Text>
                             <Text style={styles.headerSubtitle}>
                                 with <Text style={styles.highlight}>14-Day Free Trial!</Text>
                             </Text>

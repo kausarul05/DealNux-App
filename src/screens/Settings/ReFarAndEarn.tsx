@@ -384,7 +384,7 @@ const ReferAndEarn = () => {
                             <View style={styles.termItem}>
                                 <View style={styles.termBullet} />
                                 <Text style={styles.termText}>
-                                    Referral points are redeemable only on eligible local DEALNUX products and cannot be used with external retailers.
+                                    Referral points are redeemable only on eligible local DEALNUX products.
                                 </Text>
                             </View>
                         </View>

@@ -697,7 +697,7 @@ const Home = () => {
                 onPressAd={handleAds}
             />
 
-            <PremiumCard onPress={() => setPremiumModalVisible(true)} />
+            <PremiumCard onPress={() => setSubscriptionModalVisible(true)} />
 
             {recommendedProducts.length > 0 && (
                 <View style={styles.recommendedSection}>
