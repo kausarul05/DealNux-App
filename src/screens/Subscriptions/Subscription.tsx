@@ -103,10 +103,10 @@ const getDaysRemaining = (dateString: string) => {
 const Feature = ({ text, icon, blue }: { text: string; icon?: string; blue?: boolean }) => (
   <View style={styles.featureRow}>
     <View style={[styles.featureIcon, blue && styles.featureIconBlue]}>
-      <Ionicons 
-        name={icon || "checkmark-done"} 
-        size={16} 
-        color={blue ? "#1D4ED8" : "#111827"} 
+      <Ionicons
+        name={icon || "checkmark-done"}
+        size={16}
+        color={blue ? "#1D4ED8" : "#111827"}
       />
     </View>
     <Text style={[styles.featureText, blue && styles.featureTextBlue]}>{text}</Text>
@@ -145,7 +145,7 @@ const CurrentPlanCard = ({ subscription }: { subscription: SubscriptionStatus | 
           <Text style={styles.currentPlanBadgeText}>CURRENT PLAN</Text>
         </View>
         <View style={[
-          styles.statusPill, 
+          styles.statusPill,
           subscription.is_active ? styles.statusActive : styles.statusInactive
         ]}>
           <View style={[
@@ -162,7 +162,7 @@ const CurrentPlanCard = ({ subscription }: { subscription: SubscriptionStatus | 
       </View>
 
       <Text style={styles.currentPlanName}>{subscription.plan_name}</Text>
-      
+
       <View style={styles.currentPlanPriceRow}>
         <Text style={styles.currentPlanPrice}>${subscription.price.toFixed(2)}</Text>
         <Text style={styles.currentPlanPeriod}>/ month</Text>
@@ -178,14 +178,14 @@ const CurrentPlanCard = ({ subscription }: { subscription: SubscriptionStatus | 
             <Text style={styles.statValue}>{formatDate(subscription.renews_at)}</Text>
           </View>
         </View>
-        
+
         {daysRemaining !== null && daysRemaining > 0 && (
           <View style={styles.statItem}>
             <View style={[styles.statIcon, isExpiringSoon && styles.statIconWarning]}>
-              <Ionicons 
-                name="time-outline" 
-                size={16} 
-                color={isExpiringSoon ? "#DC2626" : "#1D4ED8"} 
+              <Ionicons
+                name="time-outline"
+                size={16}
+                color={isExpiringSoon ? "#DC2626" : "#1D4ED8"}
               />
             </View>
             <View>
@@ -236,11 +236,13 @@ const PlanCard = ({
   onSubscribe,
   subscribingId,
   isCurrentPlan,
+  hasUsedTrial
 }: {
   plan: Plan;
   onSubscribe: (plan: Plan) => void;
   subscribingId: number | null;
   isCurrentPlan: boolean;
+  hasUsedTrial?: boolean;
 }) => {
   const free = isFree(plan.plan_type);
   const yearly = isYearly(plan.plan_type);
@@ -252,13 +254,19 @@ const PlanCard = ({
   const monthlyEquivalent = yearly ? (priceNum / 12) : priceNum;
   const savings = yearly ? Math.round((1 - (priceNum / (monthlyEquivalent * 12))) * 100) : 0;
 
+  // Check if trial is available
+  const hasTrial = plan.trial_days > 0;
+  const trialUsed = hasUsedTrial || false;
+  const showTrial = hasTrial && !trialUsed && !isCurrentPlan;
+
+
   if (free) {
     return (
       <View style={[styles.card, isCurrentPlan && styles.currentCard]}>
         <View style={styles.cardTopRow}>
           <View>
             <Text style={styles.planTitle}>{plan.name}</Text>
-            <Text style={styles.planSubtitle}>Free forever</Text>
+            {/* <Text style={styles.planSubtitle}>Free forever</Text> */}
           </View>
           {isCurrentPlan && (
             <View style={styles.activePill}>
@@ -272,20 +280,42 @@ const PlanCard = ({
         </Text>
         {isCurrentPlan ? (
           <View style={styles.currentPlanBtn}>
-            <Text style={styles.currentPlanText}>Your Current Plan</Text>
+            <Text style={styles.currentPlanText}>✓ Current Plan</Text>
           </View>
         ) : (
           <TouchableOpacity
             onPress={() => onSubscribe(plan)}
             disabled={subscribingId !== null}
             activeOpacity={0.88}
-            style={[styles.subscribeBtn, styles.subscribeBtnFree]}
+            style={[
+              styles.subscribeBtn,
+              isMonthlyPlan ? styles.subscribeBtnMonthly : styles.subscribeBtnYearly,
+              subscribingId !== null && { opacity: 0.6 }
+            ]}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#1D4ED8" />
-            ) : (
-              <Text style={styles.subscribeBtnTextFree}>Get Started</Text>
-            )}
+            <LinearGradient
+              colors={isMonthlyPlan ? ['#1D4ED8', '#2563EB'] : ['#D97706', '#F59E0B']}
+              style={styles.subscribeGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.subscribeBtnText}>
+                    {showTrial
+                      ? `Start ${plan.trial_days}-Day Trial`
+                      : trialUsed
+                        ? "Subscribe Now"
+                        : hasTrial
+                          ? `Start ${plan.trial_days}-Day Trial`
+                          : "Subscribe Now"}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={18} color="#fff" />
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         )}
         <View style={styles.featuresList}>
@@ -299,10 +329,10 @@ const PlanCard = ({
 
   // Pro/Paid plans
   const isMonthlyPlan = isMonthly(plan.plan_type);
-  
+
   return (
     <View style={[
-      styles.proCard, 
+      styles.proCard,
       isMonthlyPlan ? styles.monthlyProCard : styles.yearlyProCard,
       isCurrentPlan && styles.currentPlanBorder
     ]}>
@@ -358,7 +388,7 @@ const PlanCard = ({
           disabled={subscribingId !== null}
           activeOpacity={0.88}
           style={[
-            styles.subscribeBtn, 
+            styles.subscribeBtn,
             isMonthlyPlan ? styles.subscribeBtnMonthly : styles.subscribeBtnYearly,
             subscribingId !== null && { opacity: 0.6 }
           ]}
@@ -440,7 +470,7 @@ const SuccessModal = ({
             <Text style={styles.successDesc}>
               Start exploring all premium features now!
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.successButton}
               onPress={onClose}
               activeOpacity={0.9}
@@ -542,7 +572,7 @@ const SubscriptionInner = () => {
   const isCurrentPlan = (plan: Plan) => {
     if (!subscription) return false;
     return subscription.plan_name.toLowerCase().includes(plan.name.toLowerCase()) ||
-           plan.name.toLowerCase().includes(subscription.plan_name.toLowerCase());
+      plan.name.toLowerCase().includes(subscription.plan_name.toLowerCase());
   };
 
   // ── Subscribe flow ─────────────────────────────────────────────────────────
@@ -604,7 +634,40 @@ const SubscriptionInner = () => {
       }
     } catch (err: any) {
       console.error("❌ Subscribe error:", err?.response?.data || err);
-      Alert.alert("Error", err?.response?.data?.message || "Subscription failed. Please try again.");
+
+      // ✅ Check if error is about trial or active plan
+      const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || "";
+
+      if (errorMessage.includes("already used your free trial") ||
+        errorMessage.includes("have an active plan")) {
+
+        // ✅ Show user-friendly alert
+        Alert.alert(
+          "Trial Already Used",
+          "You have already used your free trial or have an active subscription plan.\n\n" +
+          "You can manage your subscription or upgrade to a different plan.",
+          [
+            {
+              text: "Manage Subscription",
+              onPress: () => {
+                // Refresh subscription status
+                fetchSubscriptionStatus();
+              }
+            },
+            {
+              text: "OK",
+              style: "cancel"
+            }
+          ]
+        );
+
+      } else {
+        // Show generic error
+        Alert.alert(
+          "Subscription Error",
+          errorMessage || "Subscription failed. Please try again."
+        );
+      }
     } finally {
       setSubscribingId(null);
     }
@@ -632,7 +695,7 @@ const SubscriptionInner = () => {
           />
         </View>
 
-        <ScrollView 
+        <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
@@ -710,8 +773,8 @@ const SubscriptionInner = () => {
       </View>
 
       {/* Success Modal */}
-      <SuccessModal 
-        visible={successVisible} 
+      <SuccessModal
+        visible={successVisible}
         planName={successPlanName}
         onClose={handleSuccessClose}
       />
