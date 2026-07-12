@@ -26,6 +26,7 @@ import {
     TouchableOpacity,
     View,
     Alert,
+    Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -174,6 +175,7 @@ const Home = () => {
     const [isSubscriptionActive, setIsSubscriptionActive] = useState(false);
 
     const [chatModalVisible, setChatModalVisible] = useState(false)
+    const [showAllRecommended, setShowAllRecommended] = useState(false);
 
     //---ads
     const [ads, setAds] = useState<AdsItem[]>([])
@@ -705,7 +707,7 @@ const Home = () => {
                 <View style={styles.recommendedSection}>
                     <View style={styles.recommendedHeader}>
                         <Text style={styles.sectionTitle}>Recommended for You</Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowAllRecommended(true)}>
                             <Text style={styles.seeAllText}>See All</Text>
                         </TouchableOpacity>
                     </View>
@@ -719,6 +721,34 @@ const Home = () => {
                     />
                 </View>
             )}
+
+            <Modal
+                visible={showAllRecommended}
+                animationType="slide"
+                onRequestClose={() => setShowAllRecommended(false)}
+            >
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
+                    <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Text style={{ fontSize: 20, fontWeight: '700', color: '#1F2937' }}>
+                                Recommended for You
+                            </Text>
+                            <TouchableOpacity onPress={() => setShowAllRecommended(false)}>
+                                <Ionicons name="close" size={28} color="#1F2937" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                    <FlatList
+                        data={recommendedProducts.map(toUi)}
+                        keyExtractor={item => item.id}
+                        numColumns={2}
+                        columnWrapperStyle={styles.productGrid}
+                        renderItem={renderRecommendedItem}
+                        contentContainerStyle={{ paddingBottom: 20 }}
+                        showsVerticalScrollIndicator={false}
+                    />
+                </SafeAreaView>
+            </Modal>
 
             <View style={styles.allProductsHeader}>
                 <Text style={styles.allProductsTitle}>All Products</Text>

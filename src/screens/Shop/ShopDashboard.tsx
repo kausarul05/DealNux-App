@@ -455,7 +455,7 @@ const ShopDashboard = () => {
                     setStripeOnboardingUrl(onboardingUrl);
                     setStripeAccountId(accountId);
                     setStripeModalVisible(true);
-                    
+
                     toast.show({
                         message: 'Redirecting to Stripe onboarding...',
                         type: 'info',
@@ -1624,7 +1624,7 @@ const ShopDashboard = () => {
                     <Text className="text-[13px] text-[#6B7280] mb-4">
                         Payouts are processed via Stripe Connect directly to your linked bank account. Minimum payout is $10.00.
                     </Text>
-                    
+
                     {hasStripeAccount && isOnboardingComplete ? (
                         <TouchableOpacity
                             onPress={handleManageBank}
@@ -2293,15 +2293,17 @@ const ShopDashboard = () => {
 
         if (!isCouponTab && !isProductsTab) return null;
 
+        const label = isProductsTab ? 'Add Product' : 'Add Coupon';
+        const iconName = isProductsTab ? 'add' : 'pricetag-outline';
+
         return (
             <Pressable
-                className="absolute bottom-8 right-6 w-[62px] h-[62px] rounded-full items-center justify-center bg-[#2F6CF6]"
                 style={{
-                    shadowColor: '#000',
-                    shadowOpacity: 0.18,
-                    shadowRadius: 16,
-                    shadowOffset: { width: 0, height: 10 },
-                    elevation: 10,
+                    position: 'absolute',
+                    bottom: 30,
+                    right: 20,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                 }}
                 onPress={() => {
                     if (isCouponTab) {
@@ -2311,11 +2313,48 @@ const ShopDashboard = () => {
                     }
                 }}
             >
-                <Ionicons
-                    name={isCouponTab ? 'pricetag-outline' : 'add'}
-                    size={28}
-                    color="#fff"
-                />
+
+                {/* FAB Button */}
+                <View style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: '#1F56D8',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: '#1F56D8',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    // elevation: 6,
+                }}>
+                    <Ionicons name={iconName} size={28} color="#FFFFFF" />
+                </View>
+
+                {/* Label */}
+                <View style={{
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    paddingHorizontal: 14,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    marginTop: 8,
+                    borderWidth: 1,
+                    borderColor: '#E5E7EB',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    elevation: 2,
+                }}>
+                    <Text style={{
+                        color: '#1F56D8',
+                        fontSize: 12,
+                        fontWeight: '700',
+                        letterSpacing: 0.3,
+                    }}>
+                        {label}
+                    </Text>
+                </View>
             </Pressable>
         );
     };

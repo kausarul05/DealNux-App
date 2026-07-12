@@ -9,7 +9,7 @@ import { NavigationProp, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
     Image,
     KeyboardAvoidingView,
@@ -22,6 +22,7 @@ import {
     TextInput,
     View,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -58,6 +59,7 @@ type BoxInputProps = {
 const API_BASE_URL = IPA_BASE;
 const ADD_PRODUCT_URL = `${API_BASE_URL}${ADD_PRODUCT}`;
 const CATEGORY_LIST_URL = `${API_BASE_URL}${CATEGORIES_LIST}`;
+const DRAFT_KEY = 'product_draft';
 
 const conditionOptions = ['NEW', 'USED', 'REFURBISHED', 'OPEN_BOX'] as const;
 type ConditionType = (typeof conditionOptions)[number];
@@ -136,8 +138,12 @@ const AddProduct = () => {
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [draftLoaded, setDraftLoaded] = useState(false);
+    const [lastSaved, setLastSaved] = useState<string | null>(null);
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isFirstLoad = useRef(true);
 
-    // ✅ Category - Now storing ID and Name separately
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | number | null>(null);
     const [selectedCategoryName, setSelectedCategoryName] = useState('');
     const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -162,6 +168,143 @@ const AddProduct = () => {
 
     const [imageFile, setImageFile] = useState<PickedImage | null>(null);
 
+    const saveDraft = useCallback(async () => {
+        try {
+            setSaving(true);
+            const draft = {
+                title,
+                description,
+                brand,
+                modelNumber,
+                price,
+                originalPrice,
+                currency,
+                quantity,
+                condition,
+                freeShipping,
+                shippingCost,
+                estimatedDeliveryDays,
+                returnsAccepted,
+                returnPeriodDays,
+                selectedCategoryId,
+                selectedCategoryName,
+                imageFile,
+                lastSaved: new Date().toISOString()
+            };
+            await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+            setLastSaved(new Date().toISOString());
+        } catch (error) {
+            // Silent fail
+        } finally {
+            setSaving(false);
+        }
+    }, [
+        title, description, brand, modelNumber, price, originalPrice,
+        currency, quantity, condition, freeShipping, shippingCost,
+        estimatedDeliveryDays, returnsAccepted, returnPeriodDays,
+        selectedCategoryId, selectedCategoryName, imageFile
+    ]);
+
+    const loadDraft = useCallback(async () => {
+        try {
+            const saved = await AsyncStorage.getItem(DRAFT_KEY);
+            if (saved) {
+                const draft = JSON.parse(saved);
+                setTitle(draft.title || '');
+                setDescription(draft.description || '');
+                setBrand(draft.brand || '');
+                setModelNumber(draft.modelNumber || '');
+                setPrice(draft.price || '');
+                setOriginalPrice(draft.originalPrice || '');
+                setCurrency(draft.currency || 'usd');
+                setQuantity(draft.quantity || '');
+                setCondition(draft.condition || 'OPEN_BOX');
+                setFreeShipping(draft.freeShipping !== undefined ? draft.freeShipping : true);
+                setShippingCost(draft.shippingCost || '0');
+                setEstimatedDeliveryDays(draft.estimatedDeliveryDays || '');
+                setReturnsAccepted(draft.returnsAccepted !== undefined ? draft.returnsAccepted : true);
+                setReturnPeriodDays(draft.returnPeriodDays || '');
+                setSelectedCategoryId(draft.selectedCategoryId || null);
+                setSelectedCategoryName(draft.selectedCategoryName || '');
+                setImageFile(draft.imageFile || null);
+                setLastSaved(draft.lastSaved || null);
+            }
+        } catch (error) {
+            // Silent fail
+        } finally {
+            setDraftLoaded(true);
+            isFirstLoad.current = false;
+        }
+    }, []);
+
+    const autoSave = useCallback(() => {
+        if (!draftLoaded) return;
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = setTimeout(() => {
+            saveDraft();
+        }, 3000);
+    }, [saveDraft, draftLoaded]);
+
+    const clearDraft = useCallback(async () => {
+        try {
+            await AsyncStorage.removeItem(DRAFT_KEY);
+            setLastSaved(null);
+        } catch (error) {
+            // Silent fail
+        }
+    }, []);
+
+    const handleBackPress = () => {
+        const hasData = title || description || price || brand || modelNumber || imageFile;
+        if (hasData) {
+            Alert.alert(
+                'Save Draft?',
+                'You have unsaved changes. Would you like to save as draft before leaving?',
+                [
+                    {
+                        text: 'Discard',
+                        style: 'destructive',
+                        onPress: async () => {
+                            await clearDraft();
+                            navigation.goBack();
+                        },
+                    },
+                    {
+                        text: 'Save Draft',
+                        style: 'default',
+                        onPress: async () => {
+                            await saveDraft();
+                            navigation.goBack();
+                        },
+                    },
+                    {
+                        text: 'Stay',
+                        style: 'cancel',
+                    },
+                ]
+            );
+        } else {
+            navigation.goBack();
+        }
+    };
+
+    useEffect(() => {
+        loadDraft();
+    }, []);
+
+    // Auto-save on changes - but ONLY after draft is loaded
+    useEffect(() => {
+        if (draftLoaded && !isFirstLoad.current) {
+            autoSave();
+        }
+    }, [
+        title, description, brand, modelNumber, price, originalPrice,
+        currency, quantity, condition, freeShipping, shippingCost,
+        estimatedDeliveryDays, returnsAccepted, returnPeriodDays,
+        selectedCategoryId, selectedCategoryName, imageFile,
+        draftLoaded, autoSave
+    ]);
+
     const fetchCategories = async () => {
         const token = await AsyncStorage.getItem('vToken');
         if (!token) return;
@@ -176,12 +319,8 @@ const AddProduct = () => {
                 },
             });
 
-            console.log('📂 Categories API Response:', res?.data);
-
-            // ✅ Handle different response structures
             let rawData = res?.data?.data || res?.data || [];
 
-            // If the response has a 'results' field (common in DRF)
             if (rawData.results) {
                 rawData = rawData.results;
             }
@@ -195,9 +334,7 @@ const AddProduct = () => {
                 : [];
 
             setCategories(mappedCategories);
-            console.log('✅ Categories loaded:', mappedCategories.length);
         } catch (error: any) {
-            console.log('❌ CATEGORY FETCH ERROR =>', error?.response?.data || error);
             toast.show({
                 message: error?.response?.data?.message || 'Failed to load categories',
                 type: 'error',
@@ -292,7 +429,6 @@ const AddProduct = () => {
             return;
         }
 
-        // ✅ Validate Category ID
         if (!selectedCategoryId) {
             toast.show({
                 message: 'Please select a category.',
@@ -476,7 +612,6 @@ const AddProduct = () => {
 
             const formData = new FormData();
 
-            // Send category ID instead of name
             formData.append('category_id', String(selectedCategoryId));
             formData.append('title', title.trim());
             formData.append('description', description.trim());
@@ -502,10 +637,6 @@ const AddProduct = () => {
                 type: imageFile.type || 'image/jpeg',
             } as any);
 
-            console.log('📤 ADD PRODUCT URL =>', ADD_PRODUCT_URL);
-            console.log('📤 category_id sending =>', selectedCategoryId);
-            console.log('📤 category_name sending =>', selectedCategoryName);
-
             const res = await axios.post(ADD_PRODUCT_URL, formData, {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -514,9 +645,8 @@ const AddProduct = () => {
                 },
             });
 
-            console.log('✅ ADD PRODUCT RESPONSE =>', res.data);
-
             if (res?.data?.success === true || res?.data?.code === 200 || res?.data?.code === 201) {
+                await clearDraft();
                 setShowSuccessModal(true);
             } else {
                 toast.show({
@@ -526,11 +656,6 @@ const AddProduct = () => {
                 });
             }
         } catch (error: any) {
-            console.log('❌ ADD PRODUCT FULL ERROR =>', error);
-            console.log('❌ ADD PRODUCT RESPONSE =>', error?.response);
-            console.log('❌ ADD PRODUCT RESPONSE DATA =>', error?.response?.data);
-            console.log('❌ ADD PRODUCT MESSAGE =>', error?.message);
-
             toast.show({
                 message: error?.response?.data?.message || error?.message || 'Product add failed',
                 type: 'error',
@@ -552,6 +677,12 @@ const AddProduct = () => {
         return () => clearTimeout(timer);
     }, [showSuccessModal, navigation]);
 
+    const getLastSavedText = () => {
+        if (!lastSaved) return '';
+        const date = new Date(lastSaved);
+        return `Saved ${date.toLocaleTimeString()}`;
+    };
+
     return (
         <SafeAreaView className="flex-1 bg-[#F7F7FA]">
             <KeyboardAvoidingView
@@ -561,14 +692,23 @@ const AddProduct = () => {
                 <View className="px-5 py-2">
                     <View className="flex-row items-center">
                         <View className="w-10">
-                            <AppHeader left={() => <BackButton />} />
+                            <AppHeader left={() => <BackButton onPress={handleBackPress} />} />
                         </View>
 
                         <Text className="text-lg ml-4 font-semibold text-[#111827]">
                             Add Product
                         </Text>
 
-                        <View className="w-10" />
+                        <View className="flex-1 items-end">
+                            {saving ? (
+                                <View className="flex-row items-center">
+                                    <ActivityIndicator size="small" color="#1F56D8" />
+                                    <Text className="text-[10px] text-[#9CA3AF] ml-1">Saving...</Text>
+                                </View>
+                            ) : lastSaved ? (
+                                <Text className="text-[10px] text-[#9CA3AF]">{getLastSavedText()}</Text>
+                            ) : null}
+                        </View>
                     </View>
                 </View>
 
@@ -627,7 +767,7 @@ const AddProduct = () => {
 
                             {!!selectedCategoryName && (
                                 <Text className="text-[13px] text-[#6B7280] mt-2">
-                                    Selected: {selectedCategoryName} (ID: {selectedCategoryId})
+                                    Selected: {selectedCategoryName}
                                 </Text>
                             )}
                         </View>
@@ -814,7 +954,6 @@ const AddProduct = () => {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* ✅ Category Modal - Updated to show loading state and better UX */}
             <Modal
                 transparent
                 visible={categoryModalOpen}
