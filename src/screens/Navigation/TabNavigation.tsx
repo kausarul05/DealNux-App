@@ -1,14 +1,19 @@
-// MainTabs.tsx - Fixed with Proper Labels & Layout
+// MainTabs.tsx - Complete Updated Version
 import { AntDesign, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import React from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from '@react-navigation/native';
+import axios from "axios";
+import { IPA_BASE, CART_PRODUCT } from "@env";
 import Cart from "./Cart";
 import Dashboard from "./Dashboard";
 import Home from "./Home";
 import Profile from "./Profile";
 import Scanning from "./Scanning";
+
 
 const Tab = createBottomTabNavigator();
 
@@ -44,8 +49,84 @@ function CenterButton({ children, onPress }: any) {
     );
 }
 
+// ─── Cart Icon with Badge ────────────────────────────────────────────────────
+const CartIconWithBadge = ({ focused, color, size, cartCount }: any) => {
+    return (
+        <View style={{ position: 'relative' }}>
+            <Ionicons
+                name={focused ? "cart" : "cart-outline"}
+                size={size || 26}
+                color={color}
+            />
+            {cartCount > 0 && (
+                <View style={styles.badgeContainer}>
+                    <Text style={styles.badgeText}>
+                        {cartCount > 99 ? '99+' : cartCount}
+                    </Text>
+                </View>
+            )}
+        </View>
+    );
+};
+
 // ─── Main Tab Navigator ──────────────────────────────────────────────────────
 export default function MainTabs() {
+    const [cartCount, setCartCount] = useState(0);
+    const cartUpdateRef = useRef<(count: number) => void>();
+
+    // ─── Fetch Cart Count ──────────────────────────────────────────────────────
+    const fetchCartCount = useCallback(async () => {
+        try {
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) return;
+
+            const response = await axios.get(`${IPA_BASE}${CART_PRODUCT}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                },
+            });
+
+            const data = response?.data?.data;
+            if (data?.summary?.total_items !== undefined) {
+                setCartCount(data.summary.total_items);
+            } else {
+                // Fallback: count items from platforms
+                let total = 0;
+                if (data?.platforms) {
+                    Object.values(data.platforms).forEach((items: any) => {
+                        total += items.length;
+                    });
+                }
+                setCartCount(total);
+            }
+        } catch (error) {
+            console.error('❌ Error fetching cart count:', error);
+        }
+    }, []);
+
+    // ─── Handle cart update from Cart component ──────────────────────────────
+    const handleCartUpdate = useCallback((count: number) => {
+        setCartCount(count);
+    }, []);
+
+    // ─── Store callback in ref for Cart component ─────────────────────────────
+    useEffect(() => {
+        cartUpdateRef.current = handleCartUpdate;
+    }, [handleCartUpdate]);
+
+    // ─── Initial fetch ────────────────────────────────────────────────────────
+    useEffect(() => {
+        fetchCartCount();
+    }, [fetchCartCount]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchCartCount();
+            return () => { };
+        }, [fetchCartCount])
+    );
+
     return (
         <Tab.Navigator
             screenOptions={{
@@ -85,19 +166,28 @@ export default function MainTabs() {
                 }}
             />
 
-            {/* Cart Tab */}
+            {/* Cart Tab with Badge */}
             <Tab.Screen
                 name="CartTab"
-                component={Cart}
+                component={() => (
+                    <Cart onCartUpdate={handleCartUpdate} />
+                )}
                 options={{
                     tabBarLabel: 'Cart',
                     tabBarIcon: ({ focused, color, size }) => (
-                        <Ionicons
-                            name={focused ? "cart" : "cart-outline"}
-                            size={26}
+                        <CartIconWithBadge
+                            focused={focused}
                             color={color}
+                            size={26}
+                            cartCount={cartCount}
                         />
                     ),
+                }}
+                listeners={{
+                    tabPress: () => {
+                        // Refresh cart count when Cart tab is pressed
+                        setTimeout(() => fetchCartCount(), 100);
+                    },
                 }}
             />
 
@@ -106,7 +196,7 @@ export default function MainTabs() {
                 name="ScanTab"
                 component={Scanning}
                 options={{
-                    tabBarLabel: '', // ✅ লেবেল খালি
+                    tabBarLabel: '',
                     tabBarIcon: () => null,
                     tabBarButton: (props) => <CenterButton {...props} />,
                 }}
@@ -149,18 +239,17 @@ export default function MainTabs() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    // ── Tab Bar Container ────────────────────────────────────────────────────
     tabBar: {
         position: "absolute",
         left: 0,
         right: 0,
         bottom: 0,
-        height: Platform.OS === 'ios' ? 90 : 75, // ✅ বড় করা হয়েছে লেবেলের জন্য
+        height: Platform.OS === 'ios' ? 90 : 75,
         backgroundColor: 'rgba(255,255,255,0.98)',
         borderTopWidth: 0,
         paddingHorizontal: 8,
         paddingTop: 8,
-        paddingBottom: Platform.OS === 'ios' ? 28 : 12, // ✅ iOS এর জন্য বেশি
+        paddingBottom: Platform.OS === 'ios' ? 28 : 12,
         shadowColor: "#000",
         shadowOffset: {
             width: 0,
@@ -175,8 +264,6 @@ const styles = StyleSheet.create({
         borderWidth: 0.5,
         borderColor: 'rgba(0,0,0,0.04)',
     },
-
-    // ── Center FAB Button ────────────────────────────────────────────────────
     fabContainer: {
         top: -28,
         alignItems: "center",
@@ -201,5 +288,26 @@ const styles = StyleSheet.create({
         elevation: 15,
         borderWidth: 3,
         borderColor: "#FFFFFF",
+    },
+    // ─── Badge Styles ────────────────────────────────────────────────────────
+    badgeContainer: {
+        position: 'absolute',
+        top: -6,
+        right: -10,
+        backgroundColor: '#EF4444',
+        borderRadius: 10,
+        minWidth: 18,
+        height: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
+    badgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '700',
+        textAlign: 'center',
     },
 });

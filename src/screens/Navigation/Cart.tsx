@@ -132,6 +132,10 @@ type ReferralBalance = {
   user_referral_amount: number
 }
 
+interface CartProps {
+  onCartUpdate?: () => void;
+}
+
 const DEFAULT_COUPON_STATE: CouponState = {
   expanded: false, code: '', applied: false,
   applying: false, message: '', discountAmount: 0,
@@ -574,7 +578,7 @@ const EmptyCart = ({ onRefresh }: { onRefresh: () => void }) => (
 )
 
 // ─── Main Inner Component ─────────────────────────────────────────────────────
-const CartInner = () => {
+const CartInner = ({ onCartUpdate }: { onCartUpdate?: (count: number) => void }) => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
   const { initPaymentSheet, presentPaymentSheet } = useStripe()
 
@@ -598,6 +602,7 @@ const CartInner = () => {
   const [paymentLoading, setPaymentLoading] = useState(false)
   const [checkoutData, setCheckoutData] = useState<CheckoutResponse | null>(null)
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress | null>(null)
+
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const getPlatformLogo = (platformName?: string) => {
@@ -690,13 +695,18 @@ const CartInner = () => {
           return next
         })
       }
+
+      // ✅ CALL onCartUpdate AFTER cart is fetched
+      if (onCartUpdate && apiData?.summary?.total_items !== undefined) {
+        onCartUpdate(apiData.summary.total_items);
+      }
     } catch (error) {
       console.error('cart fetch error', error)
       setCartData(null); setPlatformItems({})
     } finally {
       setLoading(false); setRefreshing(false)
     }
-  }, [])
+  }, [onCartUpdate])
 
   useFocusEffect(useCallback(() => {
     fetchCart(true)
@@ -1242,9 +1252,9 @@ const CartInner = () => {
 }
 
 // ─── Root Export ──────────────────────────────────────────────────────────────
-const Cart = () => (
+const Cart = (props: { onCartUpdate?: (count: number) => void }) => (
   <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-    <CartInner />
+    <CartInner {...props} />
   </StripeProvider>
 )
 
