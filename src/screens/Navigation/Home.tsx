@@ -797,7 +797,7 @@ const Home = () => {
                 }}
                 onSubscribe={() => {
                     setSubscriptionModalVisible(false);
-                    setPremiumModalVisible(true);
+                    navigation.navigate('Subscription' as never);
                 }}
                 productName={selectedExternalProduct?.name || 'this product'}
                 productSeller={selectedExternalProduct?.seller || 'External Store'}
