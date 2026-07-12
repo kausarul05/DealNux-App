@@ -25,6 +25,9 @@ const AboutUs = () => {
   const [content, setContent] = useState('')
   const [lastUpdated, setLastUpdated] = useState('')
   const navigation = useNavigation()
+  
+  // ✅ Get current year dynamically
+  const currentYear = new Date().getFullYear()
 
   useEffect(() => {
     fetchAboutUs()
@@ -188,10 +191,10 @@ const AboutUs = () => {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Footer Note */}
+            {/* ✅ Footer Note - Dynamic Copyright Year */}
             <View className="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
               <Text className="text-xs text-gray-400 text-center">
-                © 2024 DealNux. All rights reserved. Made with ❤️
+                © {currentYear} DealNux. All rights reserved. Made with ❤️
               </Text>
             </View>
           </ScrollView>
