@@ -370,6 +370,9 @@ const ProductDetails = () => {
     const [actionLocked, setActionLocked] = useState(false)
     const [actionMessage, setActionMessage] = useState('Processing...')
 
+    const [showCompareSection, setShowCompareSection] = useState(false);
+
+
     // ── Header Animation ──────────────────────────────────────────────────────
     const headerOpacity = scrollY.interpolate({
         inputRange: [0, 80],
@@ -382,6 +385,29 @@ const ProductDetails = () => {
         outputRange: [-50, 0],
         extrapolate: 'clamp',
     })
+
+    const loadComparison = useCallback(async () => {
+        if (!product?.slug) {
+            toast.show({ message: 'Product slug not available', type: 'error', style: 'top' });
+            return;
+        }
+
+        setShowCompareSection(true);
+        setCompareLoading(true);
+        setCompareProgress(5);
+        setCompareMessage('Finding best deals...');
+        setCompareAttempts(0);
+
+        const result = await pollForCompareData(product.slug, 0);
+
+        if (!result) {
+            toast.show({
+                message: 'No comparison data found for this product',
+                type: 'info',
+                style: 'top'
+            });
+        }
+    }, [product?.slug, pollForCompareData, toast]);
 
     // ── Comparison Polling ────────────────────────────────────────────────────
     const pollForCompareData = useCallback(async (slug: string, attempt = 0) => {
@@ -455,17 +481,141 @@ const ProductDetails = () => {
             setIsFavorite(productData?.is_favorite === true)
             setIsInCart(productData?.is_cart === true)
 
-            // Start comparison fetch with polling
-            if (productData?.slug) {
-                setCompareLoading(true)
-                setCompareProgress(5)
-                setCompareMessage('Finding best deals...')
-                pollForCompareData(productData.slug, 0)
-            }
+            // ❌ REMOVED auto-load comparison
+            // if (productData?.slug) {
+            //     setCompareLoading(true)
+            //     setCompareProgress(5)
+            //     setCompareMessage('Finding best deals...')
+            //     pollForCompareData(productData.slug, 0)
+            // }
         } catch (err: any) {
             console.log('product details error', err?.response?.data || err?.message)
             setError('Failed to load product details')
         } finally { setLoading(false) }
+    }
+
+    // ─── Render Comparison Section ────────────────────────────────────────────
+    const renderComparisonSection = () => {
+        // If user hasn't clicked "Load Comparison" yet
+        if (!showCompareSection) {
+            return (
+                <View style={styles.section}>
+                    <View style={styles.compareHeader}>
+                        <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={styles.loadCompareButton}
+                        onPress={loadComparison}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={['#2355B6', '#1A4D8F']}
+                            style={styles.loadCompareGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            <MaterialIcons name="compare-arrows" size={22} color="#FFFFFF" />
+                            <Text style={styles.loadCompareText}>Compare Prices</Text>
+                            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                    <Text style={styles.loadCompareSubtext}>
+                        Compare prices across multiple platforms to find the best deal
+                    </Text>
+                </View>
+            )
+        }
+
+        // If loading
+        if (compareLoading) {
+            return (
+                <View style={styles.section}>
+                    <View style={styles.compareHeader}>
+                        <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
+                        <Text style={styles.compareCount}>Searching...</Text>
+                    </View>
+                    <ComparisonLoading progress={compareProgress} message={compareMessage} />
+                </View>
+            )
+        }
+
+        // If has compare data
+        if (hasCompareData) {
+            return (
+                <View style={styles.section}>
+                    <View style={styles.compareHeader}>
+                        <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
+                        <Text style={styles.compareCount}>{sortedCompare.length} stores</Text>
+                    </View>
+
+                    {compareData?.price_analysis?.potential_savings > 0 && (
+                        <View style={styles.savingsBanner}>
+                            <MaterialIcons name="savings" size={20} color="#16A34A" />
+                            <Text style={styles.savingsText}>Save up to ${compareData.price_analysis.potential_savings.toFixed(2)}</Text>
+                        </View>
+                    )}
+
+                    <FlatList
+                        data={sortedCompare}
+                        keyExtractor={(item, index) => String(item.listing_id ?? item.product_id ?? index)}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.compareList}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                style={styles.compareItem}
+                                onPress={() => handleCompareItemPress(item)}
+                                activeOpacity={0.8}
+                            >
+                                <View style={styles.compareImageWrap}>
+                                    {item.main_image ? (
+                                        <Image source={{ uri: item.main_image }} style={styles.compareImage} resizeMode="cover" />
+                                    ) : (
+                                        <View style={styles.compareImageFallback}>
+                                            <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
+                                        </View>
+                                    )}
+                                    {item === sortedCompare[0] && (
+                                        <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.bestDealBadge}>
+                                            <Text style={styles.bestDealText}>⭐ BEST</Text>
+                                        </LinearGradient>
+                                    )}
+                                </View>
+                                <View style={styles.compareInfo}>
+                                    <Text numberOfLines={1} style={styles.compareStore}>{item.seller || item.platform || 'Store'}</Text>
+                                    <Text style={styles.comparePriceText}>${Number(item.total_price ?? item.price ?? 0).toFixed(2)}</Text>
+                                    <View style={styles.compareArrow}>
+                                        <MaterialCommunityIcons name="arrow-right" size={18} color="#2355B6" />
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            )
+        }
+
+        // If no compare data found
+        return (
+            <View style={styles.section}>
+                <View style={styles.compareHeader}>
+                    <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
+                </View>
+                <View style={styles.noCompareContainer}>
+                    <MaterialIcons name="compare-arrows" size={48} color="#D1D5DB" />
+                    <Text style={styles.noCompareTitle}>No price comparison available</Text>
+                    <Text style={styles.noCompareText}>We couldn't find this product on other platforms.</Text>
+                    <TouchableOpacity
+                        style={styles.retryCompareButton}
+                        onPress={loadComparison}
+                        activeOpacity={0.8}
+                    >
+                        <MaterialIcons name="refresh" size={18} color="#2355B6" />
+                        <Text style={styles.retryCompareText}>Try Again</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        )
     }
 
     const fetchCompare = async (slug: string) => {
@@ -760,68 +910,7 @@ const ProductDetails = () => {
                     </View>
 
                     {/* Price Comparison Section */}
-                    <View style={styles.section}>
-                        <View style={styles.compareHeader}>
-                            <Text style={styles.sectionTitle}>🏷️ Price Comparison</Text>
-                            {hasCompareData && <Text style={styles.compareCount}>{sortedCompare.length} stores</Text>}
-                        </View>
-
-                        {compareLoading ? (
-                            <ComparisonLoading progress={compareProgress} message={compareMessage} />
-                        ) : hasCompareData ? (
-                            <>
-                                {compareData?.price_analysis?.potential_savings > 0 && (
-                                    <View style={styles.savingsBanner}>
-                                        <MaterialIcons name="savings" size={20} color="#16A34A" />
-                                        <Text style={styles.savingsText}>Save up to ${compareData.price_analysis.potential_savings.toFixed(2)}</Text>
-                                    </View>
-                                )}
-
-                                <FlatList
-                                    data={sortedCompare}
-                                    keyExtractor={(item, index) => String(item.listing_id ?? item.product_id ?? index)}
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={styles.compareList}
-                                    renderItem={({ item }) => (
-                                        <TouchableOpacity
-                                            style={styles.compareItem}
-                                            onPress={() => handleCompareItemPress(item)}
-                                            activeOpacity={0.8}
-                                        >
-                                            <View style={styles.compareImageWrap}>
-                                                {item.main_image ? (
-                                                    <Image source={{ uri: item.main_image }} style={styles.compareImage} resizeMode="cover" />
-                                                ) : (
-                                                    <View style={styles.compareImageFallback}>
-                                                        <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
-                                                    </View>
-                                                )}
-                                                {item === sortedCompare[0] && (
-                                                    <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.bestDealBadge}>
-                                                        <Text style={styles.bestDealText}>⭐ BEST</Text>
-                                                    </LinearGradient>
-                                                )}
-                                            </View>
-                                            <View style={styles.compareInfo}>
-                                                <Text numberOfLines={1} style={styles.compareStore}>{item.seller || item.platform || 'Store'}</Text>
-                                                <Text style={styles.comparePriceText}>${Number(item.total_price ?? item.price ?? 0).toFixed(2)}</Text>
-                                                <View style={styles.compareArrow}>
-                                                    <MaterialCommunityIcons name="arrow-right" size={18} color="#2355B6" />
-                                                </View>
-                                            </View>
-                                        </TouchableOpacity>
-                                    )}
-                                />
-                            </>
-                        ) : (
-                            <View style={styles.noCompareContainer}>
-                                <MaterialIcons name="compare-arrows" size={48} color="#D1D5DB" />
-                                <Text style={styles.noCompareTitle}>No price comparison available</Text>
-                                <Text style={styles.noCompareText}>We couldn't find this product on other platforms.</Text>
-                            </View>
-                        )}
-                    </View>
+                    {renderComparisonSection()}
                 </View>
             </Animated.ScrollView>
 
@@ -982,6 +1071,45 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
     },
     webViewLoadingText: { marginTop: 12, fontSize: 14, color: '#64748B' },
+    loadCompareButton: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginBottom: 8,
+    },
+    loadCompareGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        gap: 10,
+    },
+    loadCompareText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+    loadCompareSubtext: {
+        fontSize: 13,
+        color: '#64748B',
+        textAlign: 'center',
+        marginTop: 8,
+    },
+    retryCompareButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        backgroundColor: '#EFF6FF',
+        borderRadius: 12,
+    },
+    retryCompareText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#2355B6',
+    },
 })
 
 export default ProductDetails

@@ -28,6 +28,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Switch,
+  FlatList
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -156,6 +157,38 @@ const PLACEHOLDER_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(`
 </svg>
 `)}`
 
+const ShippingField = React.memo(({
+  label, value, onChangeText, error, placeholder, half = false,
+  keyboardType = 'default', autoCapitalize = 'words',
+}: {
+  label: string
+  value: string
+  onChangeText: (text: string) => void
+  error?: string
+  placeholder: string
+  half?: boolean
+  keyboardType?: any
+  autoCapitalize?: any
+}) => {
+  return (
+    <View style={[styles.fieldWrapper, half && { width: '48%' }]}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        style={[styles.fieldInput, !!error && styles.fieldInputError]}
+        blurOnSubmit={false}
+        returnKeyType="next"
+      />
+      {!!error && <Text style={styles.fieldError}>{error}</Text>}
+    </View>
+  )
+})
+
 // ─── Shipping Address Modal ───────────────────────────────────────────────────
 const ShippingAddressModal = ({
   visible, onClose, onContinue, loading, referralBalance,
@@ -170,7 +203,6 @@ const ShippingAddressModal = ({
   const [errors, setErrors] = useState<Partial<ShippingAddress>>({})
   const [useBalance, setUseBalance] = useState(false)
 
-  // Reset form when modal opens
   useEffect(() => {
     if (visible) {
       setForm(DEFAULT_SHIPPING)
@@ -179,10 +211,10 @@ const ShippingAddressModal = ({
     }
   }, [visible])
 
-  const set = (key: keyof ShippingAddress, value: string) => {
+  const set = useCallback((key: keyof ShippingAddress, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }))
-    if (errors[key]) setErrors(prev => ({ ...prev, [key]: '' }))
-  }
+    setErrors(prev => (prev[key] ? { ...prev, [key]: '' } : prev))
+  }, [])
 
   const validate = (): boolean => {
     const e: Partial<ShippingAddress> = {}
@@ -201,32 +233,20 @@ const ShippingAddressModal = ({
     if (validate()) onContinue(form, useBalance)
   }
 
-  const Field = ({
-    label, fieldKey, placeholder, half = false, keyboardType = 'default', autoCapitalize = 'words',
-  }: {
-    label: string; fieldKey: keyof ShippingAddress; placeholder: string
-    half?: boolean; keyboardType?: any; autoCapitalize?: any
-  }) => (
-    <View style={[styles.fieldWrapper, half && { width: '48%' }]}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={form[fieldKey]}
-        onChangeText={v => set(fieldKey, v)}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        style={[styles.fieldInput, !!errors[fieldKey] && styles.fieldInputError]}
-      />
-      {!!errors[fieldKey] && <Text style={styles.fieldError}>{errors[fieldKey]}</Text>}
-    </View>
-  )
-
   const hasBalance = referralBalance && referralBalance.user_referral_amount > 0
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { maxHeight: '92%' }]}>
             <View style={styles.modalHandle} />
@@ -242,22 +262,70 @@ const ShippingAddressModal = ({
 
             <ScrollView
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              scrollEnabled={true}
             >
               <View style={styles.row}>
-                <Field label="First Name *" fieldKey="first_name" placeholder="John" half />
-                <Field label="Last Name *" fieldKey="last_name" placeholder="Doe" half />
+                <ShippingField
+                  label="First Name *" placeholder="John" half
+                  value={form.first_name}
+                  onChangeText={(t) => set('first_name', t)}
+                  error={errors.first_name}
+                />
+                <ShippingField
+                  label="Last Name *" placeholder="Doe" half
+                  value={form.last_name}
+                  onChangeText={(t) => set('last_name', t)}
+                  error={errors.last_name}
+                />
               </View>
-              <Field label="Address Line 1 *" fieldKey="address_line1" placeholder="123 Main St" />
-              <Field label="Address Line 2" fieldKey="address_line2" placeholder="Apt 4B (optional)" />
+
+              <ShippingField
+                label="Address Line 1 *" placeholder="123 Main St"
+                value={form.address_line1}
+                onChangeText={(t) => set('address_line1', t)}
+                error={errors.address_line1}
+              />
+
+              <ShippingField
+                label="Address Line 2" placeholder="Apt 4B (optional)"
+                value={form.address_line2}
+                onChangeText={(t) => set('address_line2', t)}
+                error={errors.address_line2}
+              />
+
               <View style={styles.row}>
-                <Field label="City *" fieldKey="city" placeholder="Chicago" half />
-                <Field label="State *" fieldKey="state" placeholder="IL" half />
+                <ShippingField
+                  label="City *" placeholder="Chicago" half
+                  value={form.city}
+                  onChangeText={(t) => set('city', t)}
+                  error={errors.city}
+                />
+                <ShippingField
+                  label="State *" placeholder="IL" half
+                  value={form.state}
+                  onChangeText={(t) => set('state', t)}
+                  error={errors.state}
+                />
               </View>
+
               <View style={styles.row}>
-                <Field label="ZIP Code *" fieldKey="zip_code" placeholder="60601" half keyboardType="numeric" autoCapitalize="none" />
-                <Field label="Country *" fieldKey="country" placeholder="US" half autoCapitalize="characters" />
+                <ShippingField
+                  label="ZIP Code *" placeholder="60601" half
+                  keyboardType="numeric" autoCapitalize="none"
+                  value={form.zip_code}
+                  onChangeText={(t) => set('zip_code', t)}
+                  error={errors.zip_code}
+                />
+                <ShippingField
+                  label="Country *" placeholder="US" half
+                  autoCapitalize="characters"
+                  value={form.country}
+                  onChangeText={(t) => set('country', t)}
+                  error={errors.country}
+                />
               </View>
 
               {/* Referral Balance Toggle */}
