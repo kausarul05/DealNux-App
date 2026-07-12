@@ -12,7 +12,6 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import PriceChart from '../../components/PieChart'
 
 const API_BASE_URL = IPA_BASE
@@ -82,7 +81,7 @@ const SkeletonBox = ({
 
 // ─── Dashboard Skeleton Screen ────────────────────────────────────────────────
 const DashboardSkeleton = () => (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
+    <View style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
         <View style={{ paddingHorizontal: 20 }}>
             <SkeletonBox width={100} height={22} borderRadius={6} style={{ marginTop: 8, marginBottom: 24 }} />
             {/* savings card */}
@@ -101,12 +100,12 @@ const DashboardSkeleton = () => (
                 <SkeletonBox key={i} height={76} borderRadius={12} style={{ marginBottom: 10 }} />
             ))}
         </View>
-    </SafeAreaView>
+    </View>
 )
 
 // ─── Empty / Error State ──────────────────────────────────────────────────────
 const EmptyState = ({ onRetry }: { onRetry: () => void }) => (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
+    <View style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
         <View
             style={{
                 flex: 1,
@@ -168,7 +167,7 @@ const EmptyState = ({ onRetry }: { onRetry: () => void }) => (
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Try Again</Text>
             </TouchableOpacity>
         </View>
-    </SafeAreaView>
+    </View>
 )
 
 // ─── Activity Icon helper ─────────────────────────────────────────────────────
@@ -235,7 +234,7 @@ const Dashboard = () => {
     const { total_lifetime_savings, recent_activity } = data
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F9F9FB]">
+        <View className="flex-1 bg-[#F9F9FB]">
             <View className="px-5 pb-3 mb-4  ">
                 <View className="flex-row items-center gap-4">
                     <Text className="text-lg font-bold text-gray-900">Savings</Text>
@@ -392,7 +391,7 @@ const Dashboard = () => {
                     </Pressable> */}
                 </ScrollView>
             </View>
-        </SafeAreaView>
+        </View>
     )
 }
 

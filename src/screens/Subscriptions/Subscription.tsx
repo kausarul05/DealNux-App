@@ -15,7 +15,6 @@ import {
   View,
   Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { StripeProvider, useStripe } from "@stripe/stripe-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -683,7 +682,7 @@ const SubscriptionInner = () => {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <View style={{ paddingHorizontal: 20, flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
@@ -778,7 +777,7 @@ const SubscriptionInner = () => {
         planName={successPlanName}
         onClose={handleSuccessClose}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

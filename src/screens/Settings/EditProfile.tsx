@@ -331,7 +331,7 @@ const EditProfile = () => {
     const avatarUri = selectedImageUri || user?.profile_picture;
 
     return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1 pb-15">
+        <View className="bg-[#F9F9FB] flex-1 pb-15">
             <View className="px-5">
                 <View className="flex-row items-center gap-4">
                     <AppHeader
@@ -620,7 +620,7 @@ const EditProfile = () => {
                 onHide={toast.hide}
             />
 
-        </SafeAreaView>
+        </View>
     );
 };
 

@@ -335,7 +335,7 @@ const Notification = () => {
   )
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
+    <View style={{ flex: 1, backgroundColor: '#F9F9FB' }}>
       <View style={{ paddingHorizontal: 20, flex: 1 }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 8 }}>
@@ -395,7 +395,7 @@ const Notification = () => {
           </ScrollView>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 

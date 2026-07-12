@@ -1094,7 +1094,7 @@ const CartInner = ({ onCartUpdate }: { onCartUpdate?: (count: number) => void })
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
       {/* Header */}
       <LinearGradient
         colors={['#FFFFFF', '#F8FAFC']}
@@ -1315,7 +1315,7 @@ const CartInner = ({ onCartUpdate }: { onCartUpdate?: (count: number) => void })
         useBalance={useBalance}
         referralBalance={referralBalance}
       />
-    </SafeAreaView>
+    </View>
   )
 }
 

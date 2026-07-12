@@ -219,7 +219,7 @@ const Profile = () => {
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F9F9FB]">
+        <View className="flex-1 bg-[#F9F9FB]">
             <View className="px-5">
                 {/* Header */}
                 <View className="items-center my-2">
@@ -440,7 +440,7 @@ const Profile = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

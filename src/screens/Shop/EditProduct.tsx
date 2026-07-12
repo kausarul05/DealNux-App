@@ -25,7 +25,6 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
@@ -658,7 +657,7 @@ const EditProduct = () => {
 
     if (fetching) {
         return (
-            <SafeAreaView className="flex-1 bg-[#F7F7FA]">
+            <View className="flex-1 bg-[#F7F7FA]">
                 <View className="px-5 py-2">
                     <View className="flex-row items-center">
                         <View className="w-10">
@@ -695,13 +694,13 @@ const EditProduct = () => {
                         </View>
                     </View>
                 </ScrollView>
-            </SafeAreaView>
+            </View>
         );
     }
 
     if (!fetching && !productLoaded) {
         return (
-            <SafeAreaView className="flex-1 bg-[#F7F7FA]">
+            <View className="flex-1 bg-[#F7F7FA]">
                 <View className="px-5 py-2">
                     <View className="flex-row items-center">
                         <View className="w-10">
@@ -739,12 +738,12 @@ const EditProduct = () => {
                     buttons={toast.buttons}
                     onHide={toast.hide}
                 />
-            </SafeAreaView>
+            </View>
         );
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F7F7FA]">
+        <View className="flex-1 bg-[#F7F7FA]">
             <KeyboardAvoidingView
                 className="flex-1"
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1119,7 +1118,7 @@ const EditProduct = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

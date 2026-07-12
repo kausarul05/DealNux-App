@@ -102,7 +102,7 @@ const UpdatePassword = () => {
         }
     };
     return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1">
+        <View className="bg-[#F9F9FB] flex-1">
             <View className="px-5">
 
                 <View className='flex-row items-center gap-4' >
@@ -176,7 +176,7 @@ const UpdatePassword = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     )
 }
 

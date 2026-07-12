@@ -338,7 +338,7 @@ const MyFavourite = () => {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F9FB" }}>
+        <View style={{ flex: 1, backgroundColor: "#F9F9FB" }}>
             <View style={{ paddingHorizontal: 20 }}>
                 <View style={styles.headerRow}>
                     <AppHeader left={() => <BackButton />} />
@@ -368,7 +368,7 @@ const MyFavourite = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

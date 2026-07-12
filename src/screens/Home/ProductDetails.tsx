@@ -34,7 +34,6 @@ import {
     TouchableOpacity,
     View,
     Share,
-    SafeAreaView,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -143,7 +142,7 @@ const WebViewModal = ({
             onRequestClose={onClose}
             presentationStyle="fullScreen"
         >
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
                 <View style={styles.webViewHeader}>
                     <TouchableOpacity onPress={onClose} style={styles.webViewClose}>
                         <Ionicons name="close" size={28} color="#1F2937" />
@@ -170,7 +169,7 @@ const WebViewModal = ({
                     allowsInlineMediaPlayback={true}
                     mediaPlaybackRequiresUserAction={false}
                 />
-            </SafeAreaView>
+            </View>
         </Modal>
     )
 }
@@ -245,7 +244,7 @@ const ProductDetailsSkeleton = () => {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: 50 }}>
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: 50 }}>
             <View style={{ paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <SkeletonItem w={40} h={40} rounded={20} />
                 <SkeletonItem w={120} h={20} rounded={6} />
@@ -266,7 +265,7 @@ const ProductDetailsSkeleton = () => {
                     <SkeletonItem w={width - 40} h={80} rounded={16} style={{ marginTop: 8 }} />
                 </View>
             </View>
-        </SafeAreaView>
+        </View>
     )
 }
 
@@ -274,7 +273,7 @@ const ProductDetailsSkeleton = () => {
 const EmptyState = ({ onRetry }: { onRetry: () => void }) => {
     const navigation = useNavigation()
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <View style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={{ width: 40, height: 40 }}>
                     <Ionicons name="arrow-back" size={24} color="#1F2937" />
@@ -293,7 +292,7 @@ const EmptyState = ({ onRetry }: { onRetry: () => void }) => {
                     <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Try Again</Text>
                 </TouchableOpacity>
             </View>
-        </SafeAreaView>
+        </View>
     )
 }
 
@@ -783,7 +782,7 @@ const ProductDetails = () => {
 
     // ─── Render ──────────────────────────────────────────────────────────────
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <ActionLoadingModal visible={actionLocked} message={actionMessage} />
 
             {/* Floating Header */}
@@ -943,13 +942,13 @@ const ProductDetails = () => {
                 url={webViewUrl}
                 title={webViewTitle}
             />
-        </SafeAreaView>
+        </View>
     )
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8FAFC', marginTop: 50 },
+    container: { flex: 1, backgroundColor: '#F8FAFC',  },
 
     // Floating Header
     floatingHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, paddingTop: 8, backgroundColor: '#F8FAFC' },

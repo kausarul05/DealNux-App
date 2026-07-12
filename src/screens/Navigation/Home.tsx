@@ -772,7 +772,7 @@ const Home = () => {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <FlatList
                 data={uiProducts}
                 keyExtractor={item => item.id}
@@ -845,7 +845,7 @@ const Home = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     )
 }
 

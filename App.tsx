@@ -40,12 +40,17 @@ import AboutUs from './src/screens/Settings/aboutus';
 import ContactUs from './src/screens/Settings/ContactUs';
 import AppReview from './src/screens/Settings/AppReview';
 import { NotificationProvider } from './src/context/NotificationContext';
+import { BrandHeader } from './src/components/BrandHeader';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 function AuthStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName='Welcome'>
+    <Stack.Navigator 
+    // screenOptions={{ headerShown: false }} 
+    screenOptions={{
+      header: () => <BrandHeader compact />,
+    }} initialRouteName='Welcome'>
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="SignIn" component={SignIn} options={{ animation: "slide_from_left" }} />
       <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "slide_from_right" }} />

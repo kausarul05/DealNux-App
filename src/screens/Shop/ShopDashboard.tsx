@@ -777,7 +777,7 @@ const ShopDashboard = () => {
                 },
             };
 
-            const response = await axios.put(
+            const response = await axios.patch(
                 `${API_BASE_URL}store/seller-profiles/dashboard/shipping/`,
                 payload,
                 {
@@ -2454,7 +2454,7 @@ const ShopDashboard = () => {
 
     // ─── Main Render ──────────────────────────────────────────────────────────
     return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1">
+        <View className="bg-[#F9F9FB] flex-1">
             <StatusBar style="auto" />
             <View className="px-5 flex-1">
                 <View className="flex-row items-center gap-4">
@@ -2601,7 +2601,7 @@ const ShopDashboard = () => {
                     onHide={toast.hide}
                 />
             </View>
-        </SafeAreaView>
+        </View>
     );
 };
 

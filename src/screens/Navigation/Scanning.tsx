@@ -244,7 +244,7 @@ const Scanning = () => {
   if (!permission) return <View />
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <LinearGradient
           colors={['#1E2F73', '#2946A6']}
           style={styles.permissionContainer}
@@ -266,7 +266,7 @@ const Scanning = () => {
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -286,7 +286,7 @@ const Scanning = () => {
           style={styles.cameraOverlay}
         >
           {/* Header */}
-          <SafeAreaView style={styles.header}>
+          <View style={styles.header}>
             <View style={styles.headerContent}>
               <TouchableOpacity
                 style={styles.backButton}
@@ -306,7 +306,7 @@ const Scanning = () => {
                 <Ionicons name="flash-outline" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
 
           {/* Mode Selector - Only Barcode & Gallery */}
           <View style={styles.modeSelector}>

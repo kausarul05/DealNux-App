@@ -21,7 +21,6 @@ import {
     Platform,
     Dimensions,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
@@ -1468,7 +1467,7 @@ const ShopCreate = () => {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={styles.safeArea}>
             <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <View style={styles.header}>
                     <View style={styles.headerRow}>
@@ -1516,7 +1515,7 @@ const ShopCreate = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

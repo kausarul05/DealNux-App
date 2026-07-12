@@ -915,7 +915,7 @@ const MyAds = () => {
     };
 
     return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1">
+        <View className="bg-[#F9F9FB] flex-1">
             <View className="px-5 flex-1">
                 {/* Header */}
                 <View className="flex-row items-center gap-4">
@@ -1045,7 +1045,7 @@ const MyAds = () => {
                 style={toast.style}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 
