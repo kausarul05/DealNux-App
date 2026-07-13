@@ -16,7 +16,7 @@ import {
 import axios from 'axios';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     FlatList,
     Image,
@@ -140,12 +140,14 @@ type OrderItem = {
     total_price: string;
     currency: string;
     shipping_address: string;
+    courier_name?: string;
     status: string;
     status_display: string;
     tracking_number: string;
     note: string;
     created_at: string;
     updated_at: string;
+    shipping_cost?: string;
 };
 
 type ShippingData = {
@@ -329,6 +331,625 @@ const BoxInput = ({
     </View>
 );
 
+const AddTrackingModal = ({
+    visible,
+    onClose,
+    orderId,
+    onSave,
+    isUpdating,
+}: {
+    visible: boolean;
+    onClose: () => void;
+    orderId: number;
+    onSave: (orderId: number, courier: string, tracking: string) => void;
+    isUpdating: boolean;
+}) => {
+    const [selectedCourier, setSelectedCourier] = useState('');
+    const [customCourier, setCustomCourier] = useState('');
+    const [trackingNumber, setTrackingNumber] = useState('');
+    const [courierModalOpen, setCourierModalOpen] = useState(false);
+    const [showOtherInput, setShowOtherInput] = useState(false);
+
+    const COURIER_OPTIONS = [
+        'FedEx',
+        'UPS',
+        'USPS',
+        'DHL',
+        'Amazon Logistics',
+        'OnTrac',
+        'Other'
+    ];
+
+    const handleCourierSelect = (courier: string) => {
+        setSelectedCourier(courier);
+        setCourierModalOpen(false);
+        if (courier === 'Other') {
+            setShowOtherInput(true);
+            setCustomCourier('');
+        } else {
+            setShowOtherInput(false);
+            setCustomCourier('');
+        }
+    };
+
+    const handleSave = () => {
+        const finalCourier = selectedCourier === 'Other' ? customCourier.trim() : selectedCourier;
+        if (!finalCourier || !trackingNumber.trim()) {
+            Alert.alert('Error', 'Please select courier and enter tracking number.');
+            return;
+        }
+        onSave(orderId, finalCourier, trackingNumber.trim());
+        setSelectedCourier('');
+        setCustomCourier('');
+        setTrackingNumber('');
+        setShowOtherInput(false);
+        onClose();
+    };
+
+    return (
+        <Modal
+            visible={visible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
+            <View className="flex-1 bg-black/50 justify-end">
+                <View className="bg-white rounded-t-3xl p-5 pb-8">
+                    <View className="flex-row items-center justify-between mb-4">
+                        <Text className="text-[20px] font-bold text-[#111827]">Add Tracking</Text>
+                        <TouchableOpacity onPress={onClose} className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
+                            <Ionicons name="close" size={22} color="#111827" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <Text className="text-[14px] text-[#6B7280] mb-4">Add tracking details for Order #{orderId}</Text>
+
+                    {/* Courier Dropdown */}
+                    <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">COURIER / CARRIER *</Text>
+                    <TouchableOpacity
+                        onPress={() => setCourierModalOpen(true)}
+                        className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-3 flex-row items-center justify-between"
+                    >
+                        <Text className={selectedCourier ? 'text-[16px] text-[#111827]' : 'text-[16px] text-[#9CA3AF]'}>
+                            {selectedCourier === 'Other' ? customCourier || 'Other...' : selectedCourier || 'Select courier...'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color="#6B7280" />
+                    </TouchableOpacity>
+
+                    {/* Custom Courier Input (shown when "Other" is selected) */}
+                    {showOtherInput && (
+                        <View className="mb-3">
+                            <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">ENTER COURIER NAME *</Text>
+                            <TextInput
+                                value={customCourier}
+                                onChangeText={setCustomCourier}
+                                placeholder="Enter courier name"
+                                placeholderTextColor="#9CA3AF"
+                                className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 text-[16px] text-[#111827]"
+                            />
+                        </View>
+                    )}
+
+                    {/* Tracking Number */}
+                    <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">TRACKING NUMBER *</Text>
+                    <TextInput
+                        value={trackingNumber}
+                        onChangeText={setTrackingNumber}
+                        placeholder="Enter tracking number"
+                        placeholderTextColor="#9CA3AF"
+                        className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827]"
+                    />
+
+                    {/* Save Button */}
+                    <TouchableOpacity
+                        onPress={handleSave}
+                        disabled={isUpdating}
+                        className={`bg-[#2355B6] rounded-xl py-3.5 items-center justify-center ${isUpdating ? 'opacity-70' : ''}`}
+                    >
+                        {isUpdating ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <Text className="text-white font-semibold text-[15px]">Save Tracking</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Courier Selection Modal */}
+            <Modal
+                visible={courierModalOpen}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setCourierModalOpen(false)}
+            >
+                <Pressable
+                    className="flex-1 bg-black/40 justify-end"
+                    onPress={() => setCourierModalOpen(false)}
+                >
+                    <Pressable className="bg-white rounded-t-2xl p-5 max-h-[50%]" onPress={() => { }}>
+                        <View className="flex-row items-center justify-between mb-3">
+                            <Text className="text-[18px] font-bold text-[#111827]">Select Courier</Text>
+                            <TouchableOpacity onPress={() => setCourierModalOpen(false)}>
+                                <Ionicons name="close" size={24} color="#111827" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {COURIER_OPTIONS.map((courier) => (
+                                <Pressable
+                                    key={courier}
+                                    onPress={() => handleCourierSelect(courier)}
+                                    className="py-4 border-b border-[#E5E7EB] flex-row items-center justify-between"
+                                >
+                                    <Text className="text-[16px] text-[#111827]">{courier}</Text>
+                                    {selectedCourier === courier && (
+                                        <Ionicons name="checkmark-circle" size={22} color="#2355B6" />
+                                    )}
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+        </Modal>
+    );
+};
+
+// ─── Update Tracking Modal ─────────────────────────────────────────────────
+const UpdateTrackingModal = ({
+    visible,
+    onClose,
+    order,
+    onUpdate,
+    isUpdating,
+}: {
+    visible: boolean;
+    onClose: () => void;
+    order: OrderItem | null;
+    onUpdate: (orderId: number, courier: string, tracking: string) => void;
+    isUpdating: boolean;
+}) => {
+    const [selectedCourier, setSelectedCourier] = useState('');
+    const [trackingNumber, setTrackingNumber] = useState('');
+    const [courierModalOpen, setCourierModalOpen] = useState(false);
+
+    const COURIER_OPTIONS = [
+        'FedEx',
+        'UPS',
+        'USPS',
+        'DHL',
+        'Amazon Logistics',
+        'OnTrac',
+        'Other'
+    ];
+
+    useEffect(() => {
+        if (visible && order) {
+            setSelectedCourier(order.courier_name || '');
+            setTrackingNumber(order.tracking_number || '');
+        }
+    }, [visible, order]);
+
+    const handleUpdate = () => {
+        if (!selectedCourier.trim() || !trackingNumber.trim()) {
+            Alert.alert('Error', 'Please select courier and enter tracking number.');
+            return;
+        }
+        onUpdate(order?.id || 0, selectedCourier.trim(), trackingNumber.trim());
+        onClose();
+    };
+
+    if (!order) return null;
+
+    return (
+        <Modal
+            visible={visible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
+            <View className="flex-1 bg-black/50 justify-end">
+                <View className="bg-white rounded-t-3xl p-5 pb-8">
+                    <View className="flex-row items-center justify-between mb-4">
+                        <Text className="text-[20px] font-bold text-[#111827]">Update Tracking</Text>
+                        <TouchableOpacity onPress={onClose} className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
+                            <Ionicons name="close" size={22} color="#111827" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <Text className="text-[14px] text-[#6B7280] mb-4">Update tracking details for Order #{order.id}</Text>
+
+                    {/* Current Tracking Info */}
+                    <View className="bg-[#F8FAFC] rounded-xl p-3 mb-4 border border-[#E5E7EB]">
+                        <Text className="text-[12px] text-[#6B7280]">Current Tracking</Text>
+                        <Text className="text-[14px] font-semibold text-[#111827] mt-1">
+                            {order.courier_name || 'N/A'} · {order.tracking_number || 'N/A'}
+                        </Text>
+                    </View>
+
+                    {/* Courier Dropdown */}
+                    <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">COURIER / CARRIER *</Text>
+                    <TouchableOpacity
+                        onPress={() => setCourierModalOpen(true)}
+                        className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-3 flex-row items-center justify-between"
+                    >
+                        <Text className={selectedCourier ? 'text-[16px] text-[#111827]' : 'text-[16px] text-[#9CA3AF]'}>
+                            {selectedCourier || 'Select courier...'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color="#6B7280" />
+                    </TouchableOpacity>
+
+                    {/* Tracking Number */}
+                    <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">TRACKING NUMBER *</Text>
+                    <TextInput
+                        value={trackingNumber}
+                        onChangeText={setTrackingNumber}
+                        placeholder="Enter tracking number"
+                        placeholderTextColor="#9CA3AF"
+                        className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 mb-4 text-[16px] text-[#111827]"
+                    />
+
+                    {/* Update Button */}
+                    <TouchableOpacity
+                        onPress={handleUpdate}
+                        disabled={isUpdating}
+                        className={`bg-[#F59E0B] rounded-xl py-3.5 items-center justify-center ${isUpdating ? 'opacity-70' : ''}`}
+                    >
+                        {isUpdating ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <Text className="text-white font-semibold text-[15px]">Update Tracking</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Courier Selection Modal */}
+            <Modal
+                visible={courierModalOpen}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setCourierModalOpen(false)}
+            >
+                <Pressable
+                    className="flex-1 bg-black/40 justify-end"
+                    onPress={() => setCourierModalOpen(false)}
+                >
+                    <Pressable className="bg-white rounded-t-2xl p-5 max-h-[50%]" onPress={() => { }}>
+                        <View className="flex-row items-center justify-between mb-3">
+                            <Text className="text-[18px] font-bold text-[#111827]">Select Courier</Text>
+                            <TouchableOpacity onPress={() => setCourierModalOpen(false)}>
+                                <Ionicons name="close" size={24} color="#111827" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {COURIER_OPTIONS.map((courier) => (
+                                <Pressable
+                                    key={courier}
+                                    onPress={() => {
+                                        setSelectedCourier(courier);
+                                        setCourierModalOpen(false);
+                                    }}
+                                    className="py-4 border-b border-[#E5E7EB] flex-row items-center justify-between"
+                                >
+                                    <Text className="text-[16px] text-[#111827]">{courier}</Text>
+                                    {selectedCourier === courier && (
+                                        <Ionicons name="checkmark-circle" size={22} color="#2355B6" />
+                                    )}
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+        </Modal>
+    );
+};
+
+// ─── Order Details Modal ────────────────────────────────────────────────────
+const OrderDetailsModal = ({
+    visible,
+    onClose,
+    order,
+    onUpdateStatus,
+    onAddTracking,
+    onUpdateTracking,
+}: {
+    visible: boolean;
+    onClose: () => void;
+    order: OrderItem | null;
+    onUpdateStatus: (orderId: number, status: string) => void;
+    onAddTracking: (orderId: number, courier: string, tracking: string) => void;
+    onUpdateTracking: (orderId: number, courier: string, tracking: string) => void;
+}) => {
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [addTrackingModalVisible, setAddTrackingModalVisible] = useState(false);
+    const [updateTrackingModalVisible, setUpdateTrackingModalVisible] = useState(false);
+
+    if (!order) return null;
+
+    const badge = getStatusStyle(order.status);
+    const isPending = order.status === 'PENDING' || order.status === 'CONFIRMED';
+    const isAccepted = order.status === 'ACCEPTED';
+    const isShipped = order.status === 'SHIPPED' || order.status === 'DELIVERED';
+    const hasTracking = order.tracking_number && order.tracking_number.length > 0;
+
+    const parseShippingAddress = (addressString: string) => {
+        try {
+            if (!addressString) return null;
+            const parsed = typeof addressString === 'string' ? JSON.parse(addressString) : addressString;
+            return parsed;
+        } catch (error) {
+            console.error('Error parsing shipping address:', error);
+            return null;
+        }
+    };
+
+    const handleAcceptOrder = async () => {
+        setIsUpdating(true);
+        await onUpdateStatus(order.id, 'ACCEPTED');
+        setIsUpdating(false);
+    };
+
+    const handleMarkShipped = async () => {
+        setIsUpdating(true);
+        await onUpdateStatus(order.id, 'SHIPPED');
+        setIsUpdating(false);
+    };
+
+    const handleAddTracking = async (orderId: number, courier: string, tracking: string) => {
+        setIsUpdating(true);
+        await onAddTracking(orderId, courier, tracking);
+        setIsUpdating(false);
+    };
+
+    const handleUpdateTracking = async (orderId: number, courier: string, tracking: string) => {
+        setIsUpdating(true);
+        await onUpdateTracking(orderId, courier, tracking);
+        setIsUpdating(false);
+    };
+
+    const formatDate = (dateString: string) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+        });
+    };
+
+    const formatPrice = (amount: string | number) => {
+        const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+        return num.toFixed(2);
+    };
+
+    const itemTotal = parseFloat(order.total_price) || 0;
+    const shippingFee = order.shipping_cost ? parseFloat(order.shipping_cost) : 0;
+    const serviceFee = itemTotal * 0.08;
+    const orderTotal = itemTotal + shippingFee + serviceFee;
+
+    return (
+        <>
+            <Modal
+                visible={visible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={onClose}
+            >
+                <View className="flex-1 bg-black/50 justify-end mb-0">
+                    <View className="bg-white rounded-t-3xl max-h-[96%]">
+                        {/* Header */}
+                        <View className="flex-row items-center justify-between px-5 py-4 border-b border-[#E5E7EB]">
+                            <View>
+                                <Text className="text-[20px] font-bold text-[#111827]">Order #{order.id}</Text>
+                                <Text className="text-[12px] text-[#9CA3AF]">Placed {formatDate(order.created_at)} · {order.buyer_email}</Text>
+                            </View>
+                            <TouchableOpacity onPress={onClose} className="w-10 h-10 rounded-full bg-[#F3F4F6] items-center justify-center">
+                                <Ionicons name="close" size={22} color="#111827" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView className="px-5 pt-4 pb-8" showsVerticalScrollIndicator={false}>
+                            {/* Status Badge */}
+                            <View className="flex-row items-center justify-between mb-4">
+                                <View className="flex-row items-center px-4 py-2 rounded-full" style={{ backgroundColor: badge.bg }}>
+                                    <Text className="text-[13px] font-medium" style={{ color: badge.fg }}>
+                                        {order.status_display || order.status}
+                                    </Text>
+                                </View>
+                                {hasTracking && (
+                                    <View className="flex-row items-center gap-1 bg-blue-50 px-3 py-1 rounded-full">
+                                        <Ionicons name="cube-outline" size={14} color="#2355B6" />
+                                        <Text className="text-[11px] text-[#2355B6] font-medium">Tracked</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* Product Section */}
+                            <View className="bg-[#F8FAFC] rounded-xl p-4 mb-4 border border-[#E5E7EB]">
+                                <Text className="text-[12px] font-semibold text-[#6B7280] uppercase tracking-wider mb-3">PRODUCT</Text>
+                                <View className="flex-row">
+                                    <Image
+                                        source={{ uri: buildImageUrl(order.seller_product?.main_image) }}
+                                        className="w-20 h-20 rounded-xl bg-[#EEF2F7]"
+                                        resizeMode="cover"
+                                    />
+                                    <View className="flex-1 ml-4">
+                                        <Text className="text-[15px] font-semibold text-[#111827]" numberOfLines={2}>
+                                            {order.seller_product?.title || 'Product'}
+                                        </Text>
+                                        <Text className="text-[13px] text-[#6B7280] mt-1">
+                                            Qty: {order.quantity} · ${formatPrice(order.unit_price)} each
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Pricing Section */}
+                            <View className="bg-[#F8FAFC] rounded-xl p-4 mb-4 border border-[#E5E7EB]">
+                                <Text className="text-[12px] font-semibold text-[#6B7280] uppercase tracking-wider mb-3">PRICING</Text>
+                                <View className="flex-row justify-between py-1.5">
+                                    <Text className="text-[14px] text-[#6B7280]">Item Total</Text>
+                                    <Text className="text-[14px] font-semibold text-[#111827]">${formatPrice(itemTotal)}</Text>
+                                </View>
+                                <View className="flex-row justify-between py-1.5">
+                                    <Text className="text-[14px] text-[#6B7280]">Shipping Fee</Text>
+                                    <Text className="text-[14px] font-semibold text-[#16A34A]">Free</Text>
+                                </View>
+                                <View className="flex-row justify-between py-1.5 border-t border-[#E5E7EB] mt-1 pt-2">
+                                    <Text className="text-[14px] text-[#6B7280]">Service Fee</Text>
+                                    <Text className="text-[14px] font-semibold text-[#111827]">${formatPrice(serviceFee)}</Text>
+                                </View>
+                                <View className="flex-row justify-between py-1.5 border-t border-[#E5E7EB] mt-1 pt-2">
+                                    <Text className="text-[16px] font-bold text-[#111827]">Order Total</Text>
+                                    <Text className="text-[18px] font-bold text-[#2355B6]">${formatPrice(orderTotal)}</Text>
+                                </View>
+                            </View>
+
+                            {/* Shipping Info */}
+                            <View className="bg-[#F8FAFC] rounded-xl p-4 mb-4 border border-[#E5E7EB]">
+                                <Text className="text-[12px] font-semibold text-[#6B7280] uppercase tracking-wider mb-3">SHIPPING</Text>
+                                <Text className="text-[13px] text-[#6B7280]">Address:</Text>
+                                <View className="mt-1">
+                                    {(() => {
+                                        const address = parseShippingAddress(order.shipping_address);
+                                        if (address) {
+                                            return (
+                                                <>
+                                                    {(address.first_name || address.last_name) && (
+                                                        <Text className="text-[14px] text-[#111827] font-medium">
+                                                            {address.first_name || ''} {address.last_name || ''}
+                                                        </Text>
+                                                    )}
+                                                    {address.address_line1 && (
+                                                        <Text className="text-[14px] text-[#111827] font-medium">
+                                                            {address.address_line1}
+                                                        </Text>
+                                                    )}
+                                                    {address.address_line2 && (
+                                                        <Text className="text-[14px] text-[#111827] font-medium">
+                                                            {address.address_line2}
+                                                        </Text>
+                                                    )}
+                                                    {(address.city || address.state || address.zip_code) && (
+                                                        <Text className="text-[14px] text-[#111827] font-medium">
+                                                            {address.city || ''}, {address.state || ''} {address.zip_code || ''}
+                                                        </Text>
+                                                    )}
+                                                    {address.country && (
+                                                        <Text className="text-[14px] text-[#111827] font-medium">
+                                                            {address.country}
+                                                        </Text>
+                                                    )}
+                                                </>
+                                            );
+                                        }
+                                        return <Text className="text-[14px] text-[#111827] font-medium">N/A</Text>;
+                                    })()}
+                                </View>
+
+                                {hasTracking && (
+                                    <View className="mt-3 pt-3 border-t border-[#E5E7EB]">
+                                        <Text className="text-[13px] text-[#6B7280]">Courier:</Text>
+                                        <Text className="text-[14px] text-[#111827] font-medium mt-0.5">{order.courier_name || 'N/A'}</Text>
+                                        <Text className="text-[13px] text-[#6B7280] mt-2">Tracking No:</Text>
+                                        <Text className="text-[14px] text-[#2355B6] font-medium mt-0.5">{order.tracking_number}</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* ─── Action Buttons ─── */}
+
+                            {/* Step 1: Accept Button */}
+                            {isPending && (
+                                <TouchableOpacity
+                                    onPress={handleAcceptOrder}
+                                    disabled={isUpdating}
+                                    className={`bg-[#16A34A] rounded-xl py-3.5 items-center justify-center mb-3 ${isUpdating ? 'opacity-70' : ''}`}
+                                >
+                                    {isUpdating ? (
+                                        <ActivityIndicator color="white" />
+                                    ) : (
+                                        <Text className="text-white font-semibold text-[15px]">Accept Order</Text>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Step 2: Add Tracking Button */}
+                            {isAccepted && !hasTracking && (
+                                <TouchableOpacity
+                                    onPress={() => setAddTrackingModalVisible(true)}
+                                    className="bg-[#2355B6] rounded-xl py-3.5 items-center justify-center mb-3 flex-row gap-2"
+                                >
+                                    <Ionicons name="cube-outline" size={20} color="white" />
+                                    <Text className="text-white font-semibold text-[15px]">Add Tracking</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Step 3: Update Tracking Button */}
+                            {hasTracking && (
+                                <TouchableOpacity
+                                    onPress={() => setUpdateTrackingModalVisible(true)}
+                                    className="bg-[#F59E0B] rounded-xl py-3.5 items-center justify-center mb-3 flex-row gap-2"
+                                >
+                                    {/* <Ionicons name="pencil-outline" size={20} color="white" /> */}
+                                    <Text className="text-white font-semibold text-[15px]">Update Tracking</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Step 4: Mark as Shipped */}
+                            {hasTracking && !isShipped && (
+                                <TouchableOpacity
+                                    onPress={handleMarkShipped}
+                                    disabled={isUpdating}
+                                    className={`bg-[#7C3AED] rounded-xl py-3.5 items-center justify-center mb-3 ${isUpdating ? 'opacity-70' : ''}`}
+                                >
+                                    {isUpdating ? (
+                                        <ActivityIndicator color="white" />
+                                    ) : (
+                                        <Text className="text-white font-semibold text-[15px]">🚚 Mark as Shipped</Text>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        </ScrollView>
+
+                        {/* Close Button */}
+                        {/* <View className="px-5 py-4 border-t border-[#E5E7EB]">
+                            <TouchableOpacity
+                                onPress={onClose}
+                                className="bg-[#F3F4F6] rounded-xl py-3 items-center justify-center"
+                            >
+                                <Text className="text-[#6B7280] font-semibold">Close</Text>
+                            </TouchableOpacity>
+                        </View> */}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Add Tracking Modal */}
+            <AddTrackingModal
+                visible={addTrackingModalVisible}
+                onClose={() => setAddTrackingModalVisible(false)}
+                orderId={order.id}
+                onSave={handleAddTracking}
+                isUpdating={isUpdating}
+            />
+
+            {/* Update Tracking Modal */}
+            <UpdateTrackingModal
+                visible={updateTrackingModalVisible}
+                onClose={() => setUpdateTrackingModalVisible(false)}
+                order={order}
+                onUpdate={handleUpdateTracking}
+                isUpdating={isUpdating}
+            />
+        </>
+    );
+};
+
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 const ShopDashboard = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
@@ -420,6 +1041,18 @@ const ShopDashboard = () => {
     const [businessLicense, setBusinessLicense] = useState<any>(null);
     const [utilityBill, setUtilityBill] = useState<any>(null);
 
+    const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
+    const [orderModalVisible, setOrderModalVisible] = useState(false);
+
+    // ─── Pagination State ──────────────────────────────────────────────────────
+    const [ordersPage, setOrdersPage] = useState(1);
+    const [ordersHasNextPage, setOrdersHasNextPage] = useState(false);
+    const [ordersHasPreviousPage, setOrdersHasPreviousPage] = useState(false);
+    const [ordersTotalCount, setOrdersTotalCount] = useState(0);
+    const [ordersTotalPages, setOrdersTotalPages] = useState(1);
+    const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
+    const [ordersPerPage, setOrdersPerPage] = useState(10);
+
     const [editingLoading, setEditingLoading] = useState(false);
 
     // ─── Stripe Connect Functions ──────────────────────────────────────────────
@@ -506,6 +1139,267 @@ const ShopDashboard = () => {
         }
     };
 
+    const handleUpdateOrderStatus = async (orderId: number, status: string) => {
+        try {
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            const response = await axios.post(
+                `${API_BASE_URL}store/orders/${orderId}/update-status/`,
+                { status },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            if (response.data?.success) {
+                toast.show({
+                    message: `Order #${orderId} ${status} successfully!`,
+                    type: 'success',
+                    style: 'top',
+                });
+                loadData(); // Refresh data
+                setOrderModalVisible(false);
+            } else {
+                toast.show({
+                    message: response.data?.message || 'Failed to update order status',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Update status error:', error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to update order status',
+                type: 'error',
+                style: 'top',
+            });
+        }
+    };
+
+    // ─── Add Tracking ─────────────────────────────────────────────────────────────
+    const handleAddTracking = async (orderId: number, courierName: string, trackingNumber: string) => {
+        try {
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            // Check if tracking already exists
+            const existingOrder = orders.find(o => o.id === orderId);
+            const isUpdate = existingOrder?.tracking_number && existingOrder.tracking_number.length > 0;
+
+            const url = isUpdate
+                ? `${API_BASE_URL}store/orders/${orderId}/add-tracking/`
+                : `${API_BASE_URL}store/orders/${orderId}/add-tracking/`;
+
+            const method = isUpdate ? 'patch' : 'post';
+
+            const response = await axios({
+                method,
+                url,
+                data: {
+                    courier_name: courierName,
+                    tracking_number: trackingNumber,
+                },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.data?.success) {
+                toast.show({
+                    message: `Tracking added for Order #${orderId}!`,
+                    type: 'success',
+                    style: 'top',
+                });
+                loadData(); // Refresh data
+                setOrderModalVisible(false);
+            } else {
+                toast.show({
+                    message: response.data?.message || 'Failed to add tracking',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Add tracking error:', error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to add tracking',
+                type: 'error',
+                style: 'top',
+            });
+        }
+    };
+
+    const handleUpdateTracking = async (orderId: number, courierName: string, trackingNumber: string) => {
+        try {
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            const response = await axios.patch(
+                `${API_BASE_URL}store/orders/${orderId}/add-tracking/`,
+                {
+                    courier_name: courierName,
+                    tracking_number: trackingNumber,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            if (response.data?.success) {
+                toast.show({
+                    message: `Tracking updated for Order #${orderId}!`,
+                    type: 'success',
+                    style: 'top',
+                });
+                loadData();
+                setOrderModalVisible(false);
+            } else {
+                toast.show({
+                    message: response.data?.message || 'Failed to update tracking',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Update tracking error:', error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to update tracking',
+                type: 'error',
+                style: 'top',
+            });
+        }
+    };
+
+    // ─── Pagination Component ────────────────────────────────────────────────────
+    const PaginationControls = () => {
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, ordersPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(ordersTotalPages, startPage + maxVisiblePages - 1);
+
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        const pageNumbers = [];
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(i);
+        }
+
+        return (
+            <View className="py-4 px-4">
+                {/* Page info */}
+                <View className="flex-row justify-between items-center mb-3">
+                    <Text className="text-[13px] text-[#6B7280]">
+                        Showing {orders.length} of {ordersTotalCount} orders
+                    </Text>
+                    <Text className="text-[13px] text-[#6B7280]">
+                        Page {ordersPage} of {ordersTotalPages}
+                    </Text>
+                </View>
+
+                {/* Pagination buttons */}
+                <View className="flex-row items-center justify-center gap-1 flex-wrap">
+                    {/* Previous button */}
+                    <TouchableOpacity
+                        onPress={goToPreviousPage}
+                        disabled={!ordersHasPreviousPage || ordersLoadingMore}
+                        className={`px-3 py-2 rounded-lg ${ordersHasPreviousPage ? 'bg-[#1F56D8]' : 'bg-[#E5E7EB]'}`}
+                    >
+                        <Ionicons
+                            name="chevron-back"
+                            size={18}
+                            color={ordersHasPreviousPage ? '#FFFFFF' : '#9CA3AF'}
+                        />
+                    </TouchableOpacity>
+
+                    {/* Page numbers */}
+                    {startPage > 1 && (
+                        <>
+                            <TouchableOpacity
+                                onPress={() => goToPage(1)}
+                                className="px-3 py-2 rounded-lg bg-[#F3F4F6]"
+                            >
+                                <Text className="text-[14px] text-[#6B7280]">1</Text>
+                            </TouchableOpacity>
+                            {startPage > 2 && (
+                                <Text className="text-[14px] text-[#9CA3AF] px-1">...</Text>
+                            )}
+                        </>
+                    )}
+
+                    {pageNumbers.map((num) => (
+                        <TouchableOpacity
+                            key={num}
+                            onPress={() => goToPage(num)}
+                            className={`px-3 py-2 rounded-lg ${num === ordersPage ? 'bg-[#1F56D8]' : 'bg-[#F3F4F6]'}`}
+                        >
+                            <Text
+                                className={`text-[14px] ${num === ordersPage ? 'text-white font-bold' : 'text-[#6B7280]'}`}
+                            >
+                                {num}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {endPage < ordersTotalPages && (
+                        <>
+                            {endPage < ordersTotalPages - 1 && (
+                                <Text className="text-[14px] text-[#9CA3AF] px-1">...</Text>
+                            )}
+                            <TouchableOpacity
+                                onPress={() => goToPage(ordersTotalPages)}
+                                className="px-3 py-2 rounded-lg bg-[#F3F4F6]"
+                            >
+                                <Text className="text-[14px] text-[#6B7280]">{ordersTotalPages}</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
+
+                    {/* Next button */}
+                    <TouchableOpacity
+                        onPress={goToNextPage}
+                        disabled={!ordersHasNextPage || ordersLoadingMore}
+                        className={`px-3 py-2 rounded-lg ${ordersHasNextPage ? 'bg-[#1F56D8]' : 'bg-[#E5E7EB]'}`}
+                    >
+                        <Ionicons
+                            name="chevron-forward"
+                            size={18}
+                            color={ordersHasNextPage ? '#FFFFFF' : '#9CA3AF'}
+                        />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Loading indicator */}
+                {ordersLoadingMore && (
+                    <View className="items-center mt-2">
+                        <ActivityIndicator size="small" color="#1F56D8" />
+                    </View>
+                )}
+            </View>
+        );
+    };
+
+
     const handleWebViewNavigation = (navState: any) => {
         // Check if the user has completed onboarding
         // Stripe redirects to a success URL or the merchant's return URL
@@ -519,7 +1413,7 @@ const ShopDashboard = () => {
     };
 
     // ─── Data Loading ──────────────────────────────────────────────────────────
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (page = 1, append = false) => {
         setLoading(true);
         setErrorMsg('');
 
@@ -549,7 +1443,7 @@ const ShopDashboard = () => {
                 axios.get(`${API_BASE_URL}${SHOP_PRODUCT}?page=1`, {
                     headers: { Authorization: `Bearer ${token}` },
                 }),
-                axios.get(`${API_BASE_URL}${SHOP_ORDERS}?page=1`, {
+                axios.get(`${API_BASE_URL}${SHOP_ORDERS}?page=${page}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 }),
                 axios.get(`${API_BASE_URL}store/seller-profiles/dashboard/shipping/`, {
@@ -569,19 +1463,53 @@ const ShopDashboard = () => {
                 }),
             ]);
 
-            // Set data
-            setOverview(overviewRes?.data?.data ?? null);
+            // ─── Handle Orders with Pagination ──────────────────────────────────────
+            let ordersData = ordersRes?.data?.data || ordersRes?.data || {};
+            let orderList = [];
+            let pagination = {};
 
-            const productList =
-                productsRes?.data?.data?.products ??
-                productsRes?.data?.data ??
-                [];
-            setProducts(ensureArray<ProductItem>(productList));
+            if (Array.isArray(ordersData)) {
+                orderList = ordersData;
+                pagination = ordersRes?.data?.pagination || {};
+            } else if (ordersData?.results) {
+                orderList = ordersData.results;
+                pagination = ordersData?.pagination || ordersRes?.data?.pagination || {};
+            } else {
+                orderList = ordersData || [];
+                pagination = ordersRes?.data?.pagination || {};
+            }
 
+            console.log('📦 Orders Response:', {
+                orderListLength: orderList.length,
+                pagination: pagination,
+            });
+
+            // ✅ Set orders
+            setOrders(ensureArray<OrderItem>(orderList));
+
+            // ✅ Set pagination state
+            const currentPage = pagination?.current_page || page;
+            const totalCount = pagination?.total_count || orderList.length || 0;
+            const totalPages = pagination?.total_pages || Math.ceil(totalCount / ordersPerPage) || 1;
+
+            setOrdersPage(currentPage);
+            setOrdersHasNextPage(pagination?.has_next || currentPage < totalPages);
+            setOrdersHasPreviousPage(pagination?.has_previous || currentPage > 1);
+            setOrdersTotalCount(totalCount);
+            setOrdersTotalPages(totalPages);
+
+            console.log('📊 Pagination State:', {
+                currentPage,
+                totalCount,
+                totalPages,
+                hasNext: pagination?.has_next,
+                hasPrevious: pagination?.has_previous,
+            });
+
+            // ... rest of the data loading
             const shippingData = shippingRes?.data?.data;
             if (shippingData) {
                 setShipping(shippingData);
-                // Load shipping tab state
                 setPickupActive(shippingData.local_pickup?.active || false);
                 setPickupStreet(shippingData.local_pickup?.address_street || '');
                 setPickupCity(shippingData.local_pickup?.address_city || '');
@@ -599,27 +1527,17 @@ const ShopDashboard = () => {
                 setSelectedCouriers(shippingData.standard_shipping?.preferred_couriers || []);
             }
 
-            const orderList =
-                ordersRes?.data?.data?.results ??
-                ordersRes?.data?.data ??
-                [];
-            setOrders(ensureArray<OrderItem>(orderList));
-
             setPayouts(payoutsRes?.data?.data ?? null);
 
-            // Seller document (first item in array)
             const docs = ensureArray<SellerDocument>(sellerDocRes?.data);
             setSellerDocument(docs.length > 0 ? docs[0] : null);
 
-            // Profile (first item in array)
             const profiles = ensureArray<ProfileData>(profileRes?.data);
             if (profiles.length > 0) {
                 const p = profiles[0];
                 setProfile(p);
-                // Set Stripe status
                 setStripeAccountId(p.stripe_account_id || '');
                 setStripeOnboardingCompleted(p.stripe_onboarding_completed || false);
-                // Set edit form values
                 setShopName(p.shop_name || '');
                 setShopDescription(p.shop_description || '');
                 setShopLogo(p.shop_logo || null);
@@ -635,7 +1553,6 @@ const ShopDashboard = () => {
                 setEditDeliveryRadius(p.delivery_radius || 5);
                 setEditDeliveryFee(p.delivery_fee || '0');
                 setEditDeliveryTimeframe(p.delivery_timeframe || '');
-                // Legal
                 setLegalFullName(p.user?.full_name || '');
                 setBusinessRegNumber(p.business_reg_number || '');
                 setBusinessAddress(p.business_address || '');
@@ -644,14 +1561,44 @@ const ShopDashboard = () => {
             const couponList = ensureArray<CouponItem>(couponsRes?.data);
             setCoupons(couponList);
             setCouponCount(couponList.length);
+
         } catch (err: any) {
             console.error('Error loading shop dashboard:', err?.response?.data || err);
             setErrorMsg(err?.response?.data?.message || 'Failed to load shop data');
         } finally {
             setLoading(false);
             setRefreshing(false);
+            setOrdersLoadingMore(false);
         }
-    }, []);
+    }, [ordersPerPage]);
+
+    const goToPage = useCallback((page: number) => {
+        if (page < 1 || page > ordersTotalPages || page === ordersPage) return;
+        setOrdersLoadingMore(true);
+        loadData(page, false);
+    }, [ordersTotalPages, ordersPage, loadData]);
+
+    const goToNextPage = useCallback(() => {
+        if (ordersHasNextPage) {
+            goToPage(ordersPage + 1);
+        }
+    }, [ordersHasNextPage, ordersPage, goToPage]);
+
+    const goToPreviousPage = useCallback(() => {
+        if (ordersHasPreviousPage) {
+            goToPage(ordersPage - 1);
+        }
+    }, [ordersHasPreviousPage, ordersPage, goToPage]);
+
+    const loadMoreOrders = useCallback(() => {
+        if (!ordersHasNextPage || ordersLoadingMore || loading) {
+            console.log('⚠️ Cannot load more:', { ordersHasNextPage, ordersLoadingMore, loading });
+            return;
+        }
+        console.log('📄 Loading more orders, page:', ordersPage + 1);
+        setOrdersLoadingMore(true);
+        loadData(ordersPage + 1, true);
+    }, [ordersHasNextPage, ordersLoadingMore, loading, ordersPage, loadData]);
 
     useFocusEffect(
         useCallback(() => {
@@ -659,9 +1606,22 @@ const ShopDashboard = () => {
         }, [loadData])
     );
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadData();
+    const onRefresh = async () => {
+        try {
+            setRefreshing(true);
+            // Reset pagination state
+            setOrdersPage(1);
+            setOrdersHasNextPage(false);
+            setOrdersHasPreviousPage(false);
+            setOrdersTotalCount(0);
+            setOrdersTotalPages(1);
+            // Reload data from page 1
+            await loadData(1, false);
+        } catch (error) {
+            console.error('Refresh error:', error);
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     // ─── Coupon Functions ─────────────────────────────────────────────────────
@@ -1233,41 +2193,59 @@ const ShopDashboard = () => {
         const badge = getStatusStyle(item.status);
 
         return (
-            <View
-                className="bg-white rounded-3xl mb-5 overflow-hidden"
-                style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 3 }}
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                    setSelectedOrder(item);
+                    setOrderModalVisible(true);
+                }}
             >
-                <View className="p-5">
-                    <View className="flex-row">
-                        <Image
-                            source={{ uri: buildImageUrl(item.seller_product?.main_image) }}
-                            className="w-[78px] h-[78px] rounded-2xl bg-[#EEF2F7]"
-                            resizeMode="cover"
-                        />
-                        <View className="flex-1 ml-4 justify-center">
-                            <Text className="text-[18px] font-semibold text-[#111827]" numberOfLines={2}>
-                                {item.seller_product?.title || 'Product'}
+                <View
+                    className="bg-white rounded-3xl mb-5 overflow-hidden"
+                    style={{ shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 3 }}
+                >
+                    <View className="p-5">
+                        <View className="flex-row">
+                            <Image
+                                source={{ uri: buildImageUrl(item.seller_product?.main_image) }}
+                                className="w-[78px] h-[78px] rounded-2xl bg-[#EEF2F7]"
+                                resizeMode="cover"
+                            />
+                            <View className="flex-1 ml-4 justify-center">
+                                <Text className="text-[18px] font-semibold text-[#111827]" numberOfLines={2}>
+                                    {item.seller_product?.title || 'Product'}
+                                </Text>
+                                <Text className="text-[14px] text-[#7A8192] mt-1">Buyer: {item?.buyer_email}</Text>
+                                <Text className="text-[14px] text-[#7A8192] mt-1">Qty: {item?.quantity}</Text>
+                                <Text className="text-[16px] text-[#111827] font-bold mt-2">
+                                    ${item.total_price} <Text className="text-[#8A92A3] font-medium">/ {item.currency?.toUpperCase()}</Text>
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    <View className="h-[1px] bg-[#E6E9EF]" />
+                    <View className="px-5 py-4 flex-row items-center justify-between">
+                        <View className="flex-row items-center px-4 py-2 rounded-full" style={{ backgroundColor: badge.bg }}>
+                            <Text className="text-[13px] font-medium" style={{ color: badge.fg }}>
+                                {item.status_display || item.status}
                             </Text>
-                            <Text className="text-[14px] text-[#7A8192] mt-1">Buyer: {item?.buyer_email}</Text>
-                            <Text className="text-[14px] text-[#7A8192] mt-1">Qty: {item?.quantity}</Text>
-                            <Text className="text-[16px] text-[#111827] font-bold mt-2">
-                                ${item.total_price} <Text className="text-[#8A92A3] font-medium">/ {item.currency?.toUpperCase()}</Text>
-                            </Text>
+                        </View>
+                        <View className="flex-row items-center gap-3">
+                            {item.tracking_number && (
+                                <View className="flex-row items-center gap-1">
+                                    <Ionicons name="cube-outline" size={16} color="#2355B6" />
+                                    <Text className="text-[11px] text-[#2355B6] font-medium">Track</Text>
+                                </View>
+                            )}
+                            <Text className="text-[#7A8192] text-[13px]">Order #{item.id}</Text>
+                            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
                         </View>
                     </View>
                 </View>
-                <View className="h-[1px] bg-[#E6E9EF]" />
-                <View className="px-5 py-4 flex-row items-center justify-between">
-                    <View className="flex-row items-center px-4 py-2 rounded-full" style={{ backgroundColor: badge.bg }}>
-                        <Text className="text-[13px] font-medium" style={{ color: badge.fg }}>
-                            {item.status_display}
-                        </Text>
-                    </View>
-                    <Text className="text-[#7A8192] text-[13px]">Order #{item.id}</Text>
-                </View>
-            </View>
+            </TouchableOpacity>
         );
     };
+
 
     const renderOrders = () => (
         <FlatList
@@ -1279,7 +2257,14 @@ const ShopDashboard = () => {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1F56D8']} />}
             ListEmptyComponent={
                 !loading ? (
-                    <Text className="text-center text-[#7A8192] mt-10">No orders found.</Text>
+                    <View className="items-center justify-center py-10">
+                        <Text className="text-center text-[#7A8192] mt-10">No orders found.</Text>
+                    </View>
+                ) : null
+            }
+            ListFooterComponent={
+                orders.length > 0 && !loading ? (
+                    <PaginationControls />
                 ) : null
             }
         />
@@ -2464,6 +3449,18 @@ const ShopDashboard = () => {
 
                 {renderContent()}
                 {renderFAB()}
+
+                <OrderDetailsModal
+                    visible={orderModalVisible}
+                    onClose={() => {
+                        setOrderModalVisible(false);
+                        setSelectedOrder(null);
+                    }}
+                    order={selectedOrder}
+                    onUpdateStatus={handleUpdateOrderStatus}
+                    onAddTracking={handleAddTracking}
+                    onUpdateTracking={handleUpdateTracking}
+                />
 
                 {/* ─── Stripe Connect WebView Modal ─── */}
                 <Modal
