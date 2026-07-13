@@ -218,7 +218,7 @@ const AppReview = () => {
   )
 
   return (
-    <View className="bg-[#F9F9FB] flex-1">
+    <SafeAreaView className="bg-[#F9F9FB] flex-1">
       <View className="px-5 flex-1">
         {/* Header */}
         <View className="flex-row items-center gap-4 py-2">
@@ -376,7 +376,7 @@ const AppReview = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
-    </View>
+    </SafeAreaView>
   )
 }
 

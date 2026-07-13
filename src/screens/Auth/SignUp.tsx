@@ -1,11 +1,8 @@
-import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, IPA_BASE, REGISTER } from '@env';
+import { GOOGLE_WEB_CLIENT_ID, IPA_BASE, REGISTER } from '@env';
 import { Entypo, FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import * as AuthSession from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useEffect } from 'react';
 import {
@@ -27,8 +24,7 @@ import AppleButtonSvg from '../../components/Apple';
 import GoogleButtonSvg from '../../components/Google';
 import { Images } from '../../constants';
 import { AuthStackParamList } from '../../Navigation/types';
-
-WebBrowser.maybeCompleteAuthSession();
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
 const { width, height } = Dimensions.get('window');
 
@@ -49,23 +45,13 @@ const SignUp = () => {
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
 
-    // ─── Google Auth Setup ──────────────────────────────────────────────────
-    const [request, response, promptAsync] = Google.useAuthRequest({
-        webClientId: GOOGLE_WEB_CLIENT_ID,
-        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-        iosClientId: GOOGLE_IOS_CLIENT_ID,
-    });
-
+    // ─── Google Sign-In Setup ───────────────────────────────────────────────
     useEffect(() => {
-        if (response?.type === 'success') {
-            const { authentication } = response;
-            if (authentication?.accessToken) {
-                handleGoogleBackendLogin(authentication.accessToken);
-            }
-        } else if (response?.type === 'error') {
-            Alert.alert('Google Sign Up Failed', 'Something went wrong with Google authentication.');
-        }
-    }, [response]);
+        GoogleSignin.configure({
+            webClientId: GOOGLE_WEB_CLIENT_ID, 
+            offlineAccess: false,
+        });
+    }, []);
 
     const validate = () => {
         if (!name.trim()) return 'Name required';
@@ -110,7 +96,6 @@ const SignUp = () => {
     // ─── Handle Google backend call ─────────────────────────────────────────
     const handleGoogleBackendLogin = async (accessToken: string) => {
         try {
-            setGoogleLoading(true);
             const res = await axios.post(
                 `${API_BASE_URL}account/google-login/`,
                 { access_token: accessToken },
@@ -119,7 +104,6 @@ const SignUp = () => {
 
             const data = res.data;
 
-            // ✅ Save token if backend returns one
             if (data?.token || data?.access) {
                 await AsyncStorage.setItem('vToken', data.token || data.access);
             }
@@ -128,17 +112,34 @@ const SignUp = () => {
         } catch (e: any) {
             const msg = e?.response?.data?.message || e?.message || 'Google sign up failed';
             Alert.alert('Google Sign Up Failed', msg);
-        } finally {
-            setGoogleLoading(false);
         }
     };
 
     const handleGoogleSignUp = async () => {
-        if (!request) {
-            Alert.alert('Error', 'Google sign in is not ready yet, please try again.');
-            return;
+        try {
+            setGoogleLoading(true);
+            await GoogleSignin.hasPlayServices();
+            await GoogleSignin.signIn();
+            const tokens = await GoogleSignin.getTokens();
+
+            if (tokens?.accessToken) {
+                await handleGoogleBackendLogin(tokens.accessToken);
+            } else {
+                Alert.alert('Error', 'Could not get Google access token.');
+            }
+        } catch (error: any) {
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                // User canceled — no need to show an error
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                Alert.alert('Please wait', 'Sign in already in progress.');
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                Alert.alert('Error', 'Google Play Services not available.');
+            } else {
+                Alert.alert('Google Sign Up Failed', error?.message || 'Something went wrong.');
+            }
+        } finally {
+            setGoogleLoading(false);
         }
-        await promptAsync();
     };
 
     // ─── Handle Apple Sign In ────────────────────────────────────────────────
@@ -183,7 +184,6 @@ const SignUp = () => {
             navigation.reset({ index: 0, routes: [{ name: 'MainTabs' as any }] });
         } catch (e: any) {
             if (e?.code === 'ERR_REQUEST_CANCELED') {
-                // User canceled the Apple sign-in flow — no need to show an error
                 return;
             }
             const msg = e?.response?.data?.message || e?.message || 'Apple sign up failed';
@@ -332,7 +332,7 @@ const SignUp = () => {
                                 style={styles.socialBtn}
                                 activeOpacity={0.8}
                                 onPress={handleGoogleSignUp}
-                                disabled={googleLoading || !request}
+                                disabled={googleLoading}
                             >
                                 {googleLoading ? <ActivityIndicator color="#2355B6" /> : <GoogleButtonSvg />}
                             </TouchableOpacity>
