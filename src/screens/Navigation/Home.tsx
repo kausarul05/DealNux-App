@@ -677,7 +677,7 @@ const Home = () => {
 
     const renderHeader = () => (
         <>
-            <HomeHeader userName={user?.name || 'User'} />
+            {/* <HomeHeader userName={user?.name || 'User'} /> */}
 
             <Pressable
                 style={styles.searchContainer}
@@ -884,6 +884,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 6,
         marginHorizontal: 16,
         marginBottom: 8,
+        marginTop: 8,
         alignItems: 'center',
     },
     searchInput: {

@@ -370,7 +370,7 @@ const CreateAdsInner = () => {
     }, [showSuccessModal, navigation]);
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={styles.safeArea}>
             <KeyboardAvoidingView
                 style={styles.container}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -682,7 +682,7 @@ const CreateAdsInner = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

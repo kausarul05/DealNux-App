@@ -1,8 +1,13 @@
-import { IPA_BASE, REGISTER } from '@env';
+import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, IPA_BASE, REGISTER } from '@env';
 import { Entypo, FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
-import React, { useState } from 'react';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -16,14 +21,14 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import AppleButtonSvg from '../../components/Apple';
 import GoogleButtonSvg from '../../components/Google';
 import { Images } from '../../constants';
 import { AuthStackParamList } from '../../Navigation/types';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,10 +43,29 @@ const SignUp = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
+    const [appleLoading, setAppleLoading] = useState(false);
 
-    // ─── Terms & Conditions State ──────────────────────────────────────────
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+
+    // ─── Google Auth Setup ──────────────────────────────────────────────────
+    const [request, response, promptAsync] = Google.useAuthRequest({
+        webClientId: GOOGLE_WEB_CLIENT_ID,
+        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+        iosClientId: GOOGLE_IOS_CLIENT_ID,
+    });
+
+    useEffect(() => {
+        if (response?.type === 'success') {
+            const { authentication } = response;
+            if (authentication?.accessToken) {
+                handleGoogleBackendLogin(authentication.accessToken);
+            }
+        } else if (response?.type === 'error') {
+            Alert.alert('Google Sign Up Failed', 'Something went wrong with Google authentication.');
+        }
+    }, [response]);
 
     const validate = () => {
         if (!name.trim()) return 'Name required';
@@ -83,6 +107,92 @@ const SignUp = () => {
         }
     };
 
+    // ─── Handle Google backend call ─────────────────────────────────────────
+    const handleGoogleBackendLogin = async (accessToken: string) => {
+        try {
+            setGoogleLoading(true);
+            const res = await axios.post(
+                `${API_BASE_URL}account/google-login/`,
+                { access_token: accessToken },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
+            );
+
+            const data = res.data;
+
+            // ✅ Save token if backend returns one
+            if (data?.token || data?.access) {
+                await AsyncStorage.setItem('vToken', data.token || data.access);
+            }
+
+            navigation.reset({ index: 0, routes: [{ name: 'MainTabs' as any }] });
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Google sign up failed';
+            Alert.alert('Google Sign Up Failed', msg);
+        } finally {
+            setGoogleLoading(false);
+        }
+    };
+
+    const handleGoogleSignUp = async () => {
+        if (!request) {
+            Alert.alert('Error', 'Google sign in is not ready yet, please try again.');
+            return;
+        }
+        await promptAsync();
+    };
+
+    // ─── Handle Apple Sign In ────────────────────────────────────────────────
+    const handleAppleSignUp = async () => {
+        if (Platform.OS !== 'ios') {
+            Alert.alert('Not Available', 'Apple Sign In is only available on iOS.');
+            return;
+        }
+        try {
+            setAppleLoading(true);
+
+            const isAvailable = await AppleAuthentication.isAvailableAsync();
+            if (!isAvailable) {
+                Alert.alert('Not Available', 'Apple Sign In is not available on this device.');
+                return;
+            }
+
+            const credential = await AppleAuthentication.signInAsync({
+                requestedScopes: [
+                    AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                    AppleAuthentication.AppleAuthenticationScope.EMAIL,
+                ],
+            });
+
+            if (!credential.identityToken) {
+                Alert.alert('Error', 'Could not get Apple identity token.');
+                return;
+            }
+
+            const res = await axios.post(
+                `${API_BASE_URL}account/apple-login/`,
+                { id_token: credential.identityToken },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
+            );
+
+            const data = res.data;
+
+            if (data?.token || data?.access) {
+                await AsyncStorage.setItem('vToken', data.token || data.access);
+            }
+
+            navigation.reset({ index: 0, routes: [{ name: 'MainTabs' as any }] });
+        } catch (e: any) {
+            if (e?.code === 'ERR_REQUEST_CANCELED') {
+                // User canceled the Apple sign-in flow — no need to show an error
+                return;
+            }
+            const msg = e?.response?.data?.message || e?.message || 'Apple sign up failed';
+            Alert.alert('Apple Sign Up Failed', msg);
+        } finally {
+            setAppleLoading(false);
+        }
+    };
+
     const openTerms = () => {
         navigation.navigate('TermsOfService' as any);
     };
@@ -90,7 +200,6 @@ const SignUp = () => {
     const openPrivacy = () => {
         navigation.navigate('PrivacyPolicy' as any);
     };
-
 
     return (
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safe}>
@@ -166,7 +275,6 @@ const SignUp = () => {
 
                         {/* ─── Terms & Conditions ────────────────────────────────── */}
                         <View style={styles.termsContainer}>
-                            {/* Terms Checkbox */}
                             <TouchableOpacity
                                 style={styles.termsRow}
                                 onPress={() => setAgreedToTerms(!agreedToTerms)}
@@ -183,7 +291,6 @@ const SignUp = () => {
                                 </Text>
                             </TouchableOpacity>
 
-                            {/* Privacy Checkbox */}
                             <TouchableOpacity
                                 style={styles.termsRow}
                                 onPress={() => setAgreedToPrivacy(!agreedToPrivacy)}
@@ -221,11 +328,21 @@ const SignUp = () => {
                         </View>
 
                         <View style={styles.socialRow}>
-                            <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-                                <GoogleButtonSvg />
+                            <TouchableOpacity
+                                style={styles.socialBtn}
+                                activeOpacity={0.8}
+                                onPress={handleGoogleSignUp}
+                                disabled={googleLoading || !request}
+                            >
+                                {googleLoading ? <ActivityIndicator color="#2355B6" /> : <GoogleButtonSvg />}
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-                                <AppleButtonSvg />
+                            <TouchableOpacity
+                                style={styles.socialBtn}
+                                activeOpacity={0.8}
+                                onPress={handleAppleSignUp}
+                                disabled={appleLoading}
+                            >
+                                {appleLoading ? <ActivityIndicator color="#000" /> : <AppleButtonSvg />}
                             </TouchableOpacity>
                         </View>
 

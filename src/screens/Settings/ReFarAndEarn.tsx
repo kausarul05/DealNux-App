@@ -3,13 +3,13 @@ import { RouteProp, useRoute } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useRef, useEffect } from "react";
-import { 
-    Pressable, 
-    ScrollView, 
-    Share, 
-    StyleSheet, 
-    Text, 
-    View, 
+import {
+    Pressable,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    View,
     Animated,
     Dimensions,
     TouchableOpacity,
@@ -73,7 +73,7 @@ const ReferAndEarn = () => {
             });
 
             // console.log('📊 Referral settings:', response.data);
-            
+
             if (response.data) {
                 setReferralReward(response.data.referral_reward_amount || 8);
                 setUserBalance(response.data.user_referral_amount || 0);
@@ -129,8 +129,9 @@ const ReferAndEarn = () => {
 
     const onShare = async () => {
         try {
+            const referralLink = `https://www.dealnux.shop/ref/${user.refaradal_code}`;
             await Share.share({
-                message: `🎉 Use my referral code ${user.refaradal_code} and get $${referralReward} off your first purchase on DealNux! 🛍️`,
+                message: `${referralLink}`,
             });
         } catch (error) {
             console.log(error);
@@ -152,7 +153,7 @@ const ReferAndEarn = () => {
                     />
                 </View>
 
-                <ScrollView 
+                <ScrollView
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 40 }}
                 >
@@ -207,8 +208,8 @@ const ReferAndEarn = () => {
                             <View style={styles.codeBox}>
                                 <Text style={styles.codeText}>{user.refaradal_code}</Text>
                             </View>
-                            <TouchableOpacity 
-                                onPress={handleCopy} 
+                            <TouchableOpacity
+                                onPress={handleCopy}
                                 style={styles.copyButton}
                                 activeOpacity={0.8}
                             >
@@ -404,7 +405,7 @@ const ReferAndEarn = () => {
 
             {/* Toast Notification */}
             {showToast && (
-                <Animated.View 
+                <Animated.View
                     style={[
                         styles.toastContainer,
                         {

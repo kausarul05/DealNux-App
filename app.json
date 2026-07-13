@@ -70,7 +70,8 @@
           "merchantIdentifier": "merchant.com.ahmedrefu.savvyshopper"
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

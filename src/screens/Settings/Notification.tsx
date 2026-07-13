@@ -1,4 +1,4 @@
-// screens/Notification.tsx - আপডেটেড
+// screens/Notification.tsx - Updated with Navigation Support
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Image,
@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
 import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
+import { useNavigation } from '@react-navigation/native'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import * as Notifications from 'expo-notifications'
@@ -36,74 +37,43 @@ type NotificationItem = {
 }
 
 const Notification = () => {
+  const navigation = useNavigation()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
 
-  // ─── Register Device Token (Expo Go Support) ──────────────────────────────
+  // ─── Register Device Token ──────────────────────────────────────────────
   const registerDeviceToken = async () => {
     try {
-      // console.log('🔄 Starting device token registration...')
-      
       const token = await AsyncStorage.getItem('vToken')
-      if (!token) {
-        // console.log('❌ No auth token found, skipping device registration')
-        return
-      }
+      if (!token) return
 
-      // ✅ Expo Go তেও কাজ করবে
       const isExpoGo = Constants.appOwnership === 'expo'
-      // console.log(`📱 App ownership: ${Constants.appOwnership}`)
-      
-      // ✅ Expo Go তেও permission নিন
-      // console.log('📱 Requesting notification permissions...')
       const { status: existingStatus } = await Notifications.getPermissionsAsync()
-      // console.log(`📱 Existing permission status: ${existingStatus}`)
-      
       let finalStatus = existingStatus
 
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync()
         finalStatus = status
-        // console.log(`📱 New permission status: ${finalStatus}`)
       }
 
-      if (finalStatus !== 'granted') {
-        // console.log('❌ Push notification permission denied')
-        return
-      }
+      if (finalStatus !== 'granted') return
 
-      // ✅ Expo Go তে projectId ছাড়া কাজ করে
       let fcmToken
       
       if (isExpoGo) {
-        // ✅ Expo Go তে সরাসরি token নিন
-        // console.log('📱 Getting Expo push token (Expo Go)...')
         fcmToken = await Notifications.getExpoPushTokenAsync()
-        // console.log('📱 Expo Token received:', fcmToken.data)
       } else {
-        // ✅ Standalone build এর জন্য projectId সহ
         const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
-                          Constants.manifest?.extra?.eas?.projectId ||
-                          ''
-        // console.log(`📱 Project ID: ${projectId}`)
-
-        if (!projectId) {
-          // console.warn('⚠️ No projectId found for push notifications')
-          return
-        }
-
-        // console.log('📱 Getting FCM token...')
+                          Constants.manifest?.extra?.eas?.projectId || ''
+        if (!projectId) return
         fcmToken = await Notifications.getExpoPushTokenAsync({
           projectId: projectId,
         })
-        // console.log('📱 FCM Token received:', fcmToken.data)
       }
 
-      // ✅ Token টি ব্যাকএন্ডে পাঠান
-      // console.log('📤 Sending device token to backend...')
-      const response = await axios.post(
+      await axios.post(
         `${IPA_BASE}notifications/device-token/`,
         {
           fcm_token: fcmToken.data,
@@ -117,10 +87,8 @@ const Notification = () => {
           },
         }
       )
-
-      // console.log('✅ Device token registered successfully:', response.data)
     } catch (error: any) {
-      // console.error('❌ Error registering device token:', error?.response?.data || error.message)
+      // Silent fail
     }
   }
 
@@ -161,7 +129,6 @@ const Notification = () => {
 
   useEffect(() => {
     fetchNotifications()
-    // ✅ 2 সেকেন্ড delay করে registerDeviceToken চালান
     setTimeout(() => {
       registerDeviceToken()
     }, 2000)
@@ -170,6 +137,34 @@ const Notification = () => {
   const onRefresh = () => {
     setRefreshing(true)
     fetchNotifications()
+  }
+
+  // ─── Mark Single as Read ──────────────────────────────────────────────────
+  const markAsRead = async (notificationId: number) => {
+    try {
+      const token = await AsyncStorage.getItem('vToken')
+      if (!token) return
+
+      await axios.post(
+        `${IPA_BASE}notifications/notifications/${notificationId}/read/`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+          },
+        }
+      )
+
+      setNotifications(prev =>
+        prev.map(item =>
+          item.id === notificationId ? { ...item, is_read: true } : item
+        )
+      )
+      setUnreadCount(prev => Math.max(0, prev - 1))
+    } catch (error) {
+      console.error('❌ Error marking as read:', error)
+    }
   }
 
   // ─── Mark All as Read ──────────────────────────────────────────────────────
@@ -201,6 +196,83 @@ const Notification = () => {
     }
   }
 
+  // ─── ✅ Handle Notification Press ──────────────────────────────────────────
+  const handleNotificationPress = async (item: NotificationItem) => {
+    // Mark as read
+    // if (!item.is_read) {
+    //   await markAsRead(item.id)
+    // }
+
+    // ✅ Handle deep link / navigation
+    if (item.cta_link) {
+      // Check if it's a product link
+      const productMatch = item.cta_link.match(/\/product\/(\d+)/)
+      if (productMatch) {
+        const productId = parseInt(productMatch[1])
+        navigation.navigate('ProductDetails', { 
+          productId: productId 
+        } as never)
+        return
+      }
+
+      // Check if it's a deal link
+      const dealMatch = item.cta_link.match(/\/deal\/(\d+)/)
+      if (dealMatch) {
+        const dealId = parseInt(dealMatch[1])
+        // Navigate to deal or product details
+        navigation.navigate('ProductDetails', { 
+          productId: dealId 
+        } as never)
+        return
+      }
+
+      // Check if it's an order link
+      const orderMatch = item.cta_link.match(/\/order\/(\d+)/)
+      if (orderMatch) {
+        const orderId = parseInt(orderMatch[1])
+        navigation.navigate('MyOrders' as never)
+        return
+      }
+
+      // For external links, open in browser
+      if (item.cta_link.startsWith('http')) {
+        try {
+          const supported = await Linking.canOpenURL(item.cta_link)
+          if (supported) {
+            await Linking.openURL(item.cta_link)
+          }
+        } catch (error) {
+          console.error('Error opening link:', error)
+        }
+        return
+      }
+
+      // For internal navigation with product ID in query params
+      const queryMatch = item.cta_link.match(/product_id=(\d+)/)
+      if (queryMatch) {
+        const productId = parseInt(queryMatch[1])
+        navigation.navigate('ProductDetails', { 
+          productId: productId 
+        } as never)
+        return
+      }
+
+      // Default: try to navigate directly
+      try {
+        navigation.navigate(item.cta_link as never)
+      } catch (error) {
+        console.log('Cannot navigate to:', item.cta_link)
+        // If navigation fails, try to open as URL
+        if (item.cta_link.startsWith('http')) {
+          await Linking.openURL(item.cta_link)
+        }
+      }
+    } else {
+      // If no link, just show the notification details
+      Alert.alert(item.title, item.body)
+    }
+  }
+
   // ─── Format Date ───────────────────────────────────────────────────────────
   const formatDate = (dateString: string) => {
     if (!dateString) return ''
@@ -224,36 +296,28 @@ const Notification = () => {
   // ─── Get Icon Based on Channel ───────────────────────────────────────────
   const getNotificationIcon = (channel: string) => {
     switch (channel?.toUpperCase()) {
-      case 'SYSTEM':
-        return 'information-circle'
-      case 'PROMOTION':
-        return 'megaphone'
-      case 'ORDER':
-        return 'cube'
-      case 'PRICE_ALERT':
-        return 'pricetag'
-      case 'REFERRAL':
-        return 'gift'
-      default:
-        return 'notifications'
+      case 'SYSTEM': return 'information-circle'
+      case 'PROMOTION': return 'megaphone'
+      case 'ORDER': return 'cube'
+      case 'PRICE_ALERT': return 'pricetag'
+      case 'REFERRAL': return 'gift'
+      case 'PRODUCT': return 'cart'
+      case 'DEAL': return 'pricetag'
+      default: return 'notifications'
     }
   }
 
   // ─── Get Color Based on Channel ───────────────────────────────────────────
   const getNotificationColor = (channel: string) => {
     switch (channel?.toUpperCase()) {
-      case 'SYSTEM':
-        return '#2563EB'
-      case 'PROMOTION':
-        return '#F59E0B'
-      case 'ORDER':
-        return '#10B981'
-      case 'PRICE_ALERT':
-        return '#EF4444'
-      case 'REFERRAL':
-        return '#8B5CF6'
-      default:
-        return '#6B7280'
+      case 'SYSTEM': return '#2563EB'
+      case 'PROMOTION': return '#F59E0B'
+      case 'ORDER': return '#10B981'
+      case 'PRICE_ALERT': return '#EF4444'
+      case 'REFERRAL': return '#8B5CF6'
+      case 'PRODUCT': return '#2355B6'
+      case 'DEAL': return '#F59E0B'
+      default: return '#6B7280'
     }
   }
 
@@ -265,6 +329,7 @@ const Notification = () => {
     return (
       <TouchableOpacity
         activeOpacity={0.7}
+        onPress={() => handleNotificationPress(item)}
         style={{
           flexDirection: 'row',
           alignItems: 'flex-start',
@@ -310,9 +375,12 @@ const Notification = () => {
               {formatDate(item.created_at)}
             </Text>
             {item.cta_text && (
-              <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>
-                {item.cta_text} →
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>
+                  {item.cta_text}
+                </Text>
+                <Ionicons name="arrow-forward" size={12} color="#2563EB" />
+              </View>
             )}
           </View>
         </View>

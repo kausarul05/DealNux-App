@@ -59,7 +59,7 @@ export const BrandHeader: React.FC<BrandHeaderProps> = ({
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9F9FB',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
@@ -69,11 +69,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 10,
+    // paddingBottom: 10,
   },
   containerCompact: {
     paddingTop: 8,
-    paddingBottom: 8,
+    // paddingBottom: 8,
   },
   brandRow: {
     flexDirection: 'row',

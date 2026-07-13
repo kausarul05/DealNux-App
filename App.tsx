@@ -48,13 +48,22 @@ const Stack = createNativeStackNavigator<AuthStackParamList>();
 function AuthStack() {
   return (
     <Stack.Navigator
-      // screenOptions={{ headerShown: false }} 
       screenOptions={{
         header: () => <BrandHeader compact />,
-      }} initialRouteName='Welcome'>
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="SignIn" component={SignIn} options={{ animation: "slide_from_left" }} />
-      <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "slide_from_right" }} />
+      }}
+      initialRouteName='Welcome'
+    >
+      {/* ─── These screens should NOT show BrandHeader (pre-login flow) ─── */}
+      <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SignIn" component={SignIn} options={{ animation: "slide_from_left", headerShown: false }} />
+      <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "slide_from_right", headerShown: false }} />
+      <Stack.Screen name="ResetPassword" component={ResetPassword} options={{ animation: "slide_from_right", headerShown: false }} />
+      <Stack.Screen name="OtpResetPassword" component={OtpResetPassword} options={{ animation: "slide_from_right", headerShown: false }} />
+      <Stack.Screen name="CreateNewPassword" component={CreateNewPassword} options={{ animation: "slide_from_right", headerShown: false }} />
+      <Stack.Screen name="OtpAuth" component={OtpAuth} options={{ animation: "slide_from_right", headerShown: false }} />
+      <Stack.Screen name="ProfileSetup" component={ProfileSetup} options={{ animation: "slide_from_right", headerShown: false }} />
+
+      {/* ─── These screens keep BrandHeader (post-login) — no changes needed ─── */}
       <Stack.Screen name="MainTabs" component={MainTabs} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="TodaysDeals" component={TodaysDeals} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="CreateAds" component={CreateAds} options={{ animation: "slide_from_right" }} />
@@ -82,11 +91,6 @@ function AuthStack() {
       <Stack.Screen name="ProductDetails" component={ProductDetails} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="Notification" component={Notification} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="SearchProduct" component={SearchProduct} />
-      <Stack.Screen name="ResetPassword" component={ResetPassword} options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="OtpResetPassword" component={OtpResetPassword} options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="CreateNewPassword" component={CreateNewPassword} options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="OtpAuth" component={OtpAuth} options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="ProfileSetup" component={ProfileSetup} options={{ animation: "slide_from_right" }} />
       <Stack.Screen
         name="MyOrders"
         component={MyOrders}
