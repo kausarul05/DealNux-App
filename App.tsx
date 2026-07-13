@@ -41,16 +41,17 @@ import ContactUs from './src/screens/Settings/ContactUs';
 import AppReview from './src/screens/Settings/AppReview';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { BrandHeader } from './src/components/BrandHeader';
+import MyOrders from './src/screens/Settings/MyOrders';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 function AuthStack() {
   return (
-    <Stack.Navigator 
-    // screenOptions={{ headerShown: false }} 
-    screenOptions={{
-      header: () => <BrandHeader compact />,
-    }} initialRouteName='Welcome'>
+    <Stack.Navigator
+      // screenOptions={{ headerShown: false }} 
+      screenOptions={{
+        header: () => <BrandHeader compact />,
+      }} initialRouteName='Welcome'>
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="SignIn" component={SignIn} options={{ animation: "slide_from_left" }} />
       <Stack.Screen name="SignUp" component={SignUp} options={{ animation: "slide_from_right" }} />
@@ -86,6 +87,11 @@ function AuthStack() {
       <Stack.Screen name="CreateNewPassword" component={CreateNewPassword} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="OtpAuth" component={OtpAuth} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetup} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen
+        name="MyOrders"
+        component={MyOrders}
+        options={{ animation: "slide_from_right" }}
+      />
     </Stack.Navigator>
   );
 }

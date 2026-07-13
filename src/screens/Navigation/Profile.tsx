@@ -296,7 +296,14 @@ const Profile = () => {
                         />
                     </View>
 
-                    {/* Shop Create and Manage */}
+                    <Card className="mt-5 px-4">
+                        <RowItem
+                            title={user?.seller_status.status == "approved" ? "My Orders" : ""}
+                            // leftIcon={<Entypo name="shop" size={16} color="#2355B6" />}
+                            leftIcon={<MaterialCommunityIcons name="cart-outline" size={16} color="#2355B6" />}
+                            onPress={() => (navigation as any).navigate("MyOrders")}
+                        />
+                    </Card>
                     <Card className="mt-5 px-4">
                         <RowItem
                             title={user?.seller_status.status == "approved" ? "Seller dashboard" : "Become a seller"}
