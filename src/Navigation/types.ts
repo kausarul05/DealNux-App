@@ -13,7 +13,7 @@ export type AuthStackParamList = {
   Notification: undefined;
   SearchProduct: undefined;
   TodaysDeals: undefined;
-  ProductDetails: undefined;
+  ProductDetails: { productId: string | number };
   CheckoutOptions: undefined;
   SavingsSummary: undefined;
   ScanProduct: undefined;

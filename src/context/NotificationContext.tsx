@@ -6,7 +6,8 @@ import { IPA_BASE } from '@env'
 
 type NotificationContextType = {
   unreadCount: number
-  setUnreadCount: (count: number) => void
+  // Dispatch (not a plain setter) so callers can do setUnreadCount(prev => ...)
+  setUnreadCount: React.Dispatch<React.SetStateAction<number>>
   refreshNotifications: () => void
 }
 

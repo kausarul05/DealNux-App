@@ -1,9 +1,8 @@
-import { GOOGLE_WEB_CLIENT_ID, IPA_BASE, REGISTER } from '@env';
+import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, IPA_BASE, REGISTER } from '@env';
 import { Entypo, FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
@@ -25,11 +24,15 @@ import GoogleButtonSvg from '../../components/Google';
 import { Images } from '../../constants';
 import { AuthStackParamList } from '../../Navigation/types';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { storeAuthPayload } from '../../utils/socialAuthFlow';
 
 const { width, height } = Dimensions.get('window');
 
 const API_BASE_URL = IPA_BASE;
 const END_POINTS = REGISTER;
+
+const isAndroid = Platform.OS === 'android';
+const isIOS = Platform.OS === 'ios';
 
 const SignUp = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
@@ -48,7 +51,8 @@ const SignUp = () => {
     // ─── Google Sign-In Setup ───────────────────────────────────────────────
     useEffect(() => {
         GoogleSignin.configure({
-            webClientId: GOOGLE_WEB_CLIENT_ID, 
+            webClientId: GOOGLE_WEB_CLIENT_ID,
+            iosClientId: GOOGLE_IOS_CLIENT_ID,
             offlineAccess: false,
         });
     }, []);
@@ -93,22 +97,29 @@ const SignUp = () => {
         }
     };
 
+    // ─── Route a social sign up ──────────────────────────────────────────────
+    //     Google/Apple have already verified the email, so there is no OTP step
+    //     here. A social sign up always continues to ProfileSetup.
+    const routeAfterSocialAuth = async (data: any, socialEmail?: string) => {
+        await storeAuthPayload(data);
+
+        const email = socialEmail ?? data?.data?.user?.email ?? data?.user?.email;
+        console.log('➡️ social sign up -> ProfileSetup', { email });
+
+        navigation.navigate('ProfileSetup', { email } as any);
+    };
+
     // ─── Handle Google backend call ─────────────────────────────────────────
-    const handleGoogleBackendLogin = async (accessToken: string) => {
+    const handleGoogleBackendLogin = async (accessToken: string, socialEmail?: string) => {
         try {
             const res = await axios.post(
-                `${API_BASE_URL}account/google-login/`,
+                `${API_BASE_URL}account/google/`,
                 { access_token: accessToken },
                 { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
             );
 
-            const data = res.data;
-
-            if (data?.token || data?.access) {
-                await AsyncStorage.setItem('vToken', data.token || data.access);
-            }
-
-            navigation.reset({ index: 0, routes: [{ name: 'MainTabs' as any }] });
+            console.log('data ', res.data);
+            await routeAfterSocialAuth(res.data, socialEmail);
         } catch (e: any) {
             const msg = e?.response?.data?.message || e?.message || 'Google sign up failed';
             Alert.alert('Google Sign Up Failed', msg);
@@ -119,11 +130,16 @@ const SignUp = () => {
         try {
             setGoogleLoading(true);
             await GoogleSignin.hasPlayServices();
-            await GoogleSignin.signIn();
+
+            const signInResult: any = await GoogleSignin.signIn();
+            // v13+ returns { type, data: { user } }; older versions return { user }.
+            const socialEmail: string | undefined =
+                signInResult?.data?.user?.email ?? signInResult?.user?.email;
+
             const tokens = await GoogleSignin.getTokens();
 
             if (tokens?.accessToken) {
-                await handleGoogleBackendLogin(tokens.accessToken);
+                await handleGoogleBackendLogin(tokens.accessToken, socialEmail);
             } else {
                 Alert.alert('Error', 'Could not get Google access token.');
             }
@@ -170,18 +186,13 @@ const SignUp = () => {
             }
 
             const res = await axios.post(
-                `${API_BASE_URL}account/apple-login/`,
+                `${API_BASE_URL}account/apple/`,
                 { id_token: credential.identityToken },
                 { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
             );
 
-            const data = res.data;
-
-            if (data?.token || data?.access) {
-                await AsyncStorage.setItem('vToken', data.token || data.access);
-            }
-
-            navigation.reset({ index: 0, routes: [{ name: 'MainTabs' as any }] });
+            console.log('apple data ', res.data);
+            await routeAfterSocialAuth(res.data, credential.email || undefined);
         } catch (e: any) {
             if (e?.code === 'ERR_REQUEST_CANCELED') {
                 return;
@@ -328,22 +339,29 @@ const SignUp = () => {
                         </View>
 
                         <View style={styles.socialRow}>
-                            <TouchableOpacity
-                                style={styles.socialBtn}
-                                activeOpacity={0.8}
-                                onPress={handleGoogleSignUp}
-                                disabled={googleLoading}
-                            >
-                                {googleLoading ? <ActivityIndicator color="#2355B6" /> : <GoogleButtonSvg />}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.socialBtn}
-                                activeOpacity={0.8}
-                                onPress={handleAppleSignUp}
-                                disabled={appleLoading}
-                            >
-                                {appleLoading ? <ActivityIndicator color="#000" /> : <AppleButtonSvg />}
-                            </TouchableOpacity>
+                            {/* Google Button — Android only */}
+                            {isAndroid && (
+                                <TouchableOpacity
+                                    style={styles.socialBtn}
+                                    activeOpacity={0.8}
+                                    onPress={handleGoogleSignUp}
+                                    disabled={googleLoading}
+                                >
+                                    {googleLoading ? <ActivityIndicator color="#2355B6" /> : <GoogleButtonSvg />}
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Apple Button — iOS only */}
+                            {isIOS && (
+                                <TouchableOpacity
+                                    style={styles.socialBtn}
+                                    activeOpacity={0.8}
+                                    onPress={handleAppleSignUp}
+                                    disabled={appleLoading}
+                                >
+                                    {appleLoading ? <ActivityIndicator color="#000" /> : <AppleButtonSvg />}
+                                </TouchableOpacity>
+                            )}
                         </View>
 
                         <View style={styles.bottomRow}>

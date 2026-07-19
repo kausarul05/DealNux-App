@@ -4,6 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useRef, useEffect } from "react";
 import {
+    Alert,
     Pressable,
     ScrollView,
     Share,
@@ -23,6 +24,16 @@ import axios from 'axios';
 import { IPA_BASE } from '@env';
 
 const { width } = Dimensions.get('window');
+
+// ─── Referral sharing ─────────────────────────────────────────────────────────
+const REFERRAL_LINK_BASE = 'https://www.dealnux.shop/ref';
+
+export const buildReferralLink = (code: string) => `${REFERRAL_LINK_BASE}/${code}`;
+
+// Signup link carries the code, so the referral is applied automatically.
+export const buildReferralMessage = (code: string) =>
+    `💙 Join me on DEALNUX and start shopping smarter! Sign up here: ${buildReferralLink(code)} ` +
+    `to discover AI-powered price comparisons, better deals, and bigger savings.`;
 
 type UserProfile = {
     name: string;
@@ -128,10 +139,15 @@ const ReferAndEarn = () => {
     };
 
     const onShare = async () => {
+        if (!user.refaradal_code) {
+            Alert.alert('Referral code unavailable', 'Please try again in a moment.');
+            return;
+        }
         try {
-            const referralLink = `https://www.dealnux.shop/ref/${user.refaradal_code}`;
+            // Everything goes in `message` - passing `url` as well makes iOS share
+            // sheets drop the text in some targets and send the bare link.
             await Share.share({
-                message: `${referralLink}`,
+                message: buildReferralMessage(user.refaradal_code),
             });
         } catch (error) {
             console.log(error);

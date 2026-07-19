@@ -85,6 +85,10 @@ type ProductData = {
     is_cart?: boolean
     rating: number
     review_count: number
+    external_url?: string
+    seller_shop?: string
+    seller_logo?: string | null
+    condition?: string
 }
 
 type CompareItem = {
@@ -370,6 +374,8 @@ const ProductDetails = () => {
     const [actionMessage, setActionMessage] = useState('Processing...')
 
     const [showCompareSection, setShowCompareSection] = useState(false);
+
+    console.log("xxxxxxxxxxxxxxx", JSON.stringify(product, null, 2))
 
 
     // ── Header Animation ──────────────────────────────────────────────────────
@@ -734,7 +740,34 @@ const ProductDetails = () => {
         }
     }
 
-    const mainListing = useMemo(() => product?.listings?.[0], [product])
+    // Whether this is a local seller's own product. This is a property of the
+    // PRODUCT, not of its listings: a local product may carry only external
+    // marketplace listings for price comparison and have no listing of its own.
+    // Its own external_url is empty and it belongs to a seller shop.
+    const isLocalProduct = useMemo(() => {
+        if (!product) return false
+        const hasOwnExternalUrl = !!product.external_url?.trim()
+        if (hasOwnExternalUrl) return false
+        return !!product.seller_shop?.trim() || !!product.platform_name?.trim()
+    }, [product])
+
+    // `listings` is sorted by price, so listings[0] is usually the cheapest
+    // external retailer. When the seller has a listing of their own, prefer it
+    // so prices and the CTA reflect what the user actually buys.
+    const mainListing = useMemo(() => {
+        const listings = product?.listings ?? []
+        if (listings.length === 0) return undefined
+
+        const isLocalListing = (l: ProductListing) =>
+            l.platform_code?.toLowerCase().startsWith('local-seller') ||
+            (!!product?.seller_shop && l.platform_name === product.seller_shop)
+
+        return listings.find(isLocalListing) ?? listings[0]
+    }, [product])
+
+    // Local products are always bought in-app, even when the only listings we
+    // hold for them are external comparison prices.
+    const showViewDeal = !isLocalProduct && !!mainListing?.external_url?.trim()
     const sortedCompare = useMemo(() => {
         if (!compareData?.price_comparison) return []
         return [...compareData.price_comparison].sort((a, b) => a.total_price - b.total_price)
@@ -882,7 +915,7 @@ const ProductDetails = () => {
                                 <Text style={styles.shareText}>Share</Text>
                             </TouchableOpacity>
 
-                            {mainListing?.external_url ? (
+                            {showViewDeal ? (
                                 <TouchableOpacity style={styles.viewButton} onPress={handleViewDeal} disabled={actionLocked}>
                                     <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.gradientBtn}>
                                         <MaterialCommunityIcons name="open-in-new" size={22} color="#FFF" />

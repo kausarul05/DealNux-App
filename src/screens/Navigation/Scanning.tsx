@@ -1,10 +1,10 @@
 // Scanning.tsx - Fixed with Stop Scanning on Modal
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons'
-import { NavigationProp, useNavigation } from '@react-navigation/native'
+import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera'
 import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,7 @@ import { AuthStackParamList } from '../../Navigation/types'
 import { IPA_BASE } from '@env'
 import axios from 'axios'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useSubscriptionAccess } from '../../hooks/useSubscriptionAccess'
 
 const { width, height } = Dimensions.get('window')
 const API_BASE_URL = IPA_BASE
@@ -32,6 +33,9 @@ const Scanning = () => {
   const cameraRef = useRef<CameraView>(null)
 
   const [permission, requestPermission] = useCameraPermissions()
+  const { loading: accessLoading, canScan, status: subscriptionStatus, refresh: refreshAccess } =
+    useSubscriptionAccess()
+  const hasUsedTrial = subscriptionStatus?.has_used_trial === true
   const [loading, setLoading] = useState(false)
   const [scanMode, setScanMode] = useState<ScanMode>('barcode')
   const [scannedData, setScannedData] = useState<string | null>(null)
@@ -84,6 +88,14 @@ const Scanning = () => {
       useNativeDriver: true,
     }).start()
   }, [])
+
+  // Re-check on focus so returning from the Subscription screen unlocks the
+  // camera straight away instead of needing an app restart.
+  useFocusEffect(
+    useCallback(() => {
+      refreshAccess()
+    }, [refreshAccess]),
+  )
 
   const scanLineTranslateY = scanLineAnim.interpolate({
     inputRange: [0, 1],
@@ -238,6 +250,48 @@ const Scanning = () => {
       Alert.alert('Gallery error', e?.message || 'Could not pick image')
       resumeScanning()
     }
+  }
+
+  // ─── Subscription Gate ───────────────────────────────────────────────────
+  //     Checked before the camera permission prompt - there is no point asking
+  //     for camera access for a feature the account cannot use.
+  if (accessLoading) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#1E2F73', '#2946A6']} style={styles.permissionContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </LinearGradient>
+      </View>
+    )
+  }
+
+  if (!canScan) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#1E2F73', '#2946A6']} style={styles.permissionContainer}>
+          <View style={styles.permissionIconWrapper}>
+            <Ionicons name="lock-closed-outline" size={56} color="#FFFFFF" />
+          </View>
+          <Text style={styles.permissionTitle}>Premium Feature</Text>
+          <Text style={styles.permissionText}>
+            {hasUsedTrial
+              ? 'Your free trial has ended. Subscribe to keep scanning barcodes.'
+              : 'Barcode scanning is included with a subscription. Start your free trial to unlock it.'}
+          </Text>
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={() => navigation.navigate('Subscription' as any)}
+          >
+            <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.permissionGradient}>
+              <Text style={styles.permissionButtonText}>
+                {hasUsedTrial ? 'View Plans' : 'Start Free Trial'}
+              </Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
+    )
   }
 
   // ─── Request Permission ──────────────────────────────────────────────────

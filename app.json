@@ -42,7 +42,10 @@
         "expo-apple-authentication"
       ],
       [
-        "@react-native-google-signin/google-signin"
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.678612451976-eadlb0anmkjoint1pqv72pfe4589m31m"
+        }
       ],
       [
         "expo-camera",
@@ -74,8 +77,7 @@
         }
       ],
       "expo-build-properties",
-      "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

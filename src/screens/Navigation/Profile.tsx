@@ -150,35 +150,35 @@ const Profile = () => {
             await AsyncStorage.removeItem('vRefreshToken');
             await AsyncStorage.removeItem('userData');
             await AsyncStorage.removeItem('userEmail');
-            
+
             // ✅ Clear remember me data
             await AsyncStorage.removeItem('rememberMe');
             await AsyncStorage.removeItem('rememberedEmail');
-            
+
             // ✅ Clear notification related data
             await AsyncStorage.removeItem('notificationPreferences');
-            
+
             // ✅ Clear seller application draft (if any)
             await AsyncStorage.removeItem('seller_application_draft');
-            
+
             // ✅ Clear any other app specific data
             await AsyncStorage.removeItem('appSettings');
-            
+
             console.log('✅ All local storage cleared successfully');
-            
+
             // ✅ Show success message
             toast.show({
                 message: 'Logged out successfully',
                 type: 'success',
                 style: 'top',
             });
-            
+
             // ✅ Reset navigation and go to SignIn
             navigation.reset({
                 index: 0,
                 routes: [{ name: "SignIn" }],
             });
-            
+
         } catch (error) {
             console.error('❌ Logout error:', error);
             toast.show({
@@ -296,14 +296,19 @@ const Profile = () => {
                         />
                     </View>
 
-                    <Card className="mt-5 px-4">
-                        <RowItem
-                            title={user?.seller_status.status == "approved" ? "My Orders" : ""}
-                            // leftIcon={<Entypo name="shop" size={16} color="#2355B6" />}
-                            leftIcon={<MaterialCommunityIcons name="cart-outline" size={16} color="#2355B6" />}
-                            onPress={() => (navigation as any).navigate("MyOrders")}
-                        />
-                    </Card>
+                    {
+                        user?.seller_status.status == "approved" && (
+                            <Card className="mt-5 px-4">
+                                <RowItem
+                                    title={user?.seller_status.status == "approved" ? "My Orders" : ""}
+                                    // leftIcon={<Entypo name="shop" size={16} color="#2355B6" />}
+                                    leftIcon={<MaterialCommunityIcons name="cart-outline" size={16} color="#2355B6" />}
+                                    onPress={() => (navigation as any).navigate("MyOrders")}
+                                />
+                            </Card>
+                        )
+                    }
+
                     <Card className="mt-5 px-4">
                         <RowItem
                             title={user?.seller_status.status == "approved" ? "Seller dashboard" : "Become a seller"}
@@ -437,7 +442,7 @@ const Profile = () => {
                 onAddCard={() => setPayOpen(false)}
                 onConfirm={handleLogout} // ✅ This calls the logout handler
             />
-            
+
             <Toast
                 style={toast.style}
                 visible={toast.visible}

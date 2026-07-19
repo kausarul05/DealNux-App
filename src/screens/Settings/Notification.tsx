@@ -1,5 +1,5 @@
 // screens/Notification.tsx - Updated with Navigation Support
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Image,
   ScrollView,
@@ -17,11 +17,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
 import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
+import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
+import { AuthStackParamList } from '../../Navigation/types'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import * as Notifications from 'expo-notifications'
 import Constants from 'expo-constants'
+import { useNotification } from '../../context/NotificationContext'
+
+const CLEAR_ALL_ENDPOINT = `${IPA_BASE}notifications/delete-all/`
 
 type NotificationItem = {
   id: number
@@ -37,11 +41,16 @@ type NotificationItem = {
 }
 
 const Notification = () => {
-  const navigation = useNavigation()
+  const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [clearing, setClearing] = useState(false)
+  const hasUnreadRef = useRef(false)
+  // The badge in BrandHeader reads this same context, so writing here keeps the
+  // bell and this screen in sync instead of drifting until the 30s poll.
+  const { unreadCount, setUnreadCount } = useNotification()
 
   // ─── Register Device Token ──────────────────────────────────────────────
   const registerDeviceToken = async () => {
@@ -96,9 +105,11 @@ const Notification = () => {
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true)
+      setLoadError(null)
       const token = await AsyncStorage.getItem('vToken')
 
       if (!token) {
+        setLoadError('You need to be signed in to see notifications.')
         setLoading(false)
         return
       }
@@ -113,14 +124,31 @@ const Notification = () => {
         }
       )
 
-      console.log('📬 Notifications Response:', response.data)
+      console.log('📬 Notifications Response:', JSON.stringify(response.data))
 
-      if (response.data?.success && response.data?.data) {
-        setNotifications(response.data.data.notifications || [])
-        setUnreadCount(response.data.data.unread_count || 0)
-      }
+      const body = response.data?.data ?? response.data
+
+      // The list has appeared under a few different keys, so accept any of them
+      // rather than silently falling back to [] and showing "No Notifications".
+      const list: NotificationItem[] = Array.isArray(body)
+        ? body
+        : body?.notifications ?? body?.results ?? body?.items ?? []
+
+      setNotifications(list)
+
+      // The server's counter is authoritative - the list is paginated, so
+      // counting unread items here would miss anything past the first page.
+      setUnreadCount(body?.unread_count ?? list.filter(n => !n.is_read).length)
     } catch (error: any) {
       console.error('❌ Error fetching notifications:', error)
+      // Without this the screen renders "No Notifications", which looks
+      // identical to an empty inbox and hides expired tokens / network errors.
+      const status = error?.response?.status
+      setLoadError(
+        status === 401
+          ? 'Your session expired. Please sign in again.'
+          : 'Could not load notifications. Pull down to retry.',
+      )
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -133,6 +161,26 @@ const Notification = () => {
       registerDeviceToken()
     }, 2000)
   }, [fetchNotifications])
+
+  // Keep a ref of the unread state so the blur handler below can read it
+  // without re-subscribing every time the list changes.
+  useEffect(() => {
+    hasUnreadRef.current = notifications.some(item => !item.is_read)
+  }, [notifications])
+
+  // Mark everything read when LEAVING the screen, not when arriving - that way
+  // new notifications stay highlighted the whole time the user is reading them,
+  // and the bell is clear by the time they are back.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (hasUnreadRef.current) {
+          hasUnreadRef.current = false
+          markAllAsRead()
+        }
+      }
+    }, []),
+  )
 
   const onRefresh = () => {
     setRefreshing(true)
@@ -168,6 +216,7 @@ const Notification = () => {
   }
 
   // ─── Mark All as Read ──────────────────────────────────────────────────────
+  //     Only ever runs on leaving the screen, so it never alerts the user.
   const markAllAsRead = async () => {
     try {
       const token = await AsyncStorage.getItem('vToken')
@@ -192,16 +241,53 @@ const Notification = () => {
       }
     } catch (error: any) {
       console.error('❌ Error marking all as read:', error)
-      Alert.alert('Error', 'Failed to mark all as read. Please try again.')
     }
+  }
+
+  // ─── Clear All ─────────────────────────────────────────────────────────────
+  const clearAllNotifications = async () => {
+    Alert.alert(
+      'Clear notifications',
+      'This removes every notification from your list. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear all',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setClearing(true)
+              const token = await AsyncStorage.getItem('vToken')
+              if (!token) return
+
+              const response = await axios.delete(CLEAR_ALL_ENDPOINT, {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  Accept: 'application/json',
+                },
+              })
+
+              if (response.data?.success !== false) {
+                setNotifications([])
+                setUnreadCount(0)
+              }
+            } catch (error: any) {
+              console.error('❌ Error clearing notifications:', error)
+              Alert.alert('Error', 'Failed to clear notifications. Please try again.')
+            } finally {
+              setClearing(false)
+            }
+          },
+        },
+      ],
+    )
   }
 
   // ─── ✅ Handle Notification Press ──────────────────────────────────────────
   const handleNotificationPress = async (item: NotificationItem) => {
-    // Mark as read
-    // if (!item.is_read) {
-    //   await markAsRead(item.id)
-    // }
+    if (!item.is_read) {
+      await markAsRead(item.id)
+    }
 
     // ✅ Handle deep link / navigation
     if (item.cta_link) {
@@ -211,7 +297,7 @@ const Notification = () => {
         const productId = parseInt(productMatch[1])
         navigation.navigate('ProductDetails', { 
           productId: productId 
-        } as never)
+        })
         return
       }
 
@@ -222,7 +308,7 @@ const Notification = () => {
         // Navigate to deal or product details
         navigation.navigate('ProductDetails', { 
           productId: dealId 
-        } as never)
+        })
         return
       }
 
@@ -253,19 +339,23 @@ const Notification = () => {
         const productId = parseInt(queryMatch[1])
         navigation.navigate('ProductDetails', { 
           productId: productId 
-        } as never)
+        })
         return
       }
 
-      // Default: try to navigate directly
-      try {
-        navigation.navigate(item.cta_link as never)
-      } catch (error) {
-        console.log('Cannot navigate to:', item.cta_link)
-        // If navigation fails, try to open as URL
-        if (item.cta_link.startsWith('http')) {
-          await Linking.openURL(item.cta_link)
-        }
+      // Last resort: treat the link as a screen name, but only if it really is
+      // one. Passing an unknown route to navigate() throws and leaves the user
+      // on a dead tap with no feedback.
+      const screenName = item.cta_link.replace(/^\//, '')
+      const routeNames = (navigation.getState()?.routeNames ?? []) as string[]
+      const isKnownScreen = routeNames.includes(screenName)
+
+      if (isKnownScreen) {
+        // Dynamic route name - cannot be checked statically.
+        ;(navigation as any).navigate(screenName)
+      } else {
+        console.log('⚠️ Unrecognised cta_link, showing details instead:', item.cta_link)
+        Alert.alert(item.title, item.body)
       }
     } else {
       // If no link, just show the notification details
@@ -388,6 +478,27 @@ const Notification = () => {
     )
   }
 
+  // ─── Render Error State ────────────────────────────────────────────────────
+  const renderError = () => (
+    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 64 }}>
+      <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="cloud-offline-outline" size={48} color="#EF4444" />
+      </View>
+      <Text style={{ fontSize: 20, fontWeight: '700', color: '#1F2937', marginTop: 16 }}>
+        Couldn't load
+      </Text>
+      <Text style={{ fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginTop: 8 }}>
+        {loadError}
+      </Text>
+      <TouchableOpacity
+        onPress={fetchNotifications}
+        style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: '#2563EB' }}
+      >
+        <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
   // ─── Render Empty State ────────────────────────────────────────────────────
   const renderEmpty = () => (
     <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 64 }}>
@@ -424,9 +535,17 @@ const Notification = () => {
             )}
           </View>
           {notifications.length > 0 && (
-            <TouchableOpacity onPress={markAllAsRead} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="checkmark-done-circle-outline" size={18} color="#2563EB" />
-              <Text style={{ fontSize: 14, color: '#2563EB', fontWeight: '500' }}>Mark all as read</Text>
+            <TouchableOpacity
+              onPress={clearAllNotifications}
+              disabled={clearing}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, opacity: clearing ? 0.5 : 1 }}
+            >
+              {clearing ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+              )}
+              <Text style={{ fontSize: 14, color: '#EF4444', fontWeight: '500' }}>Clear all</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -451,7 +570,9 @@ const Notification = () => {
               />
             }
           >
-            {notifications.length === 0 ? (
+            {loadError ? (
+              renderError()
+            ) : notifications.length === 0 ? (
               renderEmpty()
             ) : (
               notifications.map((item) => (
