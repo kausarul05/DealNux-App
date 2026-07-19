@@ -36,6 +36,7 @@ import { StripeProvider, useStripe } from '@stripe/stripe-react-native'
 
 import { AuthStackParamList } from '../../Navigation/types'
 import CartProductCard from '../../components/CartProductCard'
+import ReturnPolicyLink from '../../components/ReturnPolicyLink'
 import { Images } from '../../constants'
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -554,6 +555,7 @@ const PaymentSummaryModal = ({
                 )}
               </LinearGradient>
             </TouchableOpacity>
+            <ReturnPolicyLink />
             <Text style={styles.secureText}>🔒 Secured by Stripe</Text>
           </View>
         </View>

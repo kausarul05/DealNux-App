@@ -684,7 +684,7 @@ const AddProduct = () => {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F7F7FA]">
+        <View className="flex-1 bg-[#F7F7FA]">
             <KeyboardAvoidingView
                 className="flex-1"
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1073,7 +1073,7 @@ const AddProduct = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

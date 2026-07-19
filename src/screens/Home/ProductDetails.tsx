@@ -44,6 +44,7 @@ import ChatModal from '../../components/ChatModal'
 import { Toast, useToast } from '../../components/useToost'
 import { Images } from '../../constants'
 import { AuthStackParamList } from '../../Navigation/types'
+import { useSubscriptionAccess } from '../../hooks/useSubscriptionAccess'
 
 const { width } = Dimensions.get('window')
 const API_BASE_URL = IPA_BASE
@@ -340,10 +341,45 @@ const ActionLoadingModal = ({ visible, message = 'Processing...' }: { visible: b
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+// ─── External Product Paywall ────────────────────────────────────────────────
+const ExternalProductPaywall = ({
+    productName, onSubscribe, onBack,
+}: { productName?: string; onSubscribe: () => void; onBack: () => void }) => (
+    <View style={styles.container}>
+        <LinearGradient colors={['#1E2F73', '#2946A6']} style={styles.paywallContainer}>
+            <TouchableOpacity onPress={onBack} style={styles.paywallBack} hitSlop={10}>
+                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.paywallIconWrap}>
+                <MaterialCommunityIcons name="store-search-outline" size={56} color="#FFFFFF" />
+            </View>
+
+            <Text style={styles.paywallTitle}>Premium Feature</Text>
+            <Text style={styles.paywallText}>
+                {productName
+                    ? `"${productName}" is sold by an external retailer.`
+                    : 'This product is sold by an external retailer.'}
+                {'\n\n'}
+                Subscribe to compare prices across Amazon, Walmart, Target and more.
+                DEALNUX marketplace products stay free to browse.
+            </Text>
+
+            <TouchableOpacity style={styles.paywallButton} onPress={onSubscribe}>
+                <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.paywallButtonGradient}>
+                    <Text style={styles.paywallButtonText}>View Plans</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                </LinearGradient>
+            </TouchableOpacity>
+        </LinearGradient>
+    </View>
+)
+
 const ProductDetails = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
     const route = useRoute()
     const { productId } = route.params as RouteParams
+    const { loading: accessLoading, isEntitled } = useSubscriptionAccess()
     const toast = useToast()
     const scrollY = useRef(new Animated.Value(0)).current
 
@@ -813,6 +849,24 @@ const ProductDetails = () => {
     if (loading) return <ProductDetailsSkeleton />
     if (error || !product) return <EmptyState onRetry={fetchProductDetails} />
 
+    // ─── Subscription Gate ───────────────────────────────────────────────────
+    //     External retailer products need an active plan or trial. Local
+    //     DEALNUX marketplace products are always free to view.
+    //
+    //     This is enforced here rather than at each caller because every entry
+    //     point (home, search, deals, favourites, scan, notifications) lands on
+    //     this screen, and locality is decided from the fetched product itself
+    //     instead of a `source` route param a caller might omit.
+    if (!isLocalProduct && !accessLoading && !isEntitled) {
+        return (
+            <ExternalProductPaywall
+                productName={product.title}
+                onSubscribe={() => navigation.navigate('Subscription' as any)}
+                onBack={() => navigation.goBack()}
+            />
+        )
+    }
+
     // ─── Render ──────────────────────────────────────────────────────────────
     return (
         <View style={styles.container}>
@@ -1141,6 +1195,64 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#2355B6',
+    },
+
+    // ─── External product paywall ────────────────────────────────────────────
+    paywallContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 32,
+    },
+    paywallBack: {
+        position: 'absolute',
+        top: 56,
+        left: 20,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    paywallIconWrap: {
+        width: 112,
+        height: 112,
+        borderRadius: 56,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 24,
+    },
+    paywallTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        marginBottom: 12,
+    },
+    paywallText: {
+        fontSize: 15,
+        lineHeight: 22,
+        color: 'rgba(255,255,255,0.85)',
+        textAlign: 'center',
+        marginBottom: 28,
+    },
+    paywallButton: {
+        width: '100%',
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    paywallButtonGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 16,
+    },
+    paywallButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
 })
 
