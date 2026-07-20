@@ -344,6 +344,15 @@ const MyFavourite = () => {
                     <AppHeader left={() => <BackButton />} />
                     <Text style={styles.headerTitle}>My Favourite</Text>
                 </View>
+
+                {favouriteProducts.length > 0 && (
+                    <View style={styles.hintRow}>
+                        <Ionicons name="heart" size={14} color="#EF4444" />
+                        <Text style={styles.hintText}>
+                            Tap the love icon on a product to remove it from your favourites.
+                        </Text>
+                    </View>
+                )}
             </View>
             <FlatList
                 data={favouriteProducts}
@@ -385,6 +394,24 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#2D2D2D",
         flex: 1,
+    },
+
+    hintRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: "#FEF2F2",
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginTop: 4,
+        marginBottom: 16,
+    },
+    hintText: {
+        flex: 1,
+        fontSize: 13,
+        color: "#7F1D1D",
+        lineHeight: 18,
     },
 
     recommendedGrid: {
