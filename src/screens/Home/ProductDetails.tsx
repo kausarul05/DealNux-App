@@ -617,7 +617,9 @@ const ProductDetails = () => {
                                             <MaterialIcons name="image-not-supported" size={32} color="#9CA3AF" />
                                         </View>
                                     )}
-                                    {item === sortedCompare[0] && (
+                                    {/* Only the genuinely cheapest option gets the badge. If
+                                        this seller already beats every store here, none do. */}
+                                    {item === sortedCompare[0] && cheaperElsewhere && (
                                         <LinearGradient colors={['#2355B6', '#1A4D8F']} style={styles.bestDealBadge}>
                                             <Text style={styles.bestDealText}>⭐ BEST</Text>
                                         </LinearGradient>
@@ -847,6 +849,27 @@ const ProductDetails = () => {
     const isAvailable = mainListing?.is_available === true
     const hasCompareData = sortedCompare.length > 0
 
+    // ─── Price Headline ──────────────────────────────────────────────────────
+    //     The card used to always read "BEST PRICE", which contradicted the
+    //     comparison list whenever that turned up something cheaper. The label
+    //     is now derived from the numbers instead of assumed.
+    const displayedPrice = Number(product?.price ?? mainListing?.price ?? 0)
+    const cheapestCompare = hasCompareData
+        ? Number(sortedCompare[0].total_price ?? sortedCompare[0].price ?? 0)
+        : null
+
+    // A cent of slack: float noise should not read as a real saving.
+    const cheaperElsewhere =
+        cheapestCompare !== null &&
+        displayedPrice > 0 &&
+        cheapestCompare < displayedPrice - 0.01
+
+    const priceLabel = !hasCompareData
+        ? '💰 CURRENT PRICE'
+        : cheaperElsewhere
+            ? '🏷️ THIS SELLER'
+            : '💰 BEST PRICE'
+
     if (loading) return <ProductDetailsSkeleton />
     if (error || !product) return <EmptyState onRetry={fetchProductDetails} />
 
@@ -932,7 +955,7 @@ const ProductDetails = () => {
                     {/* Price Card */}
                     <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.priceCard}>
                         <View style={styles.priceHeader}>
-                            <Text style={styles.priceLabel}>💰 BEST PRICE</Text>
+                            <Text style={styles.priceLabel}>{priceLabel}</Text>
                             {mainListing?.discount_percentage && Number(mainListing.discount_percentage) > 0 && (
                                 <View style={styles.discountBadge}>
                                     <Text style={styles.discountText}>-{Math.round(Number(mainListing.discount_percentage))}%</Text>
@@ -946,6 +969,18 @@ const ProductDetails = () => {
                                 <Text style={styles.originalPrice}>${mainListing.original_price}</Text>
                             )}
                         </View>
+
+                        {/* Points at the cheaper listing instead of leaving two
+                            conflicting "best price" claims on the same screen. */}
+                        {cheaperElsewhere && cheapestCompare !== null && (
+                            <View style={styles.cheaperRow}>
+                                <MaterialIcons name="trending-down" size={16} color="#16A34A" />
+                                <Text style={styles.cheaperText}>
+                                    Best price ${cheapestCompare.toFixed(2)} at{' '}
+                                    {sortedCompare[0].seller || sortedCompare[0].platform || 'another store'}
+                                </Text>
+                            </View>
+                        )}
 
                         <View style={styles.shippingRow}>
                             {mainListing?.free_shipping ? (
@@ -1078,6 +1113,18 @@ const styles = StyleSheet.create({
     priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 8 },
     priceAmount: { fontSize: 34, fontWeight: '800', color: '#1F2937' },
     originalPrice: { fontSize: 16, color: '#94A3B8', textDecorationLine: 'line-through' },
+    cheaperRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#DCFCE7',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        marginBottom: 12,
+        alignSelf: 'flex-start',
+    },
+    cheaperText: { fontSize: 12, fontWeight: '600', color: '#166534' },
     shippingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
     shippingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     shippingText: { fontSize: 13, fontWeight: '500', color: '#16A34A' },

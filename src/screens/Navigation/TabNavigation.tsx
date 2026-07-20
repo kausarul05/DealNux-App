@@ -2,7 +2,7 @@
 import { AntDesign, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from '@react-navigation/native';
@@ -130,6 +130,9 @@ export default function MainTabs() {
     return (
         <Tab.Navigator
             screenOptions={{
+                // Left off deliberately: MainTabs sits inside AuthStack, which
+                // already renders <BrandHeader compact /> above this navigator.
+                // Enabling it here would stack two logos on every tab page.
                 headerShown: false,
                 tabBarStyle: {
                     ...styles.tabBar,
@@ -156,11 +159,14 @@ export default function MainTabs() {
                 component={Home}
                 options={{
                     tabBarLabel: 'Home',
-                    tabBarIcon: ({ focused, color, size }) => (
-                        <Ionicons
-                            name={focused ? "home" : "home-outline"}
-                            size={26}
-                            color={color}
+                    // The DEALNUX mark replaces the generic house icon. Dimmed
+                    // when inactive so it still reads as unselected next to the
+                    // other tabs, which rely on colour alone for that.
+                    tabBarIcon: ({ focused }) => (
+                        <Image
+                            source={require('../../../assets/logo.png')}
+                            style={[styles.homeLogo, !focused && styles.homeLogoInactive]}
+                            resizeMode="contain"
                         />
                     ),
                 }}
@@ -288,6 +294,13 @@ const styles = StyleSheet.create({
         elevation: 15,
         borderWidth: 3,
         borderColor: "#FFFFFF",
+    },
+    homeLogo: {
+        width: 28,
+        height: 28,
+    },
+    homeLogoInactive: {
+        opacity: 0.45,
     },
     // ─── Badge Styles ────────────────────────────────────────────────────────
     badgeContainer: {
