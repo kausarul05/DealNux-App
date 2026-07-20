@@ -63,7 +63,7 @@ const TermsOfService = () => {
   }
 
   return (
-    <SafeAreaView className="bg-[#F9F9FB] flex-1">
+    <View className="bg-[#F9F9FB] flex-1">
       <View className="px-5 flex-1">
         <View className="flex-row items-center gap-4 py-2">
           <AppHeader 
@@ -106,7 +106,7 @@ const TermsOfService = () => {
           </ScrollView>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 
