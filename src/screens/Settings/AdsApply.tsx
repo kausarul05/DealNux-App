@@ -72,7 +72,15 @@ const AdsApply = () => {
             });
 
             if (res.data?.success == true) {
-                navigation.goBack()
+                // Previously this returned silently, which read as a failure.
+                toast.show({
+                    message:
+                        "Application submitted. Our team is reviewing your business profile and we'll notify you once a decision is made.",
+                    type: 'success',
+                    style: 'center',
+                    duration: null,
+                    buttons: [{ text: 'Done', action: 'back' }],
+                });
             } else {
                 toast.show({
                     message:
@@ -92,7 +100,7 @@ const AdsApply = () => {
         }
     };
     return (
-        <SafeAreaView className="bg-[#F9F9FB] flex-1">
+        <View className="bg-[#F9F9FB] flex-1">
             <View className="px-5">
 
                 <View className='flex-row items-center gap-4' >
@@ -100,6 +108,11 @@ const AdsApply = () => {
 
 
                 </View>
+
+                <Text className='text-[#636F85] text-sm leading-5 mt-1 mb-4'>
+                    This is your application to advertise on DEALNUX. Our team reviews every
+                    business profile and you'll be notified once a decision is made.
+                </Text>
 
                 <Text className='text-[#636F85] font-bold text-xl my-2'>Business Name *</Text>
                 <View className='border rounded-2xl border-[#D1D6DB] flex-row p-2 items-center gap-4 pl-4 justify-between mb-4'>
@@ -152,7 +165,7 @@ const AdsApply = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     )
 }
 

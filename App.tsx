@@ -31,6 +31,7 @@ import UpdatePassword from './src/screens/Settings/UpdatePassword';
 import Subscription from './src/screens/Subscriptions/Subscription';
 import MainTabs from './src/screens/Navigation/TabNavigation';
 import AdsApply from './src/screens/Settings/AdsApply';
+import AdsIntro from './src/screens/Settings/AdsIntro';
 import ShopCreate from './src/screens/Settings/ShopCreate';
 import ShopDashboard from './src/screens/Shop/ShopDashboard';
 import AddProduct from './src/screens/Shop/AddProduct';
@@ -83,6 +84,7 @@ function AuthStack() {
       <Stack.Screen name="ShopCreate" component={ShopCreate} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="ShopDashboard" component={ShopDashboard} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AddProduct" component={AddProduct} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="AdsIntro" component={AdsIntro} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AdsApply" component={AdsApply} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="Subscription" component={Subscription} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="ScanProduct" component={ScanProduct} options={{ animation: "slide_from_right" }} />

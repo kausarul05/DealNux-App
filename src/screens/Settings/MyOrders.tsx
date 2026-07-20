@@ -27,6 +27,49 @@ import { Toast, useToast } from '../../components/useToost';
 
 const API_BASE_URL = IPA_BASE;
 
+// The reviews API returns no author on a review and has no "my reviews" route,
+// so there is no way to ask the server which reviews belong to this buyer.
+// We remember the ids we created and match them back when listing.
+const MY_REVIEW_IDS_KEY = 'myReviewIds:v1';
+
+type ProductReview = {
+    id: number;
+    rating: number;
+    comment: string;
+    created_at: string;
+    updated_at: string;
+};
+
+/** productId -> reviewId, persisted so the Reviews tab survives a restart. */
+type MyReviewIndex = Record<string, number>;
+
+const loadMyReviewIndex = async (): Promise<MyReviewIndex> => {
+    try {
+        const raw = await AsyncStorage.getItem(MY_REVIEW_IDS_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+};
+
+// API sends "2026-06-10 03:18:42"; iOS will not parse that with the space.
+const formatReviewDate = (raw: string) => {
+    if (!raw) return '';
+    const date = new Date(raw.replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return raw;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const rememberMyReview = async (productId: number, reviewId: number) => {
+    try {
+        const index = await loadMyReviewIndex();
+        index[String(productId)] = reviewId;
+        await AsyncStorage.setItem(MY_REVIEW_IDS_KEY, JSON.stringify(index));
+    } catch (e) {
+        console.error('Could not persist review id:', e);
+    }
+};
+
 type OrderProduct = {
     id: number;
     seller_shop: string;
@@ -103,6 +146,18 @@ const MyOrders = () => {
     const [disputeReason, setDisputeReason] = useState('');
     const [disputeDescription, setDisputeDescription] = useState('');
     const [disputeEvidence, setDisputeEvidence] = useState<any>(null);
+
+    // ─── Review State ──────────────────────────────────────────────────────
+    const [activeTab, setActiveTab] = useState<'orders' | 'reviews'>('orders');
+    const [reviewModalVisible, setReviewModalVisible] = useState(false);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    // Order being reviewed. Separate from selectedOrder so the Reviews tab can
+    // open the modal without going through the order detail sheet.
+    const [reviewTarget, setReviewTarget] = useState<OrderItem | null>(null);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+    // Reviews already written, straight from store/reviews/.
+    const [myReviewsList, setMyReviewsList] = useState<ProductReview[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [subscription, setSubscription] = useState<any>(null);
     const planName = subscription?.plan_name;
@@ -241,6 +296,8 @@ const MyOrders = () => {
                 }
             );
 
+            console.log('✅ Accept delivery response:', JSON.stringify(response.data));
+
             if (response.data?.success) {
                 toast.show({
                     message: 'Delivery confirmed successfully!',
@@ -248,12 +305,173 @@ const MyOrders = () => {
                     style: 'top',
                 });
                 setModalVisible(false);
-                fetchOrders();
+                // Both lists have to be refreshed: fetchOrders feeds Order
+                // History, loadMyReviews feeds the Reviews tab. Refreshing only
+                // the first left the confirmed order out of Reviews entirely.
+                await Promise.all([fetchOrders(), loadMyReviews()]);
+            } else {
+                // Previously a success:false response did nothing at all, so a
+                // rejected confirmation looked identical to a working one.
+                toast.show({
+                    message: response.data?.message || 'Could not confirm delivery',
+                    type: 'error',
+                    style: 'top',
+                });
             }
         } catch (error: any) {
-            console.error('Accept delivery error:', error);
+            console.error('Accept delivery error:', error?.response?.data || error);
             toast.show({
                 message: error?.response?.data?.message || 'Failed to confirm delivery',
+                type: 'error',
+                style: 'top',
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // Reviewable orders are gathered across every page, not just the page the
+    // Order History tab happens to be showing.
+    const [completedOrders, setCompletedOrders] = useState<OrderItem[]>([]);
+
+    /** Walks the paginated orders endpoint and returns everything. */
+    const fetchAllOrders = useCallback(async (): Promise<OrderItem[]> => {
+        const token = await AsyncStorage.getItem('vToken');
+        if (!token) return [];
+
+        const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+        const first = await axios.get(`${API_BASE_URL}store/orders/my-orders/?page=1`, { headers });
+
+        const all: OrderItem[] = first.data?.data?.results ?? [];
+        const totalPages = first.data?.pagination?.total_pages ?? 1;
+
+        if (totalPages > 1) {
+            const rest = await Promise.all(
+                Array.from({ length: totalPages - 1 }, (_, i) =>
+                    axios
+                        .get(`${API_BASE_URL}store/orders/my-orders/?page=${i + 2}`, { headers })
+                        .then((res) => (res.data?.data?.results ?? []) as OrderItem[])
+                        .catch(() => [] as OrderItem[])
+                )
+            );
+            rest.forEach((page) => all.push(...page));
+        }
+
+        return all;
+    }, []);
+
+    // ─── Load My Reviews ───────────────────────────────────────────────────
+    //     The reviews the buyer has already written, plus the delivered orders
+    //     that still need one.
+    const loadMyReviews = useCallback(async () => {
+        try {
+            setReviewsLoading(true);
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) return;
+
+            const [reviewsRes, allOrders] = await Promise.all([
+                axios.get(`${API_BASE_URL}store/reviews/`, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+                }),
+                fetchAllOrders(),
+            ]);
+
+            const list: ProductReview[] = reviewsRes.data?.data?.reviews ?? [];
+            console.log('⭐ Reviews Response:', JSON.stringify(reviewsRes.data?.data));
+            setMyReviewsList(list);
+
+            // Delivered orders are the only ones a review can be written for.
+            setCompletedOrders(
+                allOrders.filter((order) =>
+                    ['COMPLETED', 'DELIVERED'].includes(order.status?.toUpperCase())
+                )
+            );
+        } catch (error: any) {
+            console.error('Error loading reviews:', error?.response?.data || error);
+        } finally {
+            setReviewsLoading(false);
+        }
+    }, [fetchAllOrders]);
+
+    useEffect(() => {
+        loadMyReviews();
+    }, [loadMyReviews]);
+
+    // ─── Submit Review ─────────────────────────────────────────────────────
+    const handleSubmitReview = async () => {
+        if (reviewRating < 1) {
+            toast.show({ message: 'Please select a star rating', type: 'error', style: 'top' });
+            return;
+        }
+
+        const target = reviewTarget ?? selectedOrder;
+        const productId = target?.seller_product?.id;
+        const orderId = target?.id;
+
+        if (!productId || !orderId) {
+            toast.show({ message: 'Could not identify the product', type: 'error', style: 'top' });
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            // Sent as multipart to match the documented Postman request - the
+            // dispute endpoint on this same API behaves the same way.
+            const formData = new FormData();
+            formData.append('product_id', String(productId));
+            formData.append('rating', String(reviewRating));
+            formData.append('comment', reviewComment.trim());
+
+            const response = await axios.post(
+                `${API_BASE_URL}store/reviews/`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/json',
+                        'Content-Type': 'multipart/form-data',
+                    },
+                }
+            );
+            
+
+            if (response.data?.success) {
+                const created: ProductReview | undefined = response.data?.data;
+
+                toast.show({
+                    message: 'Thanks! Your review has been posted.',
+                    type: 'success',
+                    style: 'top',
+                });
+
+                if (created?.id) {
+                    setMyReviewsList((prev) => [created, ...prev]);
+                }
+                // Refetch so the new review and the order's changed state come
+                // from the server rather than being guessed at locally.
+                loadMyReviews();
+
+                setReviewModalVisible(false);
+                setReviewTarget(null);
+                setReviewRating(0);
+                setReviewComment('');
+            } else {
+                toast.show({
+                    message: response.data?.message || 'Failed to submit review',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Submit review error:', error?.response?.data || error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to submit review',
                 type: 'error',
                 style: 'top',
             });
@@ -514,10 +732,36 @@ const MyOrders = () => {
                             )}
 
                             {isCompleted && (
-                                <View className="mt-4 bg-green-50 rounded-xl p-4 border border-green-200">
-                                    <Text className="text-[14px] font-semibold text-[#10B981]">✅ Delivery confirmed</Text>
-                                    <Text className="text-[13px] text-[#6B7280] mt-1">You confirmed that you received this order.</Text>
-                                </View>
+                                <>
+                                    <View className="mt-4 bg-green-50 rounded-xl p-4 border border-green-200">
+                                        <Text className="text-[14px] font-semibold text-[#10B981]">✅ Delivery confirmed</Text>
+                                        <Text className="text-[13px] text-[#6B7280] mt-1">You confirmed that you received this order.</Text>
+                                    </View>
+
+                                    {/* Reviews are only offered once delivery is confirmed, so every
+                                        review on a product comes from someone who actually got it. */}
+                                    {(
+                                        <View className="mt-3 bg-amber-50 rounded-xl p-4 border border-amber-200">
+                                            <Text className="text-[14px] font-semibold text-[#1F2937] mb-1">
+                                                How was this product?
+                                            </Text>
+                                            <Text className="text-[13px] text-[#6B7280] mb-4">
+                                                Your review helps other DEALNUX shoppers decide.
+                                            </Text>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    setReviewTarget(selectedOrder);
+                                                    setReviewRating(0);
+                                                    setReviewComment('');
+                                                    setReviewModalVisible(true);
+                                                }}
+                                                className="bg-[#F59E0B] rounded-xl py-3 items-center"
+                                            >
+                                                <Text className="text-white font-semibold">⭐ Write a review</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </>
                             )}
 
                             {isPending && (
@@ -532,6 +776,91 @@ const MyOrders = () => {
             </Modal>
         );
     };
+
+    // ─── Review Modal ──────────────────────────────────────────────────────
+    const renderReviewModal = () => (
+        <Modal
+            visible={reviewModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setReviewModalVisible(false)}
+        >
+            <View className="flex-1 bg-black/50 justify-end">
+                <View className="bg-white rounded-t-3xl p-5 pb-8">
+                    <View className="flex-row items-center justify-between mb-4">
+                        <Text className="text-[20px] font-bold text-[#1F2937]">Write a Review</Text>
+                        <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
+                            <Ionicons name="close" size={24} color="#6B7280" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {!!selectedOrder && (
+                        <View className="flex-row items-center mb-5">
+                            <Image
+                                source={{ uri: selectedOrder.seller_product?.main_image }}
+                                className="w-14 h-14 rounded-xl bg-[#F3F4F6]"
+                                resizeMode="cover"
+                            />
+                            <Text
+                                className="flex-1 ml-3 text-[14px] font-semibold text-[#1F2937]"
+                                numberOfLines={2}
+                            >
+                                {selectedOrder.seller_product?.title}
+                            </Text>
+                        </View>
+                    )}
+
+                    <Text className="text-[14px] font-semibold text-[#374151] mb-2">
+                        Your rating <Text className="text-[#EF4444]">*</Text>
+                    </Text>
+                    <View className="flex-row justify-center gap-3 mb-5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                            <TouchableOpacity
+                                key={star}
+                                onPress={() => setReviewRating(star)}
+                                hitSlop={6}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name={star <= reviewRating ? 'star' : 'star-outline'}
+                                    size={38}
+                                    color="#F59E0B"
+                                />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text className="text-[14px] font-semibold text-[#374151] mb-2">
+                        Your review (optional)
+                    </Text>
+                    <TextInput
+                        className="border border-[#D1D6DB] rounded-xl p-3 text-[14px] mb-5"
+                        placeholder="What did you think of the product, packaging and delivery?"
+                        placeholderTextColor="#9CA3AF"
+                        value={reviewComment}
+                        onChangeText={setReviewComment}
+                        multiline
+                        numberOfLines={4}
+                        maxLength={500}
+                        style={{ height: 110, textAlignVertical: 'top' }}
+                    />
+
+                    <TouchableOpacity
+                        onPress={handleSubmitReview}
+                        disabled={submitting || reviewRating < 1}
+                        className={`rounded-xl py-4 items-center ${submitting || reviewRating < 1 ? 'bg-[#F59E0B]/50' : 'bg-[#F59E0B]'
+                            }`}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <Text className="text-white font-semibold text-[15px]">Submit Review</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
 
     // ─── Dispute Modal ─────────────────────────────────────────────────────
     const renderDisputeModal = () => (
@@ -740,6 +1069,171 @@ const MyOrders = () => {
         );
     };
 
+    // ─── Tabs ─────────────────────────────────────────────────────────────
+    const renderTabs = () => {
+        const tabs: { key: 'orders' | 'reviews'; label: string; badge?: number }[] = [
+            { key: 'orders', label: 'Order History' },
+            { key: 'reviews', label: 'Reviews', badge: completedOrders.length },
+        ];
+
+        return (
+            <View className="flex-row bg-[#F1F5F9] rounded-xl p-1 mb-4">
+                {tabs.map((tab) => {
+                    const active = activeTab === tab.key;
+                    return (
+                        <TouchableOpacity
+                            key={tab.key}
+                            onPress={() => setActiveTab(tab.key)}
+                            activeOpacity={0.8}
+                            className={`flex-1 flex-row items-center justify-center gap-2 py-2.5 rounded-lg ${active ? 'bg-white' : ''
+                                }`}
+                        >
+                            <Text
+                                className={`text-[14px] font-semibold ${active ? 'text-[#2355B6]' : 'text-[#64748B]'
+                                    }`}
+                            >
+                                {tab.label}
+                            </Text>
+                            {!!tab.badge && tab.badge > 0 && (
+                                <View className="bg-[#F59E0B] rounded-full min-w-[18px] h-[18px] items-center justify-center px-1">
+                                    <Text className="text-white text-[11px] font-bold">{tab.badge}</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        );
+    };
+
+    // ─── Reviews Tab ──────────────────────────────────────────────────────
+    const renderReviewsTab = () => {
+        if (reviewsLoading && myReviewsList.length === 0) {
+            return (
+                <View className="flex-1 items-center justify-center">
+                    <ActivityIndicator size="large" color="#2355B6" />
+                    <Text className="text-gray-500 mt-3">Loading your reviews...</Text>
+                </View>
+            );
+        }
+
+        return (
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => {
+                            onRefresh();
+                            loadMyReviews();
+                        }}
+                        colors={['#2355B6']}
+                    />
+                }
+            >
+                {/* Delivered orders still waiting on a review */}
+                {completedOrders.length > 0 && (
+                    <>
+                        <Text className="text-[13px] font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
+                            WAITING FOR YOUR REVIEW
+                        </Text>
+                        {completedOrders.map((order) => (
+                            <View
+                                key={order.id}
+                                className="bg-white rounded-2xl p-4 mb-3 border border-[#EEF0F3]"
+                            >
+                                <View className="flex-row">
+                                    <Image
+                                        source={{ uri: order.seller_product?.main_image }}
+                                        className="w-16 h-16 rounded-xl bg-[#F3F4F6]"
+                                        resizeMode="cover"
+                                    />
+                                    <View className="flex-1 ml-3">
+                                        <Text
+                                            className="text-[14px] font-semibold text-[#1F2937]"
+                                            numberOfLines={2}
+                                        >
+                                            {order.seller_product?.title}
+                                        </Text>
+                                        <Text className="text-[12px] text-[#6B7280] mt-1">
+                                            {order.seller_shop} · {order.order_number}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setReviewTarget(order);
+                                        setReviewRating(0);
+                                        setReviewComment('');
+                                        setReviewModalVisible(true);
+                                    }}
+                                    activeOpacity={0.85}
+                                    className="mt-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl py-3 flex-row items-center justify-center gap-2"
+                                >
+                                    <Ionicons name="star" size={16} color="#F59E0B" />
+                                    <Text className="text-[14px] font-semibold text-[#92400E]">
+                                        Add review
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </>
+                )}
+
+                {/* Reviews already written */}
+                {myReviewsList.length > 0 && (
+                    <>
+                        <Text className="text-[13px] font-semibold text-[#6B7280] uppercase tracking-wider mb-3 mt-2">
+                            MY REVIEWS ({myReviewsList.length})
+                        </Text>
+                        {myReviewsList.map((review) => (
+                            <View
+                                key={review.id}
+                                className="bg-white rounded-2xl p-4 mb-3 border border-[#EEF0F3]"
+                            >
+                                <View className="flex-row items-center justify-between mb-2">
+                                    <View className="flex-row gap-0.5">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <Ionicons
+                                                key={star}
+                                                name={star <= review.rating ? 'star' : 'star-outline'}
+                                                size={16}
+                                                color="#F59E0B"
+                                            />
+                                        ))}
+                                    </View>
+                                    <Text className="text-[11px] text-[#94A3B8]">
+                                        {formatReviewDate(review.created_at)}
+                                    </Text>
+                                </View>
+                                {!!review.comment?.trim() && (
+                                    <Text className="text-[13px] text-[#4B5563] leading-5">
+                                        {review.comment.trim()}
+                                    </Text>
+                                )}
+                            </View>
+                        ))}
+                    </>
+                )}
+
+                {completedOrders.length === 0 && myReviewsList.length === 0 && (
+                    <View className="items-center justify-center py-16 px-6">
+                        <Ionicons name="star-outline" size={48} color="#D1D5DB" />
+                        <Text className="text-[16px] font-semibold text-[#1F2937] mt-3">
+                            No reviews yet
+                        </Text>
+                        <Text className="text-[13px] text-[#6B7280] text-center mt-2 leading-5">
+                            Confirm delivery on a shipped order and it will show up here for you
+                            to review.
+                        </Text>
+                    </View>
+                )}
+            </ScrollView>
+        );
+    };
+
     // ─── Main Render ──────────────────────────────────────────────────────
     if (loading && !refreshing) {
         return (
@@ -773,24 +1267,30 @@ const MyOrders = () => {
                 {/* Status Filter */}
                 {/* {renderStatusFilter()} */}
 
-                {/* Order List */}
-                <FlatList
-                    data={orders}
-                    keyExtractor={(item) => String(item.id)}
-                    renderItem={renderOrderCard}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 20 }}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2355B6']} />
-                    }
-                    ListEmptyComponent={
-                        <View className="items-center justify-center py-10">
-                            <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-                            <Text className="text-[16px] text-[#6B7280] mt-3">No orders found</Text>
-                        </View>
-                    }
-                    ListFooterComponent={renderPagination}
-                />
+                {/* Tabs */}
+                {renderTabs()}
+
+                {activeTab === 'orders' ? (
+                    <FlatList
+                        data={orders}
+                        keyExtractor={(item) => String(item.id)}
+                        renderItem={renderOrderCard}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: 20 }}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2355B6']} />
+                        }
+                        ListEmptyComponent={
+                            <View className="items-center justify-center py-10">
+                                <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+                                <Text className="text-[16px] text-[#6B7280] mt-3">No orders found</Text>
+                            </View>
+                        }
+                        ListFooterComponent={renderPagination}
+                    />
+                ) : (
+                    renderReviewsTab()
+                )}
             </View>
 
             {/* Order Detail Modal */}
@@ -798,6 +1298,9 @@ const MyOrders = () => {
 
             {/* Dispute Modal */}
             {renderDisputeModal()}
+
+            {/* Review Modal */}
+            {renderReviewModal()}
 
             <Toast
                 style={toast.style}

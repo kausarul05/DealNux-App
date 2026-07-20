@@ -41,6 +41,7 @@ import { WebView } from 'react-native-webview'
 
 import BackButton from '../../components/BackButton'
 import ChatModal from '../../components/ChatModal'
+import ProductReviews from '../../components/ProductReviews'
 import { Toast, useToast } from '../../components/useToost'
 import { Images } from '../../constants'
 import { AuthStackParamList } from '../../Navigation/types'
@@ -997,6 +998,9 @@ const ProductDetails = () => {
 
                     {/* Price Comparison Section */}
                     {renderComparisonSection()}
+
+                    {/* Buyer Reviews */}
+                    <ProductReviews productId={productId} />
                 </View>
             </Animated.ScrollView>
 

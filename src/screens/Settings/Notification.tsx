@@ -38,6 +38,43 @@ type NotificationItem = {
   cta_link: string | null
   is_read: boolean
   created_at: string
+  // Sent by some notification types instead of a cta_link. Optional because the
+  // list endpoint does not always include them.
+  product_id?: number | string | null
+  product?: number | string | { id?: number | string } | null
+}
+
+// Product links have arrived in a few shapes depending on which service built
+// the notification, so match all of them rather than only "/product/:id".
+const PRODUCT_LINK_PATTERNS = [
+  /\/products?\/(\d+)/i,
+  /\/product-details?\/(\d+)/i,
+  /\/deals?\/(\d+)/i,
+  /[?&]product_id=(\d+)/i,
+  /[?&]productId=(\d+)/i,
+]
+
+// Pulls a product id out of a notification, from either an explicit id field or
+// the cta_link. Returns null when the notification is not product-related.
+const resolveProductId = (item: NotificationItem): number | null => {
+  const direct =
+    item.product_id ??
+    (typeof item.product === 'object' ? item.product?.id : item.product)
+
+  if (direct != null && String(direct).trim() !== '') {
+    const parsed = Number(direct)
+    if (Number.isFinite(parsed)) return parsed
+  }
+
+  const link = item.cta_link?.trim()
+  if (!link) return null
+
+  for (const pattern of PRODUCT_LINK_PATTERNS) {
+    const match = link.match(pattern)
+    if (match) return parseInt(match[1], 10)
+  }
+
+  return null
 }
 
 const Notification = () => {
@@ -124,7 +161,7 @@ const Notification = () => {
         }
       )
 
-      console.log('📬 Notifications Response:', JSON.stringify(response.data))
+      // console.log('📬 Notifications Response:', JSON.stringify(response.data))
 
       const body = response.data?.data ?? response.data
 
@@ -289,43 +326,29 @@ const Notification = () => {
       await markAsRead(item.id)
     }
 
-    // ✅ Handle deep link / navigation
-    if (item.cta_link) {
-      // Check if it's a product link
-      const productMatch = item.cta_link.match(/\/product\/(\d+)/)
-      if (productMatch) {
-        const productId = parseInt(productMatch[1])
-        navigation.navigate('ProductDetails', { 
-          productId: productId 
-        })
-        return
-      }
+    // Product notifications win over every other route - this is the whole
+    // point of tapping one. Works from an id field or any cta_link shape.
+    const productId = resolveProductId(item)
+    if (productId != null) {
+      navigation.navigate('ProductDetails', { productId })
+      return
+    }
 
-      // Check if it's a deal link
-      const dealMatch = item.cta_link.match(/\/deal\/(\d+)/)
-      if (dealMatch) {
-        const dealId = parseInt(dealMatch[1])
-        // Navigate to deal or product details
-        navigation.navigate('ProductDetails', { 
-          productId: dealId 
-        })
-        return
-      }
+    const link = item.cta_link?.trim()
 
+    if (link) {
       // Check if it's an order link
-      const orderMatch = item.cta_link.match(/\/order\/(\d+)/)
-      if (orderMatch) {
-        const orderId = parseInt(orderMatch[1])
+      if (/\/orders?\/(\d+)/i.test(link)) {
         navigation.navigate('MyOrders' as never)
         return
       }
 
       // For external links, open in browser
-      if (item.cta_link.startsWith('http')) {
+      if (link.startsWith('http')) {
         try {
-          const supported = await Linking.canOpenURL(item.cta_link)
+          const supported = await Linking.canOpenURL(link)
           if (supported) {
-            await Linking.openURL(item.cta_link)
+            await Linking.openURL(link)
           }
         } catch (error) {
           console.error('Error opening link:', error)
@@ -333,20 +356,10 @@ const Notification = () => {
         return
       }
 
-      // For internal navigation with product ID in query params
-      const queryMatch = item.cta_link.match(/product_id=(\d+)/)
-      if (queryMatch) {
-        const productId = parseInt(queryMatch[1])
-        navigation.navigate('ProductDetails', { 
-          productId: productId 
-        })
-        return
-      }
-
       // Last resort: treat the link as a screen name, but only if it really is
       // one. Passing an unknown route to navigate() throws and leaves the user
       // on a dead tap with no feedback.
-      const screenName = item.cta_link.replace(/^\//, '')
+      const screenName = link.replace(/^\//, '')
       const routeNames = (navigation.getState()?.routeNames ?? []) as string[]
       const isKnownScreen = routeNames.includes(screenName)
 
@@ -354,7 +367,7 @@ const Notification = () => {
         // Dynamic route name - cannot be checked statically.
         ;(navigation as any).navigate(screenName)
       } else {
-        console.log('⚠️ Unrecognised cta_link, showing details instead:', item.cta_link)
+        // console.log('⚠️ Unrecognised cta_link, showing details instead:', item.cta_link)
         Alert.alert(item.title, item.body)
       }
     } else {

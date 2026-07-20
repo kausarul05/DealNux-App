@@ -206,11 +206,12 @@ const Profile = () => {
 
     const myAds = () => {
         if (user?.advertiser_status.status == "not_applied") {
-            navigation.navigate("AdsApply")
+            // First-timers get the explainer before the application form.
+            navigation.navigate("AdsIntro")
         } else if (user?.advertiser_status.status == "pending") {
             toast.show({
-                message: ("Your Business Profile Request Is Pending."),
-                type: 'error',
+                message: ("Your business profile is under review. We'll notify you once it's approved."),
+                type: 'info',
                 style: 'top',
             });
         } else {
