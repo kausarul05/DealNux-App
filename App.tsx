@@ -26,6 +26,7 @@ import MyFavourite from './src/screens/Settings/MyFavourite';
 import Notification from './src/screens/Settings/Notification';
 import NotificationSettings from './src/screens/Settings/NotificationSettings';
 import PrivacyPolicy from './src/screens/Settings/PrivacyPolicy';
+import ReturnPolicy from './src/screens/Settings/ReturnPolicy';
 import ReFarAndEarn from './src/screens/Settings/ReFarAndEarn';
 import UpdatePassword from './src/screens/Settings/UpdatePassword';
 import Subscription from './src/screens/Subscriptions/Subscription';
@@ -75,6 +76,7 @@ function AuthStack() {
       <Stack.Screen name="contactus" component={ContactUs} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AppReview" component={AppReview} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="ReturnPolicy" component={ReturnPolicy} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AdsPerformance" component={AdsPerformance} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettings} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="MyFavourite" component={MyFavourite} options={{ animation: "slide_from_right" }} />

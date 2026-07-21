@@ -23,6 +23,7 @@ export type AuthStackParamList = {
   UpdatePassword: undefined;
   NotificationSettings: undefined;
   PrivacyPolicy: undefined;
+  ReturnPolicy: undefined;
   ReFarAndEarn: undefined;
   MyAds: undefined;
   AdsPerformance: undefined;

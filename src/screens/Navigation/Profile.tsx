@@ -297,18 +297,18 @@ const Profile = () => {
                         />
                     </View>
 
-                    {
-                        user?.seller_status.status == "approved" && (
-                            <Card className="mt-5 px-4">
-                                <RowItem
-                                    title={user?.seller_status.status == "approved" ? "My Orders" : ""}
-                                    // leftIcon={<Entypo name="shop" size={16} color="#2355B6" />}
-                                    leftIcon={<MaterialCommunityIcons name="cart-outline" size={16} color="#2355B6" />}
-                                    onPress={() => (navigation as any).navigate("MyOrders")}
-                                />
-                            </Card>
-                        )
-                    }
+                    {/* {
+                        user?.seller_status.status == "approved" && ( */}
+                    <Card className="mt-5 px-4">
+                        <RowItem
+                            title={"My Orders"}
+                            // leftIcon={<Entypo name="shop" size={16} color="#2355B6" />}
+                            leftIcon={<MaterialCommunityIcons name="cart-outline" size={16} color="#2355B6" />}
+                            onPress={() => (navigation as any).navigate("MyOrders")}
+                        />
+                    </Card>
+                    {/* )
+                    } */}
 
                     <Card className="mt-5 px-4">
                         <RowItem
@@ -399,6 +399,12 @@ const Profile = () => {
                             title="Terms of Service"
                             onPress={() => navigation.navigate("TermsOfService")}
                             leftIcon={<MaterialCommunityIcons name="music-note-outline" size={16} color="#636F85" />}
+                        />
+                        <Divider />
+                        <RowItem
+                            title="Return policy"
+                            onPress={() => navigation.navigate("ReturnPolicy")}
+                            leftIcon={<MaterialCommunityIcons name="keyboard-return" size={16} color="#636F85" />}
                         />
                     </Card>
 

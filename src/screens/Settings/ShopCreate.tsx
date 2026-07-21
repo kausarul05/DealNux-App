@@ -52,8 +52,7 @@ interface SellerFormData {
     inventoryOwnership: string;
     fulfillmentMethods: string[];
     shippingRegions: string[];
-    returnPolicyText: string;
-    returnPolicyFile: any;
+    agreeReturnPolicy: boolean;
     complianceChecks: Record<string, boolean>;
     prohibitedAgreement: boolean;
     hasPriorHistory: string;
@@ -489,67 +488,62 @@ const Step4Fulfillment = ({ data, onChange }: { data: SellerFormData; onChange: 
 };
 
 // Step 5: Return Policy
-const Step5ReturnPolicy = ({ data, onChange, onFilePick }: { data: SellerFormData; onChange: (updates: Partial<SellerFormData>) => void; onFilePick: (type: string) => void }) => (
-    <View style={styles.stepContainer}>
-        <View style={styles.headerRow}>
-            <View style={styles.iconContainer}>
-                <Ionicons name="refresh-outline" size={20} color="#2355B6" />
-            </View>
-            <View>
-                <Text style={styles.stepTitle}>Return Policy</Text>
-                <Text style={styles.stepSubtitle}>Define your return and refund policy for buyers</Text>
-            </View>
-        </View>
+const Step5ReturnPolicy = ({ data, onChange, navigation }: { data: SellerFormData; onChange: (updates: Partial<SellerFormData>) => void; navigation: any }) => {
+    const checked = data.agreeReturnPolicy;
 
-        <View style={styles.inputGroup}>
-            <Text style={styles.label}>Return Policy Description <Text style={styles.required}>*</Text></Text>
-            <TextInput
-                value={data.returnPolicyText}
-                onChangeText={(text) => onChange({ returnPolicyText: text })}
-                placeholder="Describe your return policy in detail..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-                style={styles.textArea}
-            />
-            <View style={styles.characterCount}>
-                <Text style={styles.hintText}>Minimum 50 characters</Text>
-                <Text style={[styles.charCount, data.returnPolicyText.length < 50 ? styles.charCountWarning : styles.charCountSuccess]}>
-                    {data.returnPolicyText.length} characters
-                </Text>
+    const goToReturnPolicy = () => {
+        if (navigation && navigation.navigate) {
+            navigation.navigate('ReturnPolicy');
+        } else {
+            console.warn('Navigation not available');
+        }
+    };
+
+    return (
+        <View style={styles.stepContainer}>
+            <View style={styles.headerRow}>
+                <View style={styles.iconContainer}>
+                    <Ionicons name="refresh-outline" size={20} color="#2355B6" />
+                </View>
+                <View>
+                    <Text style={styles.stepTitle}>Return Policy</Text>
+                    <Text style={styles.stepSubtitle}>Review and agree to DealNux's return policy</Text>
+                </View>
             </View>
-        </View>
 
-        <View style={styles.inputGroup}>
-            <Text style={styles.label}>Upload Policy Document <Text style={styles.optional}>(optional)</Text></Text>
-            <Text style={styles.hintText}>Upload a PDF or Word document of your full return policy (max 5MB)</Text>
-
-            {data.returnPolicyFile ? (
-                <View style={styles.fileCard}>
-                    <Feather name="file-text" size={20} color="#16A34A" />
-                    <View style={styles.fileInfo}>
-                        <Text style={styles.fileName}>{data.returnPolicyFile.name}</Text>
-                        <Text style={styles.fileSize}>{(data.returnPolicyFile.size / 1024).toFixed(1)} KB</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => onChange({ returnPolicyFile: null })}>
-                        <Feather name="x" size={18} color="#16A34A" />
+            {/* Agreement checkbox + link to the full policy */}
+            <TouchableOpacity
+                onPress={() => onChange({ agreeReturnPolicy: !checked })}
+                style={[styles.checkCard, checked && styles.checkCardActive]}
+                activeOpacity={0.8}
+            >
+                <View style={[styles.checkbox, checked && styles.checkboxActive]}>
+                    {checked && <Feather name="check" size={12} color="white" />}
+                </View>
+                <View style={styles.checkCardContent}>
+                    <Text style={[styles.checkCardLabel, checked && styles.checkCardLabelActive, styles.checkCardLabelLarge]}>
+                        I have read and agree to the DealNux Return Policy <Text style={styles.required}>*</Text>
+                    </Text>
+                    <TouchableOpacity
+                        onPress={goToReturnPolicy}
+                        style={styles.linkButton}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.linkContainer}>
+                            <Ionicons name="refresh-outline" size={14} color="#2355B6" />
+                            <Text style={styles.linkText}>Read Return Policy</Text>
+                            <Ionicons name="arrow-forward" size={12} color="#2355B6" />
+                        </View>
                     </TouchableOpacity>
                 </View>
-            ) : (
-                <TouchableOpacity onPress={() => onFilePick('returnPolicyFile')} style={styles.uploadArea}>
-                    <Feather name="upload" size={24} color="#9CA3AF" />
-                    <Text style={styles.uploadText}>Click to upload document</Text>
-                    <Text style={styles.uploadSubtext}>PDF, DOC, DOCX up to 5MB</Text>
-                </TouchableOpacity>
-            )}
-        </View>
+            </TouchableOpacity>
 
-        <View style={[styles.infoBox, styles.infoBoxBlue]}>
-            <Text style={[styles.infoBoxText, styles.infoBoxTextBlue]}>Your return policy will be displayed on all your product listings and at checkout. A clear, fair policy builds buyer trust and reduces disputes.</Text>
+            <View style={[styles.infoBox, styles.infoBoxBlue]}>
+                <Text style={[styles.infoBoxText, styles.infoBoxTextBlue]}>The DealNux return policy applies to all your product listings and at checkout. A clear, fair policy builds buyer trust and reduces disputes.</Text>
+            </View>
         </View>
-    </View>
-);
+    );
+};
 
 // Step 6: Compliance
 const Step6Compliance = ({
@@ -870,8 +864,7 @@ const Step9Review = ({ data }: { data: SellerFormData }) => {
             </Section>
 
             <Section title="Return Policy">
-                <Row label="Policy" value={data.returnPolicyText ? (data.returnPolicyText.length > 120 ? data.returnPolicyText.slice(0, 120) + '…' : data.returnPolicyText) : null} />
-                <Row label="Document" value={data.returnPolicyFile ? data.returnPolicyFile.name : 'None uploaded'} />
+                <Row label="Return policy" value={data.agreeReturnPolicy ? 'Agreed' : null} />
             </Section>
 
             <Section title="Agreements">
@@ -1091,8 +1084,7 @@ const ShopCreate = () => {
         inventoryOwnership: '',
         fulfillmentMethods: [],
         shippingRegions: [],
-        returnPolicyText: '',
-        returnPolicyFile: null,
+        agreeReturnPolicy: false,
         complianceChecks: {},
         prohibitedAgreement: false,
         hasPriorHistory: '',
@@ -1268,8 +1260,8 @@ const ShopCreate = () => {
             toast.show({ message: 'Please select shipping regions', type: 'error', style: 'top' });
             return;
         }
-        if (!formData.returnPolicyText.trim() || formData.returnPolicyText.length < 50) {
-            toast.show({ message: 'Please enter return policy (minimum 50 characters)', type: 'error', style: 'top' });
+        if (!formData.agreeReturnPolicy) {
+            toast.show({ message: 'Please agree to the return policy', type: 'error', style: 'top' });
             return;
         }
         if (!formData.idDocument) {
@@ -1341,14 +1333,7 @@ const ShopCreate = () => {
             form.append('shipping_regions', JSON.stringify(formData.shippingRegions));
 
             // ─── Return Policy ──────────────────────────────────────────────────
-            form.append('return_policy_description', formData.returnPolicyText);
-            if (formData.returnPolicyFile) {
-                form.append('return_policy_document', {
-                    uri: formData.returnPolicyFile.uri,
-                    type: formData.returnPolicyFile.mimeType || 'application/octet-stream',
-                    name: formData.returnPolicyFile.name || 'return_policy_document',
-                } as any);
-            }
+            form.append('agree_return_policy', formData.agreeReturnPolicy ? 'true' : 'false');
 
             // ─── Compliance ──────────────────────────────────────────────────────
             const allCompliantChecked = COMPLIANCE_ITEMS.every((item) => formData.complianceChecks[item.key]);
@@ -1438,7 +1423,7 @@ const ShopCreate = () => {
             case 4:
                 return <Step4Fulfillment data={formData} onChange={updateForm} />;
             case 5:
-                return <Step5ReturnPolicy data={formData} onChange={updateForm} onFilePick={handleFilePick} />;
+                return <Step5ReturnPolicy data={formData} onChange={updateForm} navigation={navigation} />;
             case 6:
                 return <Step6Compliance
                     data={formData}

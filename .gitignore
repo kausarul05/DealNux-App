@@ -40,3 +40,7 @@ yarn-error.*
 
 *.env
 .env
+
+# Signing keystores — never commit
+*.jks
+*.keystore

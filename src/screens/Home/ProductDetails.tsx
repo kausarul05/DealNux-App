@@ -412,7 +412,7 @@ const ProductDetails = () => {
 
     const [showCompareSection, setShowCompareSection] = useState(false);
 
-    console.log("xxxxxxxxxxxxxxx", JSON.stringify(product, null, 2))
+    // console.log("xxxxxxxxxxxxxxx", JSON.stringify(product, null, 2))
 
 
     // ── Header Animation ──────────────────────────────────────────────────────

@@ -400,7 +400,9 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        backgroundColor: "#FEF2F2",
+        // Base brand blue tint instead of the old red-on-red — the heart icon
+        // stays red so "remove" still reads clearly.
+        backgroundColor: "#EAF1FB",
         borderRadius: 12,
         paddingHorizontal: 12,
         paddingVertical: 10,
@@ -410,7 +412,7 @@ const styles = StyleSheet.create({
     hintText: {
         flex: 1,
         fontSize: 13,
-        color: "#7F1D1D",
+        color: "#2355B6",
         lineHeight: 18,
     },
 

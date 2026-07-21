@@ -21,11 +21,28 @@ import {
     Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import { Toast, useToast } from '../../components/useToost';
 
 const API_BASE_URL = IPA_BASE;
+
+// Statuses that mean the buyer has the product and the order is finished.
+// The backend marks a buyer-confirmed delivery as CONFIRMED ("Confirmed by
+// Buyer") — that is this app's "Completed", so all three read as done.
+const DONE_STATUSES = ['CONFIRMED', 'COMPLETED', 'DELIVERED'];
+const isDone = (status?: string) => DONE_STATUSES.includes((status ?? '').toUpperCase());
+
+// Return reasons shown in the "Return Product for Refund" dropdown (mirrors
+// the website). The chosen label is sent straight to the dispute endpoint.
+const RETURN_REASONS = [
+    'Item is defective or damaged',
+    'Wrong item received',
+    'Item not as described',
+    'Item no longer needed / changed my mind',
+    'Other',
+];
 
 // The reviews API returns no author on a review and has no "my reviews" route,
 // so there is no way to ask the server which reviews belong to this buyer.
@@ -147,6 +164,13 @@ const MyOrders = () => {
     const [disputeDescription, setDisputeDescription] = useState('');
     const [disputeEvidence, setDisputeEvidence] = useState<any>(null);
 
+    // ─── Return / Refund State ─────────────────────────────────────────────
+    const [returnModalVisible, setReturnModalVisible] = useState(false);
+    const [returnReason, setReturnReason] = useState('');
+    const [returnReasonOpen, setReturnReasonOpen] = useState(false);
+    const [returnDetails, setReturnDetails] = useState('');
+    const [returnEvidence, setReturnEvidence] = useState<any>(null);
+
     // ─── Review State ──────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<'orders' | 'reviews'>('orders');
     const [reviewModalVisible, setReviewModalVisible] = useState(false);
@@ -243,7 +267,7 @@ const MyOrders = () => {
     const getStatusColor = (status: string) => {
         const colors: Record<string, string> = {
             PENDING: '#F59E0B',
-            CONFIRMED: '#3B82F6',
+            CONFIRMED: '#10B981', // buyer-received = done, same green as COMPLETED
             ACCEPTED: '#3B82F6',
             SHIPPED: '#8B5CF6',
             COMPLETED: '#10B981',
@@ -256,7 +280,7 @@ const MyOrders = () => {
     const getStatusBg = (status: string) => {
         const colors: Record<string, string> = {
             PENDING: '#FEF3C7',
-            CONFIRMED: '#DBEAFE',
+            CONFIRMED: '#D1FAE5', // buyer-received = done, same green tint as COMPLETED
             ACCEPTED: '#DBEAFE',
             SHIPPED: '#EDE9FE',
             COMPLETED: '#D1FAE5',
@@ -333,6 +357,20 @@ const MyOrders = () => {
     // Reviewable orders are gathered across every page, not just the page the
     // Order History tab happens to be showing.
     const [completedOrders, setCompletedOrders] = useState<OrderItem[]>([]);
+    // Every order across every page. Order History reads from this so a
+    // COMPLETED order on page 2+ is no longer invisible behind pagination.
+    const [allOrders, setAllOrders] = useState<OrderItem[]>([]);
+    // Product ids this buyer has already reviewed. The reviews API carries no
+    // product_id, so the server can't tell us which done-orders are already
+    // reviewed — we remember them on the device and use it to avoid offering a
+    // duplicate the backend would reject with "already reviewed".
+    const [reviewedProductIds, setReviewedProductIds] = useState<Set<number>>(new Set());
+
+    useEffect(() => {
+        loadMyReviewIndex().then((index) =>
+            setReviewedProductIds(new Set(Object.keys(index).map(Number)))
+        );
+    }, []);
 
     /** Walks the paginated orders endpoint and returns everything. */
     const fetchAllOrders = useCallback(async (): Promise<OrderItem[]> => {
@@ -380,12 +418,11 @@ const MyOrders = () => {
             console.log('⭐ Reviews Response:', JSON.stringify(reviewsRes.data?.data));
             setMyReviewsList(list);
 
+            // Feed the full set into Order History so every status shows.
+            setAllOrders(allOrders);
+
             // Delivered orders are the only ones a review can be written for.
-            setCompletedOrders(
-                allOrders.filter((order) =>
-                    ['COMPLETED', 'DELIVERED'].includes(order.status?.toUpperCase())
-                )
-            );
+            setCompletedOrders(allOrders.filter((order) => isDone(order.status)));
         } catch (error: any) {
             console.error('Error loading reviews:', error?.response?.data || error);
         } finally {
@@ -444,40 +481,62 @@ const MyOrders = () => {
             if (response.data?.success) {
                 const created: ProductReview | undefined = response.data?.data;
 
-                toast.show({
-                    message: 'Thanks! Your review has been posted.',
-                    type: 'success',
-                    style: 'top',
-                });
-
                 if (created?.id) {
                     setMyReviewsList((prev) => [created, ...prev]);
                 }
-                // Refetch so the new review and the order's changed state come
-                // from the server rather than being guessed at locally.
+                // Remember this product so it drops out of the "waiting" list and
+                // we never offer a duplicate the backend would reject.
+                await markProductReviewed(productId, created?.id ?? 0);
                 loadMyReviews();
 
-                setReviewModalVisible(false);
-                setReviewTarget(null);
-                setReviewRating(0);
-                setReviewComment('');
+                closeReviewFlow();
+                Alert.alert('Review', response.data?.message || 'Thanks! Your review has been posted.');
             } else {
-                toast.show({
-                    message: response.data?.message || 'Failed to submit review',
-                    type: 'error',
-                    style: 'top',
-                });
+                closeReviewFlow();
+                Alert.alert('Review', response.data?.message || 'Failed to submit review');
             }
         } catch (error: any) {
             console.error('Submit review error:', error?.response?.data || error);
-            toast.show({
-                message: error?.response?.data?.message || 'Failed to submit review',
-                type: 'error',
-                style: 'top',
-            });
+
+            // The backend rejects a second review for the same product. Record it
+            // so it drops out of the waiting list, then surface the message.
+            const alreadyReviewed =
+                error?.response?.status === 400 &&
+                /already reviewed/i.test(error?.response?.data?.message || '');
+
+            if (alreadyReviewed) {
+                await markProductReviewed(productId, 0);
+                loadMyReviews();
+            }
+
+            closeReviewFlow();
+            Alert.alert(
+                'Review',
+                error?.response?.data?.message ||
+                    (alreadyReviewed
+                        ? 'You have already reviewed this product.'
+                        : 'Failed to submit review')
+            );
         } finally {
             setSubmitting(false);
         }
+    };
+
+    // Closes both the review modal and the order detail modal, and clears the
+    // review inputs. A native Alert is shown separately — it draws above any
+    // modal, so the message is visible even as these close.
+    const closeReviewFlow = () => {
+        setReviewModalVisible(false);
+        setModalVisible(false);
+        setReviewTarget(null);
+        setReviewRating(0);
+        setReviewComment('');
+    };
+
+    /** Persist a reviewed product id and reflect it in state right away. */
+    const markProductReviewed = async (productId: number, reviewId: number) => {
+        await rememberMyReview(productId, reviewId);
+        setReviewedProductIds((prev) => new Set(prev).add(productId));
     };
 
     const handleOpenDispute = async () => {
@@ -546,12 +605,100 @@ const MyOrders = () => {
         }
     };
 
+    // ─── Submit Return / Refund Request ────────────────────────────────────
+    //     Reuses the open-dispute endpoint — a return is a buyer-raised dispute
+    //     against a delivered order, reviewed against the seller's return policy.
+    const handleSubmitReturn = async () => {
+        if (!returnReason.trim()) {
+            toast.show({ message: 'Please select a reason for return', type: 'error', style: 'top' });
+            return;
+        }
+        if (!returnDetails.trim()) {
+            toast.show({ message: 'Please describe the issue', type: 'error', style: 'top' });
+            return;
+        }
+        if (!selectedOrder?.id) return;
+
+        try {
+            setSubmitting(true);
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) {
+                toast.show({ message: 'Token missing', type: 'error', style: 'top' });
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('reason', returnReason.trim());
+            formData.append('description', returnDetails.trim());
+            if (returnEvidence) {
+                formData.append('evidence_image', {
+                    uri: returnEvidence.uri,
+                    type: returnEvidence.mimeType || 'image/jpeg',
+                    name: returnEvidence.fileName || 'evidence.jpg',
+                } as any);
+            }
+
+            const response = await axios.post(
+                `${API_BASE_URL}store/orders/${selectedOrder.id}/open-dispute/`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data',
+                        Accept: 'application/json',
+                    },
+                }
+            );
+
+            if (response.data?.success) {
+                toast.show({
+                    message: 'Return request sent. The seller will review it.',
+                    type: 'success',
+                    style: 'top',
+                });
+                setReturnModalVisible(false);
+                setReturnReason('');
+                setReturnReasonOpen(false);
+                setReturnDetails('');
+                setReturnEvidence(null);
+                setModalVisible(false);
+                await Promise.all([fetchOrders(), loadMyReviews()]);
+            } else {
+                toast.show({
+                    message: response.data?.message || 'Failed to submit return request',
+                    type: 'error',
+                    style: 'top',
+                });
+            }
+        } catch (error: any) {
+            console.error('Return request error:', error?.response?.data || error);
+            toast.show({
+                message: error?.response?.data?.message || 'Failed to submit return request',
+                type: 'error',
+                style: 'top',
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const pickReturnEvidence = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets?.length) {
+            setReturnEvidence(result.assets[0]);
+        }
+    };
+
     // ─── Render Order Card ──────────────────────────────────────────────────
     const renderOrderCard = ({ item }: { item: OrderItem }) => {
         const statusColor = getStatusColor(item.status);
         const statusBg = getStatusBg(item.status);
         const address = parseShippingAddress(item.shipping_address);
-        const isPending = item.status === 'PENDING' || item.status === 'CONFIRMED';
+        // CONFIRMED means the buyer already received it, so it needs no action.
+        const isPending = item.status === 'PENDING';
 
         return (
             <TouchableOpacity
@@ -615,14 +762,14 @@ const MyOrders = () => {
         const statusBg = getStatusBg(selectedOrder.status);
         const address = parseShippingAddress(selectedOrder.shipping_address);
         const isShipped = selectedOrder.status === 'SHIPPED';
-        const isCompleted = selectedOrder.status === 'COMPLETED';
-        const isPending = selectedOrder.status === 'PENDING' || selectedOrder.status === 'CONFIRMED';
+        const isCompleted = isDone(selectedOrder.status);
+        const isPending = selectedOrder.status === 'PENDING';
 
         const statusSteps = ['Order Placed', 'Accepted', 'Shipped', 'Completed'];
         let currentStep = 0;
-        if (selectedOrder.status === 'ACCEPTED' || selectedOrder.status === 'CONFIRMED') currentStep = 1;
+        if (isDone(selectedOrder.status)) currentStep = 3;
         else if (selectedOrder.status === 'SHIPPED') currentStep = 2;
-        else if (selectedOrder.status === 'COMPLETED') currentStep = 3;
+        else if (selectedOrder.status === 'ACCEPTED') currentStep = 1;
 
         return (
             <Modal
@@ -753,7 +900,10 @@ const MyOrders = () => {
                                                     setReviewTarget(selectedOrder);
                                                     setReviewRating(0);
                                                     setReviewComment('');
-                                                    setReviewModalVisible(true);
+                                                    // Close the detail modal first — two modals can't
+                                                    // be open at once, so open the review modal after it.
+                                                    setModalVisible(false);
+                                                    setTimeout(() => setReviewModalVisible(true), 250);
                                                 }}
                                                 className="bg-[#F59E0B] rounded-xl py-3 items-center"
                                             >
@@ -761,6 +911,28 @@ const MyOrders = () => {
                                             </TouchableOpacity>
                                         </View>
                                     )}
+
+                                    {/* Return / refund is available once the product is in the
+                                        buyer's hands. Opens the seller-policy return request. */}
+                                    {/* <TouchableOpacity
+                                        onPress={() => {
+                                            setReturnReason('');
+                                            setReturnReasonOpen(false);
+                                            setReturnDetails('');
+                                            setReturnEvidence(null);
+                                            // Close the detail modal first, then open the return
+                                            // modal — a second modal won't show over the first.
+                                            setModalVisible(false);
+                                            setTimeout(() => setReturnModalVisible(true), 250);
+                                        }}
+                                        activeOpacity={0.85}
+                                        className="mt-3 bg-white border border-[#E5E7EB] rounded-xl py-3 flex-row items-center justify-center gap-2"
+                                    >
+                                        <Ionicons name="refresh" size={18} color="#2355B6" />
+                                        <Text className="text-[14px] font-semibold text-[#2355B6]">
+                                            Return Product for Refund
+                                        </Text>
+                                    </TouchableOpacity> */}
                                 </>
                             )}
 
@@ -941,6 +1113,132 @@ const MyOrders = () => {
         </Modal>
     );
 
+    // ─── Return / Refund Modal ─────────────────────────────────────────────
+    const renderReturnModal = () => (
+        <Modal
+            visible={returnModalVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setReturnModalVisible(false)}
+        >
+            <View className="flex-1 bg-black/50 justify-end">
+                <View className="bg-white rounded-t-3xl p-5 pb-8 max-h-[90%]">
+                    {/* Header */}
+                    <View className="flex-row items-center justify-between mb-4">
+                        <View className="flex-row items-center gap-2 flex-1">
+                            <View className="w-9 h-9 rounded-full bg-[#EAF1FB] items-center justify-center">
+                                <Ionicons name="refresh" size={18} color="#2355B6" />
+                            </View>
+                            <Text className="text-[18px] font-bold text-[#1F2937]">Return Product for Refund</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setReturnModalVisible(false)}>
+                            <Ionicons name="close" size={24} color="#6B7280" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                        {/* Policy notice */}
+                        <View className="flex-row gap-2 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-3 mb-5">
+                            <Ionicons name="alert-circle-outline" size={18} color="#B45309" />
+                            <Text className="flex-1 text-[13px] text-[#92400E] leading-5">
+                                Returns and refund are based on the seller's return policy. Your
+                                request will be sent to the seller for review, and approval depends
+                                on their policy.
+                            </Text>
+                        </View>
+
+                        {/* Reason dropdown */}
+                        <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">
+                            REASON FOR RETURN *
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setReturnReasonOpen((o) => !o)}
+                            activeOpacity={0.8}
+                            className="flex-row items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 mb-1"
+                        >
+                            <Text className={`text-[15px] ${returnReason ? 'text-[#1F2937]' : 'text-[#9CA3AF]'}`}>
+                                {returnReason || 'Select a reason...'}
+                            </Text>
+                            <Ionicons
+                                name={returnReasonOpen ? 'chevron-up' : 'chevron-down'}
+                                size={18}
+                                color="#6B7280"
+                            />
+                        </TouchableOpacity>
+
+                        {returnReasonOpen && (
+                            <View className="border border-gray-200 rounded-xl mb-4 overflow-hidden">
+                                {RETURN_REASONS.map((reason, idx) => (
+                                    <TouchableOpacity
+                                        key={reason}
+                                        onPress={() => {
+                                            setReturnReason(reason);
+                                            setReturnReasonOpen(false);
+                                        }}
+                                        className={`px-4 py-3 ${idx !== 0 ? 'border-t border-gray-100' : ''} ${returnReason === reason ? 'bg-[#EAF1FB]' : 'bg-white'}`}
+                                    >
+                                        <Text className={`text-[15px] ${returnReason === reason ? 'text-[#2355B6] font-semibold' : 'text-[#374151]'}`}>
+                                            {reason}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                        {!returnReasonOpen && <View className="mb-3" />}
+
+                        {/* Details */}
+                        <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">DETAILS *</Text>
+                        <TextInput
+                            value={returnDetails}
+                            onChangeText={setReturnDetails}
+                            placeholder="Describe the issue and the condition of the item you want to return..."
+                            placeholderTextColor="#9CA3AF"
+                            multiline
+                            numberOfLines={4}
+                            textAlignVertical="top"
+                            className="bg-white border border-gray-200 rounded-xl px-4 py-3 mb-4 text-[15px] text-[#1F2937] min-h-[100px]"
+                        />
+
+                        {/* Evidence (optional) */}
+                        <Text className="text-[13px] font-semibold text-[#6B7280] mb-1">
+                            EVIDENCE IMAGE (OPTIONAL)
+                        </Text>
+                        <TouchableOpacity
+                            onPress={pickReturnEvidence}
+                            className="bg-white border border-dashed border-gray-300 rounded-xl p-6 items-center justify-center mb-5"
+                        >
+                            <Feather name="upload" size={22} color="#9CA3AF" />
+                            <Text className="text-[14px] text-[#9CA3AF] mt-2">
+                                {returnEvidence ? 'Photo selected' : 'Upload a photo of the product'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Actions */}
+                        <View className="flex-row gap-3">
+                            <TouchableOpacity
+                                onPress={() => setReturnModalVisible(false)}
+                                className="flex-1 border border-gray-300 rounded-xl py-3.5 items-center"
+                            >
+                                <Text className="text-[15px] font-semibold text-[#374151]">Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={handleSubmitReturn}
+                                disabled={submitting}
+                                className={`flex-1 bg-[#2355B6] rounded-xl py-3.5 items-center ${submitting ? 'opacity-70' : ''}`}
+                            >
+                                {submitting ? (
+                                    <ActivityIndicator color="white" />
+                                ) : (
+                                    <Text className="text-[15px] font-semibold text-white">Submit Return Request</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+
     // ─── Pagination Component ─────────────────────────────────────────────
     const renderPagination = () => {
         if (!pagination || pagination.total_pages <= 1) return null;
@@ -1009,6 +1307,38 @@ const MyOrders = () => {
         );
     };
 
+    // Which backend statuses each filter chip stands for.
+    const STATUS_FILTER_MAP: Record<string, string[]> = {
+        Pending: ['PENDING', 'CONFIRMED'],
+        Accepted: ['ACCEPTED'],
+        Shipped: ['SHIPPED'],
+        Completed: ['COMPLETED', 'DELIVERED'],
+        Cancelled: ['CANCELLED'],
+        Refunded: ['REFUNDED'],
+    };
+    
+
+    // Order History shows the full cross-page set once it's loaded, falling
+    // back to the first page while that request is still in flight.
+    const displayedOrders = (() => {
+        const source = allOrders.length ? allOrders : orders;
+        if (selectedStatus === 'All') return source;
+        const wanted = STATUS_FILTER_MAP[selectedStatus] ?? [selectedStatus.toUpperCase()];
+        return source.filter((o) => wanted.includes(o.status?.toUpperCase()));
+    })();
+
+    // Done orders still waiting on a review — one row per product, and only
+    // products this buyer hasn't reviewed yet.
+    const pendingReviewOrders = (() => {
+        const seen = new Set<number>();
+        return completedOrders.filter((order) => {
+            const pid = order.seller_product?.id;
+            if (!pid || reviewedProductIds.has(pid) || seen.has(pid)) return false;
+            seen.add(pid);
+            return true;
+        });
+    })();
+
     // ─── Status Filter ─────────────────────────────────────────────────────
     const renderStatusFilter = () => (
         <ScrollView
@@ -1073,7 +1403,7 @@ const MyOrders = () => {
     const renderTabs = () => {
         const tabs: { key: 'orders' | 'reviews'; label: string; badge?: number }[] = [
             { key: 'orders', label: 'Order History' },
-            { key: 'reviews', label: 'Reviews', badge: completedOrders.length },
+            { key: 'reviews', label: 'Reviews', badge: pendingReviewOrders.length },
         ];
 
         return (
@@ -1106,6 +1436,19 @@ const MyOrders = () => {
         );
     };
 
+    // Subtitle + savings summary + tabs. Rendered inside each tab's scroll area
+    // (not pinned above it) so the whole page scrolls as one — the summary card
+    // no longer eats fixed vertical space on small screens.
+    const renderMetaHeader = () => (
+        <>
+            <Text className="text-[13px] text-[#6B7280] mb-4">
+                Track orders, manage subscriptions, and leave reviews
+            </Text>
+            {renderSummary()}
+            {renderTabs()}
+        </>
+    );
+
     // ─── Reviews Tab ──────────────────────────────────────────────────────
     const renderReviewsTab = () => {
         if (reviewsLoading && myReviewsList.length === 0) {
@@ -1132,13 +1475,15 @@ const MyOrders = () => {
                     />
                 }
             >
+                {renderMetaHeader()}
+
                 {/* Delivered orders still waiting on a review */}
-                {completedOrders.length > 0 && (
+                {pendingReviewOrders.length > 0 && (
                     <>
                         <Text className="text-[13px] font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
                             WAITING FOR YOUR REVIEW
                         </Text>
-                        {completedOrders.map((order) => (
+                        {pendingReviewOrders.map((order) => (
                             <View
                                 key={order.id}
                                 className="bg-white rounded-2xl p-4 mb-3 border border-[#EEF0F3]"
@@ -1218,7 +1563,7 @@ const MyOrders = () => {
                     </>
                 )}
 
-                {completedOrders.length === 0 && myReviewsList.length === 0 && (
+                {pendingReviewOrders.length === 0 && myReviewsList.length === 0 && (
                     <View className="items-center justify-center py-16 px-6">
                         <Ionicons name="star-outline" size={48} color="#D1D5DB" />
                         <Text className="text-[16px] font-semibold text-[#1F2937] mt-3">
@@ -1257,36 +1602,42 @@ const MyOrders = () => {
                     />
                 </View>
 
-                <Text className="text-[13px] text-[#6B7280] mb-4">
-                    Track orders, manage subscriptions, and leave reviews
-                </Text>
-
-                {/* Summary */}
-                {renderSummary()}
-
-                {/* Status Filter */}
-                {/* {renderStatusFilter()} */}
-
-                {/* Tabs */}
-                {renderTabs()}
-
                 {activeTab === 'orders' ? (
                     <FlatList
-                        data={orders}
+                        data={displayedOrders}
                         keyExtractor={(item) => String(item.id)}
                         renderItem={renderOrderCard}
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{ paddingBottom: 20 }}
+                        ListHeaderComponent={() => (
+                            <>
+                                {renderMetaHeader()}
+                                {renderStatusFilter()}
+                            </>
+                        )}
                         refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2355B6']} />
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={() => {
+                                    onRefresh();
+                                    loadMyReviews();
+                                }}
+                                colors={['#2355B6']}
+                            />
                         }
                         ListEmptyComponent={
                             <View className="items-center justify-center py-10">
                                 <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-                                <Text className="text-[16px] text-[#6B7280] mt-3">No orders found</Text>
+                                <Text className="text-[16px] text-[#6B7280] mt-3">
+                                    {selectedStatus === 'All'
+                                        ? 'No orders found'
+                                        : `No ${selectedStatus.toLowerCase()} orders`}
+                                </Text>
                             </View>
                         }
-                        ListFooterComponent={renderPagination}
+                        // Pagination only applies to the single-page fallback; once
+                        // the full set is loaded every order is already on screen.
+                        ListFooterComponent={allOrders.length ? undefined : renderPagination}
                     />
                 ) : (
                     renderReviewsTab()
@@ -1298,6 +1649,9 @@ const MyOrders = () => {
 
             {/* Dispute Modal */}
             {renderDisputeModal()}
+
+            {/* Return / Refund Modal */}
+            {renderReturnModal()}
 
             {/* Review Modal */}
             {renderReviewModal()}

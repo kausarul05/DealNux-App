@@ -23,8 +23,12 @@ export const BrandHeader: React.FC<BrandHeaderProps> = ({
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={[styles.container, compact && styles.containerCompact]}>
-        {/* ✅ Logo + Wordmark */}
-        <View style={styles.brandRow}>
+        {/* ✅ Logo + Wordmark — tapping the logo returns to Home */}
+        <TouchableOpacity
+          style={styles.brandRow}
+          onPress={() => (navigation.navigate as any)('MainTabs', { screen: 'HomeTab' })}
+          activeOpacity={0.7}
+        >
           <Image
             source={require('../../assets/logo.png')}
             style={[styles.logo, compact && styles.logoCompact]}
@@ -33,7 +37,7 @@ export const BrandHeader: React.FC<BrandHeaderProps> = ({
           {/* <Text style={[styles.wordmark, compact && styles.wordmarkCompact]}>
             Deal<Text style={styles.wordmarkAccent}>Nux</Text>
           </Text> */}
-        </View>
+        </TouchableOpacity>
 
         {/* ✅ Notification Bell */}
         {showNotification && (
