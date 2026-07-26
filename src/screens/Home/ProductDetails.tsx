@@ -50,7 +50,7 @@ import { useSubscriptionAccess } from '../../hooks/useSubscriptionAccess'
 const { width } = Dimensions.get('window')
 const API_BASE_URL = IPA_BASE
 
-type RouteParams = { productId: string | number }
+type RouteParams = { productId: string | number; source?: 'local' | 'external' }
 
 type ProductListing = {
     id: number | string
@@ -379,7 +379,7 @@ const ExternalProductPaywall = ({
 const ProductDetails = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
     const route = useRoute()
-    const { productId } = route.params as RouteParams
+    const { productId, source } = route.params as RouteParams
     const { loading: accessLoading, isEntitled } = useSubscriptionAccess()
     const toast = useToast()
     const scrollY = useRef(new Animated.Value(0)).current
@@ -1034,8 +1034,10 @@ const ProductDetails = () => {
                     {/* Price Comparison Section */}
                     {renderComparisonSection()}
 
-                    {/* Buyer Reviews */}
-                    <ProductReviews productId={productId} />
+                    {/* Buyer Reviews — only for "Recommended for You" products,
+                        which are the local DEALNUX marketplace items (navigated with
+                        source === 'local'). External retailer products don't get them. */}
+                    {source === 'local' && <ProductReviews productId={productId} />}
                 </View>
             </Animated.ScrollView>
 

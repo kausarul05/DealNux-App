@@ -765,9 +765,9 @@ const Home = () => {
 
     if (loading && products.length === 0) {
         return (
-            <SafeAreaView style={styles.container}>
+            <View style={styles.container}>
                 <HomeSkeleton />
-            </SafeAreaView>
+            </View>
         )
     }
 
