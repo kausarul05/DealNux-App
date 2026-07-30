@@ -16,6 +16,11 @@ module.exports = function (api) {
                     allowUndefined: true,
                 },
             ],
+            // Strip every console.* call from production/release builds so no
+            // debug logs ship to the Play Store. Dev builds keep their logs.
+            ...(process.env.NODE_ENV === "production" || process.env.BABEL_ENV === "production"
+                ? [["transform-remove-console", { exclude: [] }]]
+                : []),
         ],
     };
 };

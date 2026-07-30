@@ -50,6 +50,18 @@ import { useSubscriptionAccess } from '../../hooks/useSubscriptionAccess'
 const { width } = Dimensions.get('window')
 const API_BASE_URL = IPA_BASE
 
+// Self-contained "No Image" placeholder used when a product (e.g. one opened
+// from a barcode scan) has no main_image and no comparison images yet.
+const PLACEHOLDER_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
+  <rect width="500" height="500" fill="#F3F4F6"/>
+  <rect x="110" y="120" width="280" height="220" rx="22" fill="#E5E7EB"/>
+  <circle cx="190" cy="200" r="28" fill="#CBD5E1"/>
+  <path d="M135 305 L220 235 L280 285 L320 250 L365 305 Z" fill="#CBD5E1"/>
+  <text x="50%" y="395" text-anchor="middle" fill="#94A3B8" font-size="30" font-family="Arial, sans-serif">No Image</text>
+</svg>
+`)}`
+
 type RouteParams = { productId: string | number; source?: 'local' | 'external' }
 
 type ProductListing = {
@@ -400,7 +412,9 @@ const ProductDetails = () => {
     const [compareProgress, setCompareProgress] = useState(0)
     const [compareMessage, setCompareMessage] = useState('Checking prices...')
     const [compareAttempts, setCompareAttempts] = useState(0)
-    const maxCompareAttempts = 5
+    // Keep the "searching across platforms" window open for ~15s so the backend
+    // has time to gather deals from Amazon, eBay, Walmart, AliExpress, etc.
+    const COMPARE_MIN_DURATION = 15000
 
     // ─── WebView Modal State ──────────────────────────────────────────────────
     const [webViewVisible, setWebViewVisible] = useState(false)
@@ -440,7 +454,11 @@ const ProductDetails = () => {
         setCompareMessage('Finding best deals...');
         setCompareAttempts(0);
 
-        const result = await pollForCompareData(product.slug, 0);
+        // Runs the full ~15s search window, then we reveal the results.
+        const result = await pollForCompareData(product.slug);
+
+        setCompareProgress(100);
+        setCompareLoading(false);
 
         if (!result) {
             toast.show({
@@ -452,60 +470,58 @@ const ProductDetails = () => {
     }, [product?.slug, pollForCompareData, toast]);
 
     // ── Comparison Polling ────────────────────────────────────────────────────
-    const pollForCompareData = useCallback(async (slug: string, attempt = 0) => {
-        try {
-            const token = await AsyncStorage.getItem('vToken')
-            const url = `${API_BASE_URL}${COMPARE_PRODUCT}${slug}/`
-            const response = await axios.get(url, {
-                headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            })
+    // Keeps polling the compare endpoint for the full COMPARE_MIN_DURATION (~15s)
+    // so results accumulate across platforms (Amazon, eBay, Walmart, ...) before
+    // we reveal them. Does NOT flip compareLoading off — loadComparison reveals
+    // the results once the search window has fully elapsed.
+    const pollForCompareData = useCallback(async (slug: string) => {
+        const startedAt = Date.now()
+        const messages = [
+            'Searching across platforms...',
+            'Checking Amazon...',
+            'Checking eBay...',
+            'Checking Walmart...',
+            'Checking AliExpress...',
+            'Almost done...',
+        ]
+        let found = false
+        let attempt = 0
 
-            const data: CompareData = response?.data?.data ?? response?.data
+        while (Date.now() - startedAt < COMPARE_MIN_DURATION) {
+            try {
+                const token = await AsyncStorage.getItem('vToken')
+                const url = `${API_BASE_URL}${COMPARE_PRODUCT}${slug}/`
+                const response = await axios.get(url, {
+                    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                })
 
-            // Check if we have comparison data
-            if (data?.price_comparison && data.price_comparison.length > 0) {
-                setCompareData(data)
-                setCompareLoading(false)
-                setCompareProgress(100)
-                return true
+                // 🔬 Full comparison API response (after "Compare" runs)
+                console.log('🔬 Compare slug:', slug, '| attempt:', attempt)
+                console.log('🔬 Compare response:', JSON.stringify(response?.data, null, 2))
+
+                const data: CompareData = response?.data?.data ?? response?.data
+                // Keep the latest (most complete) result as more platforms report in.
+                if (data?.price_comparison && data.price_comparison.length > 0) {
+                    setCompareData(data)
+                    found = true
+                }
+            } catch (err: any) {
+                console.log('compare error', err?.response?.data || err?.message)
             }
 
-            // If no data and we haven't exceeded max attempts
-            if (attempt < maxCompareAttempts) {
-                // Update progress based on attempt
-                const newProgress = Math.min(20 + (attempt * 16), 90)
-                setCompareProgress(newProgress)
+            // Drive progress + message off elapsed time toward the 15s window.
+            const elapsed = Date.now() - startedAt
+            setCompareProgress(Math.max(5, Math.min(95, Math.round((elapsed / COMPARE_MIN_DURATION) * 100))))
+            setCompareMessage(messages[Math.min(messages.length - 1, Math.floor(elapsed / 2500))])
+            setCompareAttempts(++attempt)
 
-                const messages = [
-                    'Searching across platforms...',
-                    'Checking Amazon...',
-                    'Checking eBay...',
-                    'Checking Walmart...',
-                    'Checking BestBuy...',
-                    'Almost done...'
-                ]
-                setCompareMessage(messages[Math.min(attempt, messages.length - 1)])
-                setCompareAttempts(attempt + 1)
-
-                // Wait 2 seconds before next poll
-                await new Promise(resolve => setTimeout(resolve, 2000))
-                return pollForCompareData(slug, attempt + 1)
-            }
-
-            // Max attempts reached, show what we have or empty state
-            setCompareLoading(false)
-            setCompareProgress(100)
-            return false
-        } catch (err: any) {
-            console.log('compare error', err?.response?.data || err?.message)
-            if (attempt < maxCompareAttempts) {
-                setCompareProgress(Math.min(20 + (attempt * 16), 90))
-                await new Promise(resolve => setTimeout(resolve, 2000))
-                return pollForCompareData(slug, attempt + 1)
-            }
-            setCompareLoading(false)
-            return false
+            // Wait before the next poll, without overshooting the 15s window.
+            const remaining = COMPARE_MIN_DURATION - (Date.now() - startedAt)
+            if (remaining <= 0) break
+            await new Promise(resolve => setTimeout(resolve, Math.min(2000, remaining)))
         }
+
+        return found
     }, [])
 
     // ── Fetch Functions ────────────────────────────────────────────────────────
@@ -518,6 +534,9 @@ const ProductDetails = () => {
             const response = await axios.get(url, {
                 headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             })
+            // 🔎 Full product-detail API response (e.g. when opened from a barcode scan)
+            console.log('🔎 ProductDetails source:', source, '| id:', productId)
+            console.log('🔎 ProductDetails response:', JSON.stringify(response?.data, null, 2))
             const productData: ProductData = response?.data?.data ?? response?.data
             setProduct(productData)
             setIsFavorite(productData?.is_favorite === true)
@@ -840,8 +859,8 @@ const ProductDetails = () => {
             }
         }
 
-        // 5. Fallback: placeholder
-        return { uri: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400' };
+        // 5. Fallback: clean "No Image" placeholder
+        return { uri: PLACEHOLDER_IMAGE };
     }, [product, compareData]);
 
     const imageSource = getProductImage();

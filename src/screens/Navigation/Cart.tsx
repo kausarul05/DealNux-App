@@ -1,5 +1,5 @@
 // Cart.tsx - With Shipping Address + Stripe Payment Sheet + Referral Balance
-import { CART_PRODUCT, CART_REMOVE, CART_UPDATE, IPA_BASE, STRIPE_PUBLISHABLE_KEY } from '@env'
+import { CART_PRODUCT, CART_REMOVE, CART_UPDATE, CREATE_COUPON, IPA_BASE, STRIPE_PUBLISHABLE_KEY } from '@env'
 import {
   MaterialIcons,
   Ionicons,
@@ -45,6 +45,9 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 const API_BASE_URL = IPA_BASE
 const CHECKOUT_ENDPOINT = 'payment/checkout/'
+// store/coupons/validate/ — validates a coupon against a seller's items and
+// returns the discount for that seller (coupons are per-platform/seller).
+const COUPON_VALIDATE_ENDPOINT = CREATE_COUPON
 const API_ENDPOINTS = { CART_UPDATE, CART_REMOVE }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -499,12 +502,11 @@ const PaymentSummaryModal = ({
                     <Text style={styles.breakdownValue}>{fmt(breakdown.service_fee, currency)}</Text>
                   </View>
                 )}
-                {breakdown.tax > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Tax</Text>
-                    <Text style={styles.breakdownValue}>{fmt(breakdown.tax, currency)}</Text>
-                  </View>
-                )}
+                {/* Always show Tax, even when it's 0.00 */}
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Tax</Text>
+                  <Text style={styles.breakdownValue}>{fmt(breakdown.tax, currency)}</Text>
+                </View>
 
                 {/* Referral Balance */}
                 {useBalance && balanceAmount > 0 && (
@@ -1059,16 +1061,71 @@ const CartInner = ({ onCartUpdate }: { onCartUpdate?: (count: number) => void })
 
   const handleApplyCoupon = async (name: string) => {
     const state = getCouponState(name)
-    if (!state.code.trim()) {
-      updateCouponState(name, prev => ({ ...prev, message: 'Please enter a coupon code.' }))
+    const code = state.code.trim()
+    if (!code) {
+      updateCouponState(name, prev => ({ ...prev, applied: false, message: 'Please enter a coupon code.' }))
       return
     }
-    updateCouponState(name, prev => ({ ...prev, applying: true, message: '' }))
-    // TODO: connect coupon API
-    updateCouponState(name, prev => ({
-      ...prev, applying: false, applied: true,
-      message: `✅ Coupon "${state.code}" applied!`, discountAmount: 0,
-    }))
+
+    // Only include items that have a valid seller_product id, otherwise the
+    // API rejects the request with "This field is required." for that item.
+    const items = (platformItems[name] ?? [])
+      .map(item => ({ seller_product: toNumber(item.product, 0), quantity: item.selectedQty }))
+      .filter(it => it.seller_product > 0)
+
+    if (items.length === 0) {
+      updateCouponState(name, prev => ({ ...prev, applied: false, message: 'No items to apply the coupon to.' }))
+      return
+    }
+
+    updateCouponState(name, prev => ({ ...prev, applying: true, applied: false, message: '', discountAmount: 0 }))
+
+    try {
+      const token = await AsyncStorage.getItem('vToken')
+      const body = { coupon_code: code, items }
+      console.log('🎫 Coupon validate body:', JSON.stringify(body))
+
+      const res = await axios.post(`${API_BASE_URL}${COUPON_VALIDATE_ENDPOINT}`, body, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+
+      // Success response shape:
+      // { status, message, data: { discount_applied, discount_value, final_item_total, ... } }
+      // `discount_applied` is the actual dollar amount taken off this seller's items.
+      const payload = res.data ?? {}
+      const d = payload.data ?? {}
+      const discount = toNumber(d.discount_applied, 0)
+
+      updateCouponState(name, prev => ({
+        ...prev,
+        applying: false,
+        applied: true,
+        discountAmount: discount,
+        message: payload.message || `✅ Coupon "${code}" applied!`,
+      }))
+    } catch (error: any) {
+      const resp = error?.response?.data
+      // Error shape: { coupon_code: ["Coupon '...' is invalid ...", ...] }
+      // (also used for "minimum order amount" failures). Fall back to any
+      // other field error or a generic message.
+      const firstFieldError =
+        resp && typeof resp === 'object'
+          ? (Object.values(resp).flat().find(v => typeof v === 'string') as string | undefined)
+          : undefined
+      const msg = resp?.coupon_code?.[0] || firstFieldError || resp?.message || 'Coupon is invalid or not available.'
+      console.log('🎫 Coupon validate error:', JSON.stringify(resp))
+      updateCouponState(name, prev => ({
+        ...prev,
+        applying: false,
+        applied: false,
+        discountAmount: 0,
+        message: msg,
+      }))
+    }
   }
 
   // ── More Computed ──────────────────────────────────────────────────────────
