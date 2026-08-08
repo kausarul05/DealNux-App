@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,18 @@ import {
   Dimensions,
 } from "react-native";
 import { StripeProvider, useStripe } from "@stripe/stripe-react-native";
+import {
+  initConnection,
+  endConnection,
+  fetchProducts,
+  requestPurchase,
+  finishTransaction,
+  purchaseUpdatedListener,
+  purchaseErrorListener,
+  getAvailablePurchases,
+  ErrorCode,
+  type Purchase,
+} from "react-native-iap";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,6 +42,15 @@ const API_BASE_URL = IPA_BASE
 const PLANS_ENDPOINT = "payment/plans/";
 const SUBSCRIBE_ENDPOINT = "payment/subscribe/";
 const SUBSCRIPTION_STATUS_ENDPOINT = "payment/subscription/status/";
+
+// ─── Apple In-App Purchase (iOS only) ───────────────────────────────────────
+// Apple does NOT allow Stripe for digital subscriptions, so on iOS the Premium
+// plan must go through Apple IAP (StoreKit). Android continues to use Stripe
+// exactly as before — none of the Stripe logic below is changed.
+// NOTE: confirm APPLE_VERIFY_ENDPOINT path/payload once the backend endpoint is ready.
+const APPLE_VERIFY_ENDPOINT = "payment/apple/verify/";
+const IOS_PRODUCT_MONTHLY = "com.dealnux.app.premium.monthly";
+const IOS_PRODUCT_YEARLY = "com.dealnux.app.premium.yearly";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Plan = {
@@ -560,6 +581,105 @@ const SubscriptionInner = () => {
     fetchSubscriptionStatus();
   }, []);
 
+  // ── Apple In-App Purchase (iOS only) ───────────────────────────────────────
+  // Holds the plan name of an in-flight iOS purchase so the success modal can
+  // show it (Apple purchases resolve asynchronously via the listener below).
+  const pendingPlanNameRef = useRef<string>("");
+
+  // Send the App Store transaction to our backend for verification. On iOS the
+  // unified `purchaseToken` is the StoreKit 2 JWS, which the backend validates
+  // with Apple's App Store Server API. Returns true when Premium is active.
+  const verifyApplePurchase = async (purchase: Purchase): Promise<boolean> => {
+    const token = await AsyncStorage.getItem("vToken");
+    if (!token) return false;
+    try {
+      const res = await axios.post(
+        `${API_BASE_URL}${APPLE_VERIFY_ENDPOINT}`,
+        {
+          purchase_token: purchase.purchaseToken,
+          product_id: purchase.productId,
+          transaction_id: purchase.transactionId ?? purchase.id,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      return res.data?.success === true || res.data?.is_active === true;
+    } catch (err: any) {
+      console.error("❌ Apple verify error:", err?.response?.data || err);
+      return false;
+    }
+  };
+
+  // Apple-mandatory "Restore Purchases" — re-sends any active entitlements to
+  // the backend so a reinstalled/changed device regains Premium.
+  const handleRestorePurchases = async () => {
+    try {
+      const purchases = await getAvailablePurchases();
+      let restored = false;
+      for (const p of purchases) {
+        // eslint-disable-next-line no-await-in-loop
+        if (await verifyApplePurchase(p)) restored = true;
+      }
+      await fetchSubscriptionStatus();
+      Alert.alert(
+        restored ? "Restored" : "No Purchases Found",
+        restored
+          ? "Your subscription has been restored."
+          : "We couldn't find any previous purchases to restore."
+      );
+    } catch (err) {
+      console.error("❌ Restore purchases error:", err);
+      Alert.alert("Restore Failed", "Could not restore purchases. Please try again.");
+    }
+  };
+
+  // Open the StoreKit connection and listen for purchase results (iOS only).
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    let mounted = true;
+
+    initConnection().catch((e) => console.warn("IAP init error:", e));
+
+    const updateSub = purchaseUpdatedListener(async (purchase) => {
+      try {
+        const ok = await verifyApplePurchase(purchase);
+        if (ok) {
+          // Only finish once the backend granted Premium; otherwise leave the
+          // transaction unfinished so StoreKit replays it and we can retry.
+          await finishTransaction({ purchase, isConsumable: false });
+          if (mounted) {
+            await fetchSubscriptionStatus();
+            setSuccessPlanName(pendingPlanNameRef.current || "Premium");
+            setSuccessVisible(true);
+          }
+        }
+      } catch (e) {
+        console.error("❌ IAP purchase handling error:", e);
+      } finally {
+        if (mounted) setSubscribingId(null);
+      }
+    });
+
+    const errSub = purchaseErrorListener((err) => {
+      if (mounted) setSubscribingId(null);
+      if (err.code !== ErrorCode.UserCancelled) {
+        Alert.alert("Purchase Failed", err.message || "Could not complete the purchase.");
+      }
+    });
+
+    return () => {
+      mounted = false;
+      updateSub.remove();
+      errSub.remove();
+      endConnection().catch(() => {});
+    };
+  }, []);
+
   // ── Filter plans by tab ────────────────────────────────────────────────────
   const filteredPlans = plans.filter((p) => {
     if (isFree(p.plan_type)) return true;
@@ -578,6 +698,19 @@ const SubscriptionInner = () => {
   const handleSubscribe = async (plan: Plan) => {
     try {
       setSubscribingId(plan.id);
+
+      // ── iOS: Apple In-App Purchase (StoreKit). The Android Stripe flow below
+      //    is unchanged — it only runs on Android. ──
+      if (Platform.OS === "ios") {
+        pendingPlanNameRef.current = plan.name;
+        const sku = isYearly(plan.plan_type) ? IOS_PRODUCT_YEARLY : IOS_PRODUCT_MONTHLY;
+        // Load the product first so StoreKit has metadata, then start the purchase.
+        await fetchProducts({ skus: [sku], type: "subs" });
+        await requestPurchase({ request: { apple: { sku } }, type: "subs" });
+        // The result is delivered asynchronously via purchaseUpdatedListener /
+        // purchaseErrorListener (set up in the useEffect above).
+        return;
+      }
 
       const token = await AsyncStorage.getItem("vToken");
       if (!token) {
@@ -765,9 +898,29 @@ const SubscriptionInner = () => {
           <View style={styles.footer}>
             <Ionicons name="shield-checkmark-outline" size={16} color="#9CA3AF" />
             <Text style={styles.footerText}>
-              Secured by Stripe · Cancel anytime
+              {Platform.OS === "ios"
+                ? "Billed through the App Store · Cancel anytime"
+                : "Secured by Stripe · Cancel anytime"}
             </Text>
           </View>
+
+          {/* iOS: Apple-required Restore button + legal links on the paywall */}
+          {Platform.OS === "ios" && (
+            <View style={styles.iapFooter}>
+              <TouchableOpacity onPress={handleRestorePurchases}>
+                <Text style={styles.iapRestoreText}>Restore Purchases</Text>
+              </TouchableOpacity>
+              <View style={styles.iapLegalRow}>
+                <TouchableOpacity onPress={() => navigation.navigate("TermsOfService" as never)}>
+                  <Text style={styles.iapLegalLink}>Terms of Use</Text>
+                </TouchableOpacity>
+                <Text style={styles.iapLegalDot}>·</Text>
+                <TouchableOpacity onPress={() => navigation.navigate("PrivacyPolicy" as never)}>
+                  <Text style={styles.iapLegalLink}>Privacy Policy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </ScrollView>
       </View>
 
@@ -1417,6 +1570,31 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   footerText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  iapFooter: {
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+    paddingBottom: 8,
+  },
+  iapRestoreText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1D4ED8",
+  },
+  iapLegalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  iapLegalLink: {
+    fontSize: 12,
+    color: "#6B7280",
+    textDecorationLine: "underline",
+  },
+  iapLegalDot: {
     fontSize: 12,
     color: "#9CA3AF",
   },
