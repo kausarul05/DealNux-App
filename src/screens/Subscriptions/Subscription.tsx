@@ -49,8 +49,14 @@ const SUBSCRIPTION_STATUS_ENDPOINT = "payment/subscription/status/";
 // exactly as before — none of the Stripe logic below is changed.
 // NOTE: confirm APPLE_VERIFY_ENDPOINT path/payload once the backend endpoint is ready.
 const APPLE_VERIFY_ENDPOINT = "payment/apple/verify/";
-const IOS_PRODUCT_MONTHLY = "com.dealnux.app.premium.monthly";
-const IOS_PRODUCT_YEARLY = "com.dealnux.app.premium.yearly";
+// Each backend plan_type maps to its own App Store Connect product ID. These
+// ids are fixed in App Store Connect and must match exactly.
+const IOS_PRODUCT_IDS: Record<string, string> = {
+  PRO_MONTHLY: "com.dealnux.app.pro.monthly",
+  ULTIMATE_MONTHLY: "com.dealnux.app.ultimate.monthly",
+  PRO_MAX_YEARLY: "com.dealnux.app.promax.yearly",
+  ULTIMANIA_YEARLY: "com.dealnux.app.ultimania.yearly",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Plan = {
@@ -587,8 +593,9 @@ const SubscriptionInner = () => {
   const pendingPlanNameRef = useRef<string>("");
 
   // Send the App Store transaction to our backend for verification. On iOS the
-  // unified `purchaseToken` is the StoreKit 2 JWS, which the backend validates
-  // with Apple's App Store Server API. Returns true when Premium is active.
+  // unified `purchaseToken` is the StoreKit 2 JWS (signedTransaction), which the
+  // backend verifies offline against Apple's public certificates — no App Store
+  // Server API key (.p8) required. Returns true when Premium is active.
   const verifyApplePurchase = async (purchase: Purchase): Promise<boolean> => {
     const token = await AsyncStorage.getItem("vToken");
     if (!token) return false;
@@ -703,7 +710,12 @@ const SubscriptionInner = () => {
       //    is unchanged — it only runs on Android. ──
       if (Platform.OS === "ios") {
         pendingPlanNameRef.current = plan.name;
-        const sku = isYearly(plan.plan_type) ? IOS_PRODUCT_YEARLY : IOS_PRODUCT_MONTHLY;
+        const sku = IOS_PRODUCT_IDS[plan.plan_type];
+        if (!sku) {
+          Alert.alert("Not Available", "This plan isn't available on iOS.");
+          setSubscribingId(null);
+          return;
+        }
         // Load the product first so StoreKit has metadata, then start the purchase.
         await fetchProducts({ skus: [sku], type: "subs" });
         await requestPurchase({ request: { apple: { sku } }, type: "subs" });

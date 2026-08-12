@@ -157,29 +157,61 @@ Login success-e user id AsyncStorage-e rakho (jodi already na thake), jate C3-er
 
 ## 6. Part D — Backend changes (⚠️ backend dev-er MAIN kaj)
 
-RevenueCat nai, tai **Apple verification puro backend-e**. 2 ta poth:
+RevenueCat nai, tai **Apple verification puro backend-e**.
 
-### Poth 1 — Modern (recommended): App Store Server API + Notifications V2
+> **⚠️ DECISION (client Randy, 2026-08-10): NO .p8 / App Store Server API key.** Client security-r karone kono App Store Connect API key (.p8, Key ID, Issuer ID) share korbe na. Tai backend **KEYLESS verification** korbe — **offline JWS signature verify** (Apple public certs) + **Server Notifications V2** webhook. .p8 lage NA. Ei approach-e sob cover hoy; shudhu backend Apple-ke proactively query korte parbe na (jeta amader flow-e lage na — app-i JWS pathay, ar notifications renewal pathay).
+
+### KEYLESS approach (final)
 - **Verify endpoint** (`POST payment/apple/verify/`):
-  - App theke receipt/transactionId ase
-  - Apple **App Store Server API** (`/inApps/v1/transactions/{id}`) diye JWS transaction verify (JWT signed with .p8 key)
-  - Valid + active hole user ke Premium grant
+  - App theke `purchase_token` ase = StoreKit 2 **JWS signedTransaction** (Apple-signed). Frontend already eta pathacche.
+  - Backend JWS-er `x5c` cert chain **Apple Root CA (G3)** porjonto verify kore (offline, public cert) → payload decode → productId/bundleId/expiry check → valid + active hole Premium grant. **Kono .p8 / API call lage na.**
 - **Notifications V2 webhook** (`POST payment/apple/notifications/`):
-  - Apple renewal/cancel/refund/billing-issue pathay (signed JWS payload)
-  - decode + verify → Premium on/off
-
-### Poth 2 — Simpler (legacy): verifyReceipt
-- `POST https://buy.itunes.apple.com/verifyReceipt` (fail hole sandbox URL retry) + App-Specific Shared Secret
-- Renewal-er জonno periodic re-check ba Server Notifications
-- **Deprecated** kintu ekhono kaj kore — druto shuru korার জonno OK
-
-> Recommendation: **Poth 1** (Apple future-e etai chay), kintu somoy kom thakle Poth 2 diye launch kore pore migrate।
+  - App Store Connect-e webhook URL set (App Manager access-e hoy, key lage na)
+  - Apple renewal/cancel/refund/billing-issue **signed JWS (signedPayload)** pathay → ekivabe public cert diye verify → Premium on/off
+- **Tool:** Apple-er official **`app-store-server-library`** (Python/Node/Java) — er **`SignedDataVerifier`** diye .p8 chhara-i JWS + notifications verify hoy. (.p8 shudhu `AppStoreServerAPIClient`-er jonno lagto — seta use korchi na.)
 
 **Backend dev-er scope:**
-1. `payment/apple/verify/` — receipt verify + Premium grant
-2. `payment/apple/notifications/` — App Store Server Notification webhook
+1. `payment/apple/verify/` — JWS offline verify + Premium grant
+2. `payment/apple/notifications/` — Server Notifications V2 webhook (signed JWS verify)
 3. Existing `payment/subscription/status/` — Premium je source-ei asuk same `is_active: true`
 4. (Optional) plan table-e `apple_product_id`
+
+> Notifications V2 production verify-e `appAppleId` (numeric App Store ID) lage — app record create hole App Manager dekhte parbe.
+
+---
+
+## 6.5. ⚠️ API CONTRACT (frontend already ei format-e code kora — backend HUBOHU eta match korte hobe)
+
+Frontend already built. Backend endpoint ei exact request nibe + exact response ferat dibe, nahole Premium unlock hobe na.
+
+### `POST payment/apple/verify/`
+**Request headers:**
+```
+Authorization: Bearer <DealNux JWT>   ← ei token diye user identify koro (Android Stripe-er same token, AsyncStorage key "vToken")
+Content-Type: application/json
+```
+**Request body (frontend ei 3 field pathay):**
+```json
+{
+  "purchase_token": "<StoreKit 2 JWS signedTransaction>",   // ← eta offline verify koro
+  "product_id": "com.dealnux.app.premium.monthly",           // ba .yearly
+  "transaction_id": "<Apple transaction id>"
+}
+```
+**Response (frontend ei duitor JEKONO ekta `true` hole success dhore):**
+```json
+{ "success": true }        // OR
+{ "is_active": true }
+```
+> Fail hole `success:false` / `is_active:false` (ba non-200) — frontend transaction finish korbe na, StoreKit re-deliver korbe (safe retry)।
+
+### Restore Purchases
+Same `payment/apple/verify/` endpoint **abar call hobe** — Restore-er somoy purono/active transaction গুলোও ekei endpoint-e ashbe. Tai endpoint idempotent rakho (already-active hole-o `is_active:true` ferao)।
+
+### `GET payment/subscription/status/` (already exists — Stripe-er jonno)
+Apple theke Premium grant howar por eтাও **same `is_active: true`** ferat dite hobe (source Stripe hok ba Apple — app ekই endpoint pore)। App verify-er por ei endpoint call kore UI unlock kore.
+
+**Product ID ↔ plan_type map:** `.monthly` → MONTHLY, `.yearly` → YEARLY.
 
 ---
 
@@ -218,10 +250,11 @@ RevenueCat nai, tai **Apple verification puro backend-e**. 2 ta poth:
 
 ## 10. Open items / decisions needed
 
-- [ ] **Admin role** — client ekhono dey ni (product setup + server keys-e lage)
-- [ ] **Backend dev** — Apple verify + Notifications V2 add korte raji + somoy? (eta boro kaj)
-- [ ] Backend verification **Poth 1 (Server API)** naki **Poth 2 (verifyReceipt)** — backend dev decide korবe
-- [ ] **User id** app-e kothায় ache (verify call-e lage) — confirm
+- [x] **Roles** — client **Developer + App Manager** diyeche (2026-08-10) → build/upload/submit unblocked. Admin lagbe na (keyless approach).
+- [x] **No .p8 key** — client API key share korbe na → **keyless JWS verify** decided (Part D)।
+- [ ] **Backend dev** — keyless JWS verify + Notifications V2 add korte raji + somoy? (`app-store-server-library` `SignedDataVerifier`)
+- [ ] **App Store Connect products** setup (`.monthly` / `.yearly`) — App Manager pare
+- [ ] **Server Notifications V2 URL** — backend URL pele App Store Connect-e boshate hobe
 - [ ] **Trial / price** — Apple Introductory Offer + fixed price tier-er sathe backend milaতে hobe
 
 ---
