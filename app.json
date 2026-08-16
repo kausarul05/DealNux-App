@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.dealnux.app",
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
