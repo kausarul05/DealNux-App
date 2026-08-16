@@ -19,6 +19,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthStackParamList } from "../../Navigation/types";
 import { Toast, useToast } from "../../components/useToost";
 
+// Every legal/policy tab from the DealNux website. `slug` maps to the backend
+// `policy/{slug}/` endpoint; all open in the shared PolicyViewer screen.
+const LEGAL_POLICIES: { title: string; slug: string }[] = [
+    { title: "Terms & Conditions", slug: "terms-of-service" },
+    { title: "Privacy Policy", slug: "privacy-policy" },
+    { title: "Seller Policy", slug: "seller-policy" },
+    { title: "Payment Policy", slug: "emi-payment-policy" },
+    { title: "Return Policy", slug: "return-policy" },
+    { title: "Refund Policy", slug: "refund-policy" },
+    { title: "Delivery Policy", slug: "delivery-policy" },
+    { title: "Exchange Policy", slug: "exchange-policy" },
+    { title: "Cookie Policy", slug: "cookie-policy" },
+    { title: "Pre-Order Policy", slug: "pre-order-policy" },
+    { title: "Buyer Protection Policy", slug: "buyer-protection-policy" },
+    { title: "Prohibited Products Policy", slug: "prohibited-products-policy" },
+    { title: "Intellectual Property Policy", slug: "intellectual-property-policy" },
+    { title: "Community Guidelines", slug: "community-guidelines" },
+];
+
+// Same copyright line shown on the website footer.
+const COPYRIGHT_TEXT =
+    "Copyright © 2026 Brightway Consult & HR/Recruiting Solutions LLC. All rights reserved.";
+
 const Card = ({ children, className = "" }: any) => (
     <View className={`bg-white rounded-2xl shadow-sm shadow-black/10 ${className}`}>
         {children}
@@ -386,26 +409,19 @@ const Profile = () => {
                         />
                     </Card>
 
-                    {/* Legal */}
+                    {/* Legal — every legal/policy tab the website has */}
                     <Card className="mt-5 px-4 pt-4">
-                        <Text className="text-base font-bold text-[#2D2D2D] mb-2">Legal</Text>
-                        <RowItem
-                            title="Privacy policy"
-                            leftIcon={<MaterialCommunityIcons name="shield-check-outline" size={16} color="#636F85" />}
-                            onPress={() => navigation.navigate("PrivacyPolicy")}
-                        />
-                        <Divider />
-                        <RowItem
-                            title="Terms of Service"
-                            onPress={() => navigation.navigate("TermsOfService")}
-                            leftIcon={<MaterialCommunityIcons name="music-note-outline" size={16} color="#636F85" />}
-                        />
-                        <Divider />
-                        <RowItem
-                            title="Return policy"
-                            onPress={() => navigation.navigate("ReturnPolicy")}
-                            leftIcon={<MaterialCommunityIcons name="keyboard-return" size={16} color="#636F85" />}
-                        />
+                        <Text className="text-base font-bold text-[#2D2D2D] mb-2">Legal & Policies</Text>
+                        {LEGAL_POLICIES.map((policy, index) => (
+                            <View key={policy.slug}>
+                                {index > 0 && <Divider />}
+                                <RowItem
+                                    title={policy.title}
+                                    leftIcon={<MaterialCommunityIcons name="file-document-outline" size={16} color="#636F85" />}
+                                    onPress={() => navigation.navigate("PolicyViewer", { slug: policy.slug, title: policy.title })}
+                                />
+                            </View>
+                        ))}
                     </Card>
 
                     {/* Connect */}
@@ -439,6 +455,11 @@ const Profile = () => {
                         </View>
                         <Text className="text-[15px] font-bold text-[#EF4444]">Logout</Text>
                     </TouchableOpacity>
+
+                    {/* Copyright — same line as the website footer */}
+                    <Text className="text-xs text-gray-400 text-center px-4 mb-8">
+                        {COPYRIGHT_TEXT}
+                    </Text>
                 </ScrollView>
             </View>
 

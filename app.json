@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DEALNUX",
+    "name": "DealNux",
     "slug": "savvy-shopper",
     "version": "1.0.0",
     "scheme": "savvyshopper",
@@ -65,7 +65,7 @@
         {
           "appID": "25870171595935078",
           "clientToken": "dcb2b543991b7644bad597d84bec3e14",
-          "displayName": "DEALNUX",
+          "displayName": "DealNux",
           "scheme": "fb25870171595935078"
         }
       ],
@@ -87,7 +87,16 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "eas": {

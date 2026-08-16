@@ -16,13 +16,23 @@ import {
     Linking,
     Image,
 } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useChat } from '../hooks/useChat'
 import SuggestedReplies from './chat/SuggestedReplies'
 import { WebView } from 'react-native-webview'
 
 const { height } = Dimensions.get('window')
+
+// Same welcome copy + quick replies as the DealNux website chatbot, so the
+// app's assistant matches the web experience exactly.
+const WELCOME_MESSAGE =
+    'Welcome to DealNux AI. I can help you find products and compare the best prices across top retailers. What are you shopping for today?'
+const WELCOME_SUGGESTIONS = [
+    'Find me a phone under $200',
+    'Show running shoes under $100',
+    'Best deals on headphones',
+]
 
 interface ChatBotModalProps {
     visible: boolean
@@ -305,14 +315,14 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                     <View style={styles.header}>
                         <View style={styles.headerLeft}>
                             <View style={styles.botIcon}>
-                                <Ionicons name="chatbubbles" size={24} color="#2563EB" />
+                                <MaterialCommunityIcons name="robot-happy" size={24} color="#2563EB" />
                             </View>
                             <View>
-                                <Text style={styles.headerTitle}>ChatBot Assistant</Text>
+                                <Text style={styles.headerTitle}>DealNux AI</Text>
                                 <View style={styles.statusRow}>
                                     <View style={[styles.statusDot, isConnected && styles.statusDotConnected]} />
                                     <Text style={styles.statusText}>
-                                        {isConnected ? 'Online' : isLoading ? 'Connecting...' : 'Offline'}
+                                        {isConnected ? 'Online · Ready to help' : isLoading ? 'Connecting...' : 'Offline'}
                                     </Text>
                                 </View>
                             </View>
@@ -344,15 +354,18 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                         {messages.length === 0 && !isLoading && !error ? (
                             <View style={styles.welcomeContainer}>
                                 <View style={styles.welcomeIcon}>
-                                    <Ionicons name="chatbubbles" size={48} color="#2563EB" />
+                                    <MaterialCommunityIcons name="robot-happy" size={48} color="#2563EB" />
                                 </View>
-                                <Text style={styles.welcomeTitle}>Welcome to ChatBot!</Text>
+                                <Text style={styles.welcomeTitle}>Welcome to DealNux AI</Text>
                                 <Text style={styles.welcomeText}>
-                                    Ask me about products, prices, or anything else!
+                                    {WELCOME_MESSAGE}
                                 </Text>
-                                <Text style={styles.welcomeSubText}>
-                                    Try: "Show me running shoes under $100"
-                                </Text>
+                                <View style={styles.welcomeSuggestions}>
+                                    <SuggestedReplies
+                                        replies={WELCOME_SUGGESTIONS}
+                                        onPress={handleSuggestedReply}
+                                    />
+                                </View>
                             </View>
                         ) : messages.length === 0 && isLoading ? (
                             <View style={styles.loadingContainer}>
@@ -556,6 +569,10 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         textAlign: 'center',
         marginBottom: 8,
+    },
+    welcomeSuggestions: {
+        marginTop: 12,
+        width: '100%',
     },
     welcomeSubText: {
         fontSize: 13,

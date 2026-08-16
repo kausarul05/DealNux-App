@@ -24,6 +24,7 @@ export type AuthStackParamList = {
   NotificationSettings: undefined;
   PrivacyPolicy: undefined;
   ReturnPolicy: undefined;
+  PolicyViewer: { slug: string; title: string };
   ReFarAndEarn: undefined;
   MyAds: undefined;
   AdsPerformance: undefined;

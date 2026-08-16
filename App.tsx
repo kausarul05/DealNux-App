@@ -40,10 +40,16 @@ import EditProduct from './src/screens/Shop/EditProduct';
 import TermsOfService from './src/screens/Settings/TermsOfService';
 import AboutUs from './src/screens/Settings/aboutus';
 import ContactUs from './src/screens/Settings/ContactUs';
+import PolicyViewer from './src/screens/Settings/PolicyViewer';
 import AppReview from './src/screens/Settings/AppReview';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { BrandHeader } from './src/components/BrandHeader';
 import MyOrders from './src/screens/Settings/MyOrders';
+import { setupAuthInterceptor } from './src/utils/authInterceptor';
+
+// Register the global 401 -> token-refresh interceptor once, before any screen
+// makes a request. Keeps the session alive instead of dying after ~30 min.
+setupAuthInterceptor();
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
@@ -77,6 +83,7 @@ function AuthStack() {
       <Stack.Screen name="AppReview" component={AppReview} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="ReturnPolicy" component={ReturnPolicy} options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="PolicyViewer" component={PolicyViewer} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="AdsPerformance" component={AdsPerformance} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettings} options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="MyFavourite" component={MyFavourite} options={{ animation: "slide_from_right" }} />

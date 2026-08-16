@@ -127,7 +127,7 @@ const ContactUs = () => {
   }
 
   return (
-    <SafeAreaView className="bg-[#F9F9FB] flex-1">
+    <View className="bg-[#F9F9FB] flex-1">
       <View className="px-5 flex-1">
         {/* Header */}
         <View className="flex-row items-center gap-4 py-2">
@@ -306,7 +306,13 @@ const ContactUs = () => {
               >
                 <LinearGradient
                   colors={loading ? ['#9CA3AF', '#6B7280'] : ['#2563EB', '#1D4ED8']}
-                  className="py-4 flex-row items-center justify-center gap-3"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 12,
+                    paddingVertical: 16,
+                  }}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
@@ -327,7 +333,7 @@ const ContactUs = () => {
           )}
         </KeyboardAvoidingView>
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 

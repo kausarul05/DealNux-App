@@ -442,38 +442,16 @@ const ProductDetails = () => {
         extrapolate: 'clamp',
     })
 
-    const loadComparison = useCallback(async () => {
-        if (!product?.slug) {
-            toast.show({ message: 'Product slug not available', type: 'error', style: 'top' });
-            return;
-        }
-
-        setShowCompareSection(true);
-        setCompareLoading(true);
-        setCompareProgress(5);
-        setCompareMessage('Finding best deals...');
-        setCompareAttempts(0);
-
-        // Runs the full ~15s search window, then we reveal the results.
-        const result = await pollForCompareData(product.slug);
-
-        setCompareProgress(100);
-        setCompareLoading(false);
-
-        if (!result) {
-            toast.show({
-                message: 'No comparison data found for this product',
-                type: 'info',
-                style: 'top'
-            });
-        }
-    }, [product?.slug, pollForCompareData, toast]);
-
     // ── Comparison Polling ────────────────────────────────────────────────────
     // Keeps polling the compare endpoint for the full COMPARE_MIN_DURATION (~15s)
     // so results accumulate across platforms (Amazon, eBay, Walmart, ...) before
     // we reveal them. Does NOT flip compareLoading off — loadComparison reveals
     // the results once the search window has fully elapsed.
+    //
+    // NOTE: this MUST be declared before loadComparison — loadComparison lists it
+    // in its dependency array, and a `const` used before its declaration throws a
+    // ReferenceError (temporal dead zone) that crashed the whole screen and broke
+    // comparison for every product.
     const pollForCompareData = useCallback(async (slug: string) => {
         const startedAt = Date.now()
         const messages = [
@@ -523,6 +501,33 @@ const ProductDetails = () => {
 
         return found
     }, [])
+
+    const loadComparison = useCallback(async () => {
+        if (!product?.slug) {
+            toast.show({ message: 'Product slug not available', type: 'error', style: 'top' });
+            return;
+        }
+
+        setShowCompareSection(true);
+        setCompareLoading(true);
+        setCompareProgress(5);
+        setCompareMessage('Finding best deals...');
+        setCompareAttempts(0);
+
+        // Runs the full ~15s search window, then we reveal the results.
+        const result = await pollForCompareData(product.slug);
+
+        setCompareProgress(100);
+        setCompareLoading(false);
+
+        if (!result) {
+            toast.show({
+                message: 'No comparison data found for this product',
+                type: 'info',
+                style: 'top'
+            });
+        }
+    }, [product?.slug, pollForCompareData, toast]);
 
     // ── Fetch Functions ────────────────────────────────────────────────────────
     const fetchProductDetails = async () => {
