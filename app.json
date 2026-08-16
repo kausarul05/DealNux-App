@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.dealnux.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -97,7 +97,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "./plugins/withRemoveAdId"
     ],
     "extra": {
       "eas": {
