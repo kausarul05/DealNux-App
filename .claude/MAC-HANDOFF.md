@@ -1,131 +1,109 @@
-# 🖥️ DEALNUX — Mac Handoff (iOS App Store Submission)
+# 🖥️ DEALNUX — Mac Handoff (finish the iOS App Store submission)
 
 > **Fresh Claude Code on the Mac: read this file first.** It carries the full state
-> of the iOS App Store work so nothing is lost when moving from the Windows PC to
-> the Mac. This chat session does NOT transfer between machines — this doc is the bridge.
+> of the work. The chat session does NOT transfer between machines — this doc is the bridge.
 >
-> User: kausarul (kauserulislam0055@gmail.com). Communicates in romanized Bengali (Banglish) — reply in Banglish.
+> User: kausarul (kauserulislam0055@gmail.com), replies in romanized Bengali (Banglish) — answer in Banglish.
 
 ---
 
-## 🎯 GOAL RIGHT NOW
-Upload the already-built iOS app to App Store Connect from the Mac **using the
-user's OWN Apple ID (no shared API key)**, test the In-App Purchases on the iPhone
-via TestFlight + Sandbox, then submit for review.
+## 🎯 THE MAC TASK (short version)
+Upload the **already-built iOS `.ipa`** to App Store Connect using the user's OWN
+Apple ID (no shared API key), test the In-App Purchases on the iPhone via TestFlight
++ Sandbox, then submit for review. **A heavy local dev setup is NOT required** — just
+the free **Transporter** app + the `.ipa`.
 
-## ✅ WHAT IS ALREADY DONE
-- **Build DONE.** EAS produced an App Store–signed `.ipa` (App Store distribution).
-  Artifact: `https://expo.dev/artifacts/eas/XzIzXX6qnxnqlRGFQWoT9tI0omExpNs0ICB8hmOnAxA.ipa`
-  (EAS build id `cb7d069a-d3cb-4b90-918d-1e1d6564d3ec`). **A fresh build is NOT needed
-  just to upload** — this .ipa is ready for Transporter/TestFlight.
-- **Frontend IAP code DONE & pushed** (`src/screens/Subscriptions/Subscription.tsx`):
-  4-tier product map, iOS purchase branch, `verifyApplePurchase()`, Restore button,
-  Terms/Privacy links. Android Stripe flow UNTOUCHED. All committed to `main`.
-- **4 subscription products CREATED** in App Store Connect (group "DealNux Premium",
-  app Apple ID `6800175439`), all "Prepare for Submission", availability = 175 countries,
-  English (U.S.) localization, price set:
+## 📦 THE iOS BUILD
+- Built via EAS (production profile), version **1.0.0**, buildNumber **1**, includes ALL
+  the fixes below.
+- Build page (download the `.ipa` here):
+  `https://expo.dev/accounts/kausarul/projects/savvy-shopper/builds/ad9700b2-4e76-49f2-bd99-92f1d2fc4900`
+  (If a newer iOS build exists, use `eas build:list --platform ios` and take the latest finished one.)
 
-  | Plan | plan_type | Product ID | Price | Apple ID |
-  |---|---|---|---|---|
-  | DealNux PRO | PRO_MONTHLY | `com.dealnux.app.pro.monthly` | $5.99/mo | 6800185261 |
-  | DealNux ULTIMATE | ULTIMATE_MONTHLY | `com.dealnux.app.ultimate.monthly` | $24.99/mo | 6800185251 |
-  | DealNux PRO MAX | PRO_MAX_YEARLY | `com.dealnux.app.promax.yearly` | $69.99/yr | 6800185133 |
-  | DealNux ULTIMANIA | ULTIMANIA_YEARLY | `com.dealnux.app.ultimania.yearly` | $179.99/yr | 6800185403 |
-- **Webhook set** (Production + Sandbox) → `https://server.dealnux.shop/api/v1/payment/apple/notifications/`
-- **iOS store assets** generated at `appstore-assets/` (1024 icon, 6.7" screenshots).
+## 📲 MAC STEPS (do this with the user, live)
+1. **Transporter** — install from the Mac App Store (free, by Apple).
+2. **App-specific password** — user goes to appleid.apple.com → Sign-In & Security →
+   App-Specific Passwords → create one. (User keeps it; Claude never sees it.)
+3. **Download the `.ipa`** from the build page above.
+4. **Upload** — open Transporter → sign in with **kauserulislam0055@gmail.com** + the
+   app-specific password → drag the `.ipa` → **Deliver**. ~10–15 min → the build appears
+   in App Store Connect → **TestFlight** (Processing, then ready).
+5. **Test on the iPhone (Sandbox)** — install via the **TestFlight** app → iPhone
+   Settings → App Store → **Sandbox Account** → sign in with the Sandbox tester
+   (`dealnux.sandbox@test.com`; user types the password) → open the app → buy each of the
+   4 subscription plans (Sandbox = fake money).
+   - ⚠️ Purchases only unlock if the backend `payment/apple/verify/` endpoint is LIVE (see Pending).
+6. **Per-product review screenshots** — screenshot the subscription screen from the
+   TestFlight build; attach one to EACH of the 4 subscription products in App Store Connect.
+7. **Submit for review** — App Store Connect → the app version → attach the 4 subscriptions
+   + app screenshots, add a **reviewer demo login + notes** (how to reach the subscription
+   screen), then **Submit for Review**. The user's App Manager role can do this.
 
 ## 🚫 HARD CONSTRAINTS (do not break)
-- **Client REFUSES to share ANY App Store Connect API key** (.p8 / Key ID / Issuer ID).
-  So `eas submit` will NOT be used (it needs a key; App Manager can't create one → 403).
-  Upload path = **Transporter/Xcode with the user's own Apple ID** only.
-- **Claude must NOT enter passwords / 2FA / create accounts.** The user types every
-  password and 2FA code themselves. For interactive terminal logins, tell the user to
-  run it via the `! <command>` prefix in Claude Code.
-- **Do NOT touch the Android Stripe flow.**
-- Keystores / passwords / .p8 are secrets — never commit or print them.
-- User's role on the client's Apple team: **Developer + App Manager** (NOT Admin/Account
-  Holder). App Manager CAN upload builds and submit for review. It CANNOT create API keys,
-  sign agreements, or do banking.
+- **No shared App Store Connect API key** — client refuses. Upload only via Transporter/Xcode
+  with the user's OWN Apple ID. Do NOT use `eas submit` (needs an API key → 403).
+- **Claude must NOT enter passwords / 2FA / create accounts.** User types every password.
+  For interactive terminal logins, tell the user to run it with the `! <command>` prefix.
+- Do NOT touch the Android Stripe flow. Keystores/passwords/.p8 are secrets — never commit/print.
+
+## 📁 FILES TO BRING TO THE MAC (not in git!)
+- **`.env`** (gitignored) — API endpoints. Copy it from the Windows PC into the project root,
+  or the app won't connect. **Required.**
+- For iOS work you do NOT need `credentials.json` or `release.jks` (those are Android signing only).
+
+## 🔁 RESUME WITH CLAUDE ON THE MAC (optional — only if you want Claude's help there)
+```
+brew install node
+npm install -g @anthropic-ai/claude-code
+git clone https://github.com/kausarul05/DealNux-App.git
+cd DealNux-App
+npm install          # then copy .env into this folder
+claude               # then say: "Read .claude/MAC-HANDOFF.md and continue the iOS submission"
+```
 
 ---
 
-## 📋 MAC STEP-BY-STEP (do this with the user, live)
+## ✅ WHAT WAS FIXED THIS SESSION (client feedback from Randy A)
+All in git on `main`. The iOS build + Android v4 build both include these:
+1. App name **DEALNUX → DealNux** (also fbsdk displayName).
+2. New client logo (`assets/Dealnux_Final.png`) as **app icon** (full-bleed) + **splash screen**
+   (there was no splash config before → a default flashed on launch).
+3. Chatbot → **"DealNux AI"**: robot icon, website welcome message + suggestions, "Online · Ready to help".
+   (`src/components/ChatModal.tsx`)
+4. **Auto token-refresh interceptor** (`src/utils/authInterceptor.ts`) — fixes app freeze / "no data" /
+   crash after ~30 min. The refresh token was stored but never used. **Needs backend to set the
+   `REFRESH_TOKEN` endpoint** in `.env` AND in the **EAS production environment** (see Pending).
+5. **Comparison crash fixed** — `pollForCompareData` was used before its declaration (temporal dead
+   zone) and crashed ProductDetails. (`src/screens/Home/ProductDetails.tsx`)
+6. **Legal & Policies**: all 14 website policy tabs via a shared `PolicyViewer` screen (was only 3,
+   and Privacy showed EMI-policy content). (`src/screens/Settings/PolicyViewer.tsx`, `Profile.tsx`)
+7. **Copyright** line matching the website footer added to Profile.
+8. **Contact "Send Message"** button alignment fixed (`ContactUs.tsx`).
+9. **AD_ID permission stripped** via config plugin (`plugins/withRemoveAdId.js`) so Play Console
+   "advertising ID = No" is valid on Android.
 
-### Step 1 — Get the .ipa
-Download from the EAS artifact URL above (or `eas build:list --platform ios` → latest).
+## 🤖 ANDROID / PLAY STORE (separate track — needs only a browser, no Mac)
+- **AAB ready (versionCode 4, AD_ID-fixed, signed with release.jks):**
+  `https://expo.dev/artifacts/eas/aq5LfkMId3sJQ4md9ln1Snctv06PnB4lpGuoaZNS1-Q.aab`
+- Play Console → DealNux → Test and release → Production → Create new release (this is an UPDATE to
+  the existing app, NOT a new app) → upload the `.aab` → **App content → Advertising ID → "No"** →
+  add the **512×512 store icon** (`appstore-assets/playstore_icon_512.png`) under Store presence →
+  Main store listing → ensure store-listing text is the compliant version → Send for review.
+- Version config: `eas.json` uses `appVersionSource: local`; Android versionCode lives in
+  `app.json` (`android.versionCode`), iOS in `app.json` (`ios.buildNumber`). Bump manually per release.
+- Android production is signed with the **local `release.jks`** (SHA1 `1FB9ACC1…`, the Play upload
+  key) forced via `credentialsSource: local` + `credentials.json` (gitignored). Keep release.jks safe.
 
-### Step 2 — App-specific password (needed because Apple ID has 2FA)
-User goes to appleid.apple.com → Sign-In & Security → App-Specific Passwords → create one
-(e.g. "Transporter"). **User keeps this; Claude never sees it.**
+## ⏳ PENDING (backend — message the backend dev)
+1. **Token refresh** — give the refresh endpoint path (e.g. `account/login/refresh/`); set it in
+   `.env` `REFRESH_TOKEN` AND in the **EAS production environment**. Also raise ACCESS_TOKEN_LIFETIME.
+2. **Contact Us** — `POST policy/contact/send/` is failing ("Failed to send message"); confirm it's
+   live and returns `{ ticket_id }`.
+3. **Apple IAP** — `payment/apple/verify/` (keyless offline JWS verify) + `payment/apple/notifications/`
+   (Server Notifications V2) must be live, or Sandbox purchases won't unlock and the reviewer rejects.
 
-### Step 3 — Install Transporter
-Mac App Store → search **Transporter** (by Apple) → free install.
-
-### Step 4 — Upload
-Open Transporter → sign in with **kauserulislam0055@gmail.com** + the app-specific password
-→ drag the `.ipa` in → **Deliver / Upload**. Apple processes ~10–15 min → build appears in
-App Store Connect under **TestFlight** (status "Processing" then ready).
-
-### Step 5 — Test on iPhone (Sandbox)
-- iPhone: install **TestFlight** app → sign in → install the DealNux build.
-- Settings → App Store → Sandbox Account → sign in with the **Sandbox tester** the user
-  created (`dealnux.sandbox@test.com`). (User enters that password, not Claude.)
-- In the app, open the subscription screen and buy each plan — Sandbox = fake money.
-- **⚠️ Purchase will only unlock if the backend `apple/verify/` endpoint is LIVE** (see below).
-
-### Step 6 — Per-product review screenshots
-Take a screenshot of the app's subscription screen (from the TestFlight build) and attach
-one to EACH of the 4 subscription products in App Store Connect (required for review).
-
-### Step 7 — Submit for review
-In App Store Connect → the app version → attach the 4 subscriptions + app screenshots,
-fill store listing (name/desc — see store metadata below), add **reviewer test login +
-notes** (a demo account + how to reach the subscription screen), then **Submit for Review**.
-App Manager role can do this.
-
----
-
-## ⏳ PENDING / BLOCKERS TO CONFIRM
-1. **Backend endpoints LIVE?** Ask the backend dev whether these are deployed:
-   - `POST /api/v1/payment/apple/verify/` — **keyless** offline JWS verify (StoreKit 2
-     `signedTransaction` verified against Apple public certs, Apple Root CA G3; tool =
-     Apple `app-store-server-library` `SignedDataVerifier`; **no .p8**).
-   - `.../payment/apple/notifications/` — App Store Server Notifications V2 webhook.
-   Without `verify/` live, Sandbox purchases won't unlock and the reviewer will reject.
-2. **Reviewer demo login** — needed in the submission notes.
-3. **Per-product review screenshots** — needs a real screenshot from the built app.
-4. Play Store (separate track) — re-submit with corrected metadata (already fixed).
-
-## 🔌 API CONTRACT (frontend ↔ backend, already implemented in Subscription.tsx)
-- Endpoints: `payment/plans/`, `payment/subscribe/` (Android Stripe),
-  `payment/subscription/status/`, `payment/apple/verify/` (iOS).
-- iOS verify request: `{ purchase_token: <StoreKit2 JWS>, product_id, transaction_id }`
-  with header `Authorization: Bearer <vToken>`.
-- Success = `res.data.success === true || res.data.is_active === true`. Only then call
-  `finishTransaction`. Restore = loop `getAvailablePurchases()` → same verify endpoint
-  (backend is idempotent).
-
-## 📁 KEY FILES / DOCS IN THIS REPO
-- `src/screens/Subscriptions/Subscription.tsx` — the only frontend IAP file.
-- `.claude/iOS-IAP-Plan.md` — full plan (Part D = keyless verification).
-- `.claude/postman/frontend_ios_iap_guideline 1.md` — backend dev's contract (4 products).
-- `.claude/Subscription/Monthly.png`, `Yearly.png` — plan features/pricing reference.
-- `app.json` — bundleId `com.dealnux.app`; expo-build-properties has the CocoaPods
-  `modular_headers` fix for GoogleUtilities + RecaptchaInterop (needed for a clean pod install).
-- `package.json` — includes `react-native-nitro-modules ^0.36.5` (required by react-native-iap 16).
-
-## 🏷️ STORE LISTING METADATA (Play Store–compliant, reuse for App Store)
-Final approved app name/short/full description live in the Claude memory file
-`dealnux-store-listing-metadata.md` (on the Windows PC's `~/.claude`). The key rule:
-**no popularity/testimonial/"best/#1" claims** (that's what got Play Store rejected).
-If needed, ask the user to paste that text, or re-derive from
-`.claude/Problem/DEALNUX.App.Deployment.Write.Up.docx`.
-
----
-
-## 🔁 HOW TO RESUME ON THE MAC
-1. `git clone` the repo from GitHub, `cd` in, `npm install`.
-2. Open Claude Code in the project. Say: **"Read `.claude/MAC-HANDOFF.md` and continue the
-   iOS submission."**
-3. Claude won't have the old chat, but this doc + the committed `.claude/` plans give it
-   everything. The memory files from the PC won't be there — the important bits are captured above.
+## 🗂️ KEY PROJECT DOCS
+- `.claude/iOS-IAP-Plan.md` — full IAP plan (Part D = keyless verification).
+- `.claude/postman/frontend_ios_iap_guideline 1.md` — backend contract (4 subscription products).
+- 4 subscription products already created in App Store Connect (group "DealNux Premium", app Apple ID
+  6800175439): pro.monthly $5.99, ultimate.monthly $24.99, promax.yearly $69.99, ultimania.yearly $179.99.
