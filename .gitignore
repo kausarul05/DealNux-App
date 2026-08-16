@@ -44,3 +44,6 @@ yarn-error.*
 # Signing keystores — never commit
 *.jks
 *.keystore
+
+# EAS local credentials (contains keystore passwords) — never commit
+credentials.json
