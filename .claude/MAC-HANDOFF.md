@@ -16,9 +16,10 @@ the free **Transporter** app + the `.ipa`.
 ## 📦 THE iOS BUILD
 - Built via EAS (production profile), version **1.0.0**, buildNumber **1**, includes ALL
   the fixes below.
-- **Direct `.ipa` download:**
-  `https://expo.dev/artifacts/eas/9gTqLiS0HGlZWHApQnMEOlDyKH1LTfiIOk2WWK7qKuo.ipa`
-- Build page: `https://expo.dev/accounts/kausarul/projects/savvy-shopper/builds/ad9700b2-4e76-49f2-bd99-92f1d2fc4900`
+- **Direct `.ipa` download (CURRENT — includes the login/session fix):**
+  `https://expo.dev/artifacts/eas/vzAWMLbENtv2EUeD4HJgysnyZxn6fqto-AvdyZ8Dc24.ipa`
+  (Earlier `.ipa`s predate the session fix — do not use them.)
+- Build page: `https://expo.dev/accounts/kausarul/projects/savvy-shopper/builds/b2a450b7-d18b-4f75-aacb-2b501eab5eca`
   (If a newer iOS build exists, use `eas build:list --platform ios` and take the latest finished one.)
 
 ## 📲 MAC STEPS (do this with the user, live)
