@@ -17,6 +17,7 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { IPA_BASE, REFRESH_TOKEN } from '@env'
+import { resetToSignIn } from './navigationRef'
 
 // The refresh endpoint, e.g. IPA_BASE + "account/login/refresh/".
 // Empty REFRESH_TOKEN => refresh disabled (safe no-op).
@@ -101,9 +102,12 @@ export const setupAuthInterceptor = () => {
             }
 
             if (!newToken) {
-                // Refresh failed — session is truly over. Drop the dead access
-                // token so the app can route back to sign-in on next check.
-                await AsyncStorage.removeItem('vToken')
+                // Refresh failed — the session is truly over (refresh token
+                // expired/revoked). Clear it and send the user to sign-in, so the
+                // app never sits in the broken "logged in but nothing loads"
+                // state that required a manual logout.
+                await AsyncStorage.multiRemove(['vToken', 'vRefreshToken'])
+                resetToSignIn()
                 return Promise.reject(error)
             }
 

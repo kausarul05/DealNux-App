@@ -46,6 +46,7 @@ import { NotificationProvider } from './src/context/NotificationContext';
 import { BrandHeader } from './src/components/BrandHeader';
 import MyOrders from './src/screens/Settings/MyOrders';
 import { setupAuthInterceptor } from './src/utils/authInterceptor';
+import { navigationRef } from './src/utils/navigationRef';
 
 // Register the global 401 -> token-refresh interceptor once, before any screen
 // makes a request. Keeps the session alive instead of dying after ~30 min.
@@ -114,7 +115,7 @@ function AuthStack() {
 export default function App() {
   return (
     <NotificationProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <StatusBar style='auto' />
         <AuthStack />
       </NavigationContainer>

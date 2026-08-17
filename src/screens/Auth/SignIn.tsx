@@ -254,7 +254,11 @@ const SignIn = () => {
             );
             const data = res.data;
             if (data?.success === true) {
-                await AsyncStorage.setItem('vToken', data.data.access);
+                // Stores BOTH the access and refresh tokens. Previously only the
+                // access token was kept here, so email/password users had no
+                // refresh token and the session died (~30 min) with "no products
+                // found" until they logged out and back in.
+                await storeAuthPayload(data);
                 if (rememberMe) {
                     await AsyncStorage.setItem('rememberedEmail', email.trim().toLowerCase());
                 }
