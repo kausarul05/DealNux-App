@@ -1,13 +1,11 @@
 // components/Home/WebsiteBanners.tsx
 //
-// Shows the same promotional banners the DealNux website displays, pulled live
-// from `banners/images/` so the client can change them from the admin panel
-// without an app release. The endpoint is public and returns a bare object
-// (no {success, data} envelope) with two groups:
-//   • main_banners — wide 2:1 artwork, shown as a swipeable carousel
-//   • side_banners — 1.36:1 artwork with a fixed position, shown as a single
-//     row of two tiles (the website's remaining positions are dropped so the
-//     home screen does not get too tall on a phone)
+// Shows the DealNux website's main promotional banners, pulled live from
+// `banners/images/` so the client can change them from the admin panel without
+// an app release. The endpoint is public and returns a bare object (no
+// {success, data} envelope). Only `main_banners` is used — the website's side
+// banners were dropped because the grid made the home screen too tall and did
+// not read well at phone width.
 // Banners are never gated on subscription status — they show for every user.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -35,17 +33,10 @@ const BANNERS_PATH = BANNER_IMAGES || 'banners/images/';
 // fresh copy is fetched in the background.
 const CACHE_KEY = 'bannersCache';
 
-// Only two side banners are shown; the website's other positions would make the
-// home screen too tall on a phone.
-const MAX_SIDE_BANNERS = 2;
-
 const H_PADDING = SCREEN_PADDING;   // matches the Premium card, so the edges line up
-const GRID_GAP = 12;
 
 const CONTENT_WIDTH = SCREEN_WIDTH - H_PADDING * 2;
 const MAIN_RATIO = 920 / 460;   // artwork is 2:1
-const SIDE_RATIO = 299 / 220;   // artwork is ~1.36:1
-const SIDE_TILE_WIDTH = (CONTENT_WIDTH - GRID_GAP) / 2;
 
 interface MainBanner {
     id: number;
@@ -56,20 +47,10 @@ interface MainBanner {
     is_active: boolean;
 }
 
-interface SideBanner {
-    id: number;
-    title: string;
-    image_url: string;
-    image: string;
-    position: number;
-    is_active: boolean;
-}
-
 const srcOf = (b: { image_url?: string; image?: string }) => b.image_url || b.image || '';
 
 export const WebsiteBanners: React.FC = () => {
-    const [mainBanners, setMainBanners] = useState<MainBanner[]>([]);
-    const [sideBanners, setSideBanners] = useState<SideBanner[]>([]);
+    const [banners, setBanners] = useState<MainBanner[]>([]);
     const [activeIndex, setActiveIndex] = useState(0);
     const mounted = useRef(true);
 
@@ -82,21 +63,15 @@ export const WebsiteBanners: React.FC = () => {
 
     const apply = useCallback((data: any) => {
         const main: MainBanner[] = Array.isArray(data?.main_banners) ? data.main_banners : [];
-        const side: SideBanner[] = Array.isArray(data?.side_banners) ? data.side_banners : [];
 
-        const nextMain = main
+        const next = main
             .filter((b) => b.is_active !== false && srcOf(b))
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        const nextSide = side
-            .filter((b) => b.is_active !== false && srcOf(b))
-            .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-            .slice(0, MAX_SIDE_BANNERS);
 
-        setMainBanners(nextMain);
-        setSideBanners(nextSide);
+        setBanners(next);
 
         // Warm the image cache so the artwork is ready before it scrolls into view.
-        [...nextMain, ...nextSide].forEach((b) => Image.prefetch(srcOf(b)).catch(() => {}));
+        next.forEach((b) => Image.prefetch(srcOf(b)).catch(() => {}));
     }, []);
 
     useEffect(() => {
@@ -133,58 +108,39 @@ export const WebsiteBanners: React.FC = () => {
     }, [apply]);
 
     const onCarouselScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const index = Math.round(e.nativeEvent.contentOffset.x / CONTENT_WIDTH);
-        setActiveIndex(index);
+        setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / CONTENT_WIDTH));
     };
 
     // Nothing to show yet: stay out of the layout rather than holding the screen
     // behind a spinner. Once the banners arrive they simply appear.
-    if (mainBanners.length === 0 && sideBanners.length === 0) return null;
+    if (banners.length === 0) return null;
 
     return (
         <View style={styles.container}>
-            {mainBanners.length > 0 && (
-                <>
-                    <FlatList
-                        horizontal
-                        pagingEnabled
-                        data={mainBanners}
-                        keyExtractor={(item) => `main-${item.id}`}
-                        showsHorizontalScrollIndicator={false}
-                        onMomentumScrollEnd={onCarouselScroll}
-                        decelerationRate="fast"
-                        renderItem={({ item }) => (
-                            <Image
-                                source={{ uri: srcOf(item) }}
-                                style={styles.mainBanner}
-                                resizeMode="cover"
-                                accessibilityLabel={item.title}
-                            />
-                        )}
+            <FlatList
+                horizontal
+                pagingEnabled
+                data={banners}
+                keyExtractor={(item) => `main-${item.id}`}
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={onCarouselScroll}
+                decelerationRate="fast"
+                renderItem={({ item }) => (
+                    <Image
+                        source={{ uri: srcOf(item) }}
+                        style={styles.banner}
+                        resizeMode="cover"
+                        accessibilityLabel={item.title}
                     />
+                )}
+            />
 
-                    {mainBanners.length > 1 && (
-                        <View style={styles.dots}>
-                            {mainBanners.map((b, i) => (
-                                <View
-                                    key={`dot-${b.id}`}
-                                    style={[styles.dot, i === activeIndex && styles.dotActive]}
-                                />
-                            ))}
-                        </View>
-                    )}
-                </>
-            )}
-
-            {sideBanners.length > 0 && (
-                <View style={styles.grid}>
-                    {sideBanners.map((item) => (
-                        <Image
-                            key={`side-${item.id}`}
-                            source={{ uri: srcOf(item) }}
-                            style={styles.sideBanner}
-                            resizeMode="cover"
-                            accessibilityLabel={item.title}
+            {banners.length > 1 && (
+                <View style={styles.dots}>
+                    {banners.map((b, i) => (
+                        <View
+                            key={`dot-${b.id}`}
+                            style={[styles.dot, i === activeIndex && styles.dotActive]}
                         />
                     ))}
                 </View>
@@ -198,7 +154,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: H_PADDING,
         marginBottom: SECTION_GAP,
     },
-    mainBanner: {
+    banner: {
         width: CONTENT_WIDTH,
         height: CONTENT_WIDTH / MAIN_RATIO,
         borderRadius: 16,
@@ -219,18 +175,6 @@ const styles = StyleSheet.create({
     dotActive: {
         width: 18,
         backgroundColor: '#2563EB',
-    },
-    grid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: GRID_GAP,
-        marginTop: 14,
-    },
-    sideBanner: {
-        width: SIDE_TILE_WIDTH,
-        height: SIDE_TILE_WIDTH / SIDE_RATIO,
-        borderRadius: 14,
-        backgroundColor: '#E5E7EB',
     },
 });
 
