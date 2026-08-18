@@ -308,7 +308,7 @@ const SignIn = () => {
                         contentContainerStyle={styles.scrollContent}
                         bounces={false}
                     >
-                        <Text style={[styles.title, { textAlign: 'center' }]}>Welcome to DEALNUX!</Text>
+                        <Text style={[styles.title, { textAlign: 'center' }]}>Welcome to DealNux!</Text>
                         <Text style={[styles.subTitle, { textAlign: 'center' }]}>Sign in to track prices and save money.</Text>
 
                         <Text style={styles.label}>Email address</Text>

@@ -19,15 +19,14 @@ import { LinearGradient } from 'expo-linear-gradient'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import { useNavigation } from '@react-navigation/native'
+import CopyrightNote from '../../components/CopyrightNote'
+import { BRAND_TAGLINE } from '../../constants/brand'
 
 const AboutUs = () => {
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState('')
   const [lastUpdated, setLastUpdated] = useState('')
   const navigation = useNavigation()
-  
-  // ✅ Get current year dynamically
-  const currentYear = new Date().getFullYear()
 
   useEffect(() => {
     fetchAboutUs()
@@ -106,7 +105,7 @@ const AboutUs = () => {
                 <Ionicons name="storefront" size={48} color="#2563EB" />
               </View>
               <Text className="text-2xl font-bold text-[#1F2937] mt-3">DealNux</Text>
-              <Text className="text-sm text-gray-500">Your Smart Shopping Companion</Text>
+              <Text className="text-sm text-gray-500">{BRAND_TAGLINE}</Text>
             </View>
 
             {/* Last Updated */}
@@ -181,7 +180,14 @@ const AboutUs = () => {
             >
               <LinearGradient
                 colors={['#2563EB', '#1D4ED8']}
-                className="py-4 px-6 flex-row items-center justify-center gap-3"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  paddingVertical: 16,
+                  paddingHorizontal: 24,
+                }}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
@@ -191,12 +197,8 @@ const AboutUs = () => {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* ✅ Footer Note - Dynamic Copyright Year */}
-            <View className="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <Text className="text-xs text-gray-400 text-center">
-                © {currentYear} DealNux. All rights reserved. Made with ❤️
-              </Text>
-            </View>
+            {/* Footer copyright — same line as the website */}
+            <CopyrightNote />
           </ScrollView>
         )}
       </View>

@@ -32,7 +32,7 @@ export const buildReferralLink = (code: string) => `${REFERRAL_LINK_BASE}/${code
 
 // Signup link carries the code, so the referral is applied automatically.
 export const buildReferralMessage = (code: string) =>
-    `💙 Join me on DEALNUX and start shopping smarter! Sign up here: ${buildReferralLink(code)} ` +
+    `💙 Join me on DealNux and start shopping smarter! Sign up here: ${buildReferralLink(code)} ` +
     `to discover AI-powered price comparisons, better deals, and bigger savings.`;
 
 type UserProfile = {
@@ -205,7 +205,7 @@ const ReferAndEarn = () => {
                                 </>
                             )}
                             <Text style={styles.heroDescription}>
-                                Invite your friends to join DEALNUX and earn credits towards your next smart purchase.
+                                Invite your friends to join DealNux and earn credits towards your next smart purchase.
                             </Text>
                         </View>
                     </LinearGradient>
@@ -272,7 +272,7 @@ const ReferAndEarn = () => {
                                 <View style={styles.ruleItem}>
                                     <View style={styles.bulletPoint} />
                                     <Text style={styles.ruleText}>
-                                        Friends you refer must purchase a subscription and complete their first purchase on DEALNUX for you to earn.
+                                        Friends you refer must purchase a subscription and complete their first purchase on DealNux for you to earn.
                                     </Text>
                                 </View>
                                 <View style={styles.ruleItem}>
@@ -282,7 +282,7 @@ const ReferAndEarn = () => {
                                 <View style={styles.ruleItem}>
                                     <View style={styles.bulletPoint} />
                                     <Text style={styles.ruleText}>
-                                        Referral points are redeemable only on eligible local DEALNUX products and cannot be used with external retailers.
+                                        Referral points are redeemable only on eligible local DealNux products and cannot be used with external retailers.
                                     </Text>
                                 </View>
                             </View>
@@ -294,11 +294,8 @@ const ReferAndEarn = () => {
                                 <Text style={styles.statValue}>${referralReward}</Text>
                                 <Text style={styles.statLabel}>You Earn</Text>
                             </View>
-                            <View style={styles.statDivider} />
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>${referralReward}</Text>
-                                <Text style={styles.statLabel}>Friend Gets</Text>
-                            </View>
+                            {/* "Friend Gets" removed — only the referrer earns credits,
+                                so advertising a friend reward was inaccurate. */}
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
                                 <Text style={styles.statValue}>∞</Text>
@@ -345,9 +342,9 @@ const ReferAndEarn = () => {
                                         <Ionicons name="person-add-outline" size={22} color="#2355B6" />
                                     </View>
                                     <View style={styles.stepTextContainer}>
-                                        <Text style={styles.stepTitle}>Your friend joins DEALNUX</Text>
+                                        <Text style={styles.stepTitle}>Your friend joins DealNux</Text>
                                         <Text style={styles.stepDescription}>
-                                            Your friend signs up, purchases any of our subscription plans and completes the first purchase on DEALNUX.
+                                            Your friend signs up, purchases any of our subscription plans and completes the first purchase on DealNux.
                                         </Text>
                                     </View>
                                 </View>
@@ -391,7 +388,7 @@ const ReferAndEarn = () => {
                             <View style={styles.termItem}>
                                 <View style={styles.termBullet} />
                                 <Text style={styles.termText}>
-                                    Friends you refer must purchase a subscription and complete their first purchase on DEALNUX for you to earn.
+                                    Friends you refer must purchase a subscription and complete their first purchase on DealNux for you to earn.
                                 </Text>
                             </View>
                             <View style={styles.termItem}>
@@ -401,7 +398,7 @@ const ReferAndEarn = () => {
                             <View style={styles.termItem}>
                                 <View style={styles.termBullet} />
                                 <Text style={styles.termText}>
-                                    Referral points are redeemable only on eligible local DEALNUX products.
+                                    Referral points are redeemable only on eligible local DealNux products.
                                 </Text>
                             </View>
                         </View>

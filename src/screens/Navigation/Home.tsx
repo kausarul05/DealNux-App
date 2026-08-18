@@ -42,6 +42,8 @@ import { HomeHeader } from '../../components/Home/HomeHeader'
 import { CategoryScroll } from '../../components/Home/CategoryScroll'
 import { AdsModalSection } from '../../components/Home/AdsModalSection'
 import { PremiumCard } from '../../components/Home/PremiumCard'
+import { WebsiteBanners } from '../../components/Home/WebsiteBanners'
+import { SCREEN_PADDING, SECTION_GAP } from '../../constants/layout'
 import ChatModal from '../../components/ChatModal'
 import SubscriptionModal from '../../components/SubscriptionModal'
 
@@ -303,7 +305,6 @@ const Home = () => {
 
     const fetchAds = useCallback(async (token: string) => {
         try {
-            setCategoryLoading(true)
             const res = await axios.get(`${API_BASE_URL}${VIEW_ADS}`, {
                 headers: { Authorization: `Bearer ${token}` },
             })
@@ -312,8 +313,6 @@ const Home = () => {
         } catch (e) {
             console.error('ads load error', e)
             setAds([])
-        } finally {
-            setCategoryLoading(false)
         }
     }, [])
 
@@ -693,15 +692,12 @@ const Home = () => {
                 onCategoryPress={handleCategoryPress}
             />
 
-            <AdsModalSection
-                ads={ads}
-                buildImageUrl={buildImageUrl}
-                onPressAd={handleAds}
-            />
-
             {!isSubscriptionActive && (
                 <PremiumCard onPress={() => setSubscriptionModalVisible(true)} />
             )}
+
+            {/* Website promo banners — shown to every user, free or subscribed. */}
+            <WebsiteBanners />
 
             {recommendedProducts.length > 0 && (
                 <View style={styles.recommendedSection}>
@@ -721,6 +717,13 @@ const Home = () => {
                     />
                 </View>
             )}
+
+            {/* Sponsored ads sit directly below "Recommended for You". */}
+            <AdsModalSection
+                ads={ads}
+                buildImageUrl={buildImageUrl}
+                onPressAd={handleAds}
+            />
 
             <Modal
                 visible={showAllRecommended}
@@ -997,9 +1000,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: SCREEN_PADDING,
         marginBottom: 14,
-        marginTop: 4,
     },
     allProductsTitle: {
         fontSize: 20,
@@ -1049,13 +1051,13 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     recommendedSection: {
-        marginBottom: 20,
+        marginBottom: SECTION_GAP,
     },
     recommendedHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: SCREEN_PADDING,
         marginBottom: 12,
     },
     seeAllText: {

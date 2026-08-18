@@ -110,7 +110,7 @@ const AdsApply = () => {
                 </View>
 
                 <Text className='text-[#636F85] text-sm leading-5 mt-1 mb-4'>
-                    This is your application to advertise on DEALNUX. Our team reviews every
+                    This is your application to advertise on DealNux. Our team reviews every
                     business profile and you'll be notified once a decision is made.
                 </Text>
 

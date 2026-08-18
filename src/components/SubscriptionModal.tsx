@@ -150,9 +150,9 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                                     <Ionicons name="checkmark-circle" size={22} color="#10B981" />
                                 </View>
                                 <View style={styles.featureTextContainer}>
-                                    <Text style={styles.featureTitle}>Ad-Free Scanning</Text>
+                                    <Text style={styles.featureTitle}>Instant Barcode Scanning</Text>
                                     <Text style={styles.featureDesc}>
-                                        Scan barcodes instantly without interruptions or ads.
+                                        Scan any product barcode and compare prices in seconds.
                                     </Text>
                                 </View>
                             </View>

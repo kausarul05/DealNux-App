@@ -18,6 +18,7 @@ import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, Touchab
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthStackParamList } from "../../Navigation/types";
 import { Toast, useToast } from "../../components/useToost";
+import { COPYRIGHT_TEXT } from "../../constants/brand";
 
 // Every legal/policy tab from the DealNux website. `slug` maps to the backend
 // `policy/{slug}/` endpoint; all open in the shared PolicyViewer screen.
@@ -37,10 +38,6 @@ const LEGAL_POLICIES: { title: string; slug: string }[] = [
     { title: "Intellectual Property Policy", slug: "intellectual-property-policy" },
     { title: "Community Guidelines", slug: "community-guidelines" },
 ];
-
-// Same copyright line shown on the website footer.
-const COPYRIGHT_TEXT =
-    "Copyright © 2026 Brightway Consult & HR/Recruiting Solutions LLC. All rights reserved.";
 
 const Card = ({ children, className = "" }: any) => (
     <View className={`bg-white rounded-2xl shadow-sm shadow-black/10 ${className}`}>
@@ -277,7 +274,6 @@ const Profile = () => {
                         colors={['#0057FF', '#61B3FF']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        className="mt-4 rounded-[28px] px-5 py-5 items-center justify-center"
                     >
                         <Text className="text-[28px] font-bold text-white">
                             ${Number(user?.balance || 0.00).toFixed(2)}
@@ -488,6 +484,9 @@ export default Profile;
 
 const styles = StyleSheet.create({
     balanceCard: {
+        marginTop: 16,
+        alignItems: "center",
+        justifyContent: "center",
         borderRadius: 28,
         paddingVertical: 40,
         paddingHorizontal: 24,

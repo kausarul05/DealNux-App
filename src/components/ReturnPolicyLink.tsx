@@ -1,6 +1,6 @@
 // components/ReturnPolicyLink.tsx
 //
-// Seller return policy link for DEALNUX local checkout. Shown wherever a local
+// Seller return policy link for DealNux local checkout. Shown wherever a local
 // order is confirmed so buyers can read the policy before paying.
 
 import { Ionicons } from '@expo/vector-icons'

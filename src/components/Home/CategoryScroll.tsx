@@ -1,17 +1,13 @@
-// components/CategoryScroll.tsx (Alternative with varied icon sets)
+// components/Home/CategoryScroll.tsx
+//
+// Compact, horizontally scrollable category chips with an icon to the left of
+// each label. The website shows a photographic collage per category, but those
+// cannot be recoloured white for the selected state and would not read at chip
+// size, so we use one uniform outline icon set instead — every icon is the same
+// size and stroke weight, matching the "same size and style" requirement.
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import {
-    Ionicons,
-    MaterialIcons,
-    FontAwesome5,
-    Feather,
-    AntDesign,
-    Entypo,
-    SimpleLineIcons,
-    Fontisto,
-    MaterialCommunityIcons
-} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Category {
     id: number;
@@ -25,58 +21,80 @@ interface CategoryScrollProps {
     onCategoryPress: (slug: string) => void;
 }
 
-// More diverse icon mappings using different icon sets
-const categoryIcons: Record<string, any> = {
-    'all': { component: Ionicons, name: 'apps-outline' },
-    'electronics': { component: MaterialIcons, name: 'devices' },
-    'fashion': { component: Ionicons, name: 'shirt-outline' },
-    'groceries': { component: FontAwesome5, name: 'shopping-basket' },
-    'home': { component: Ionicons, name: 'home-outline' },
-    'beauty': { component: MaterialCommunityIcons, name: 'face-woman' },
-    'sports': { component: MaterialCommunityIcons, name: 'basketball' },
-    'books': { component: Ionicons, name: 'book-outline' },
-    'toys': { component: FontAwesome5, name: 'puzzle-piece' },
-    'automotive': { component: MaterialIcons, name: 'car-rental' },
-    'health': { component: Ionicons, name: 'fitness-outline' },
-    'jewelry': { component: FontAwesome5, name: 'gem' },
-    'music': { component: Ionicons, name: 'musical-notes-outline' },
-    'gaming': { component: FontAwesome5, name: 'gamepad' },
-    'food': { component: MaterialCommunityIcons, name: 'food' },
-    'travel': { component: FontAwesome5, name: 'plane' },
-    'furniture': { component: MaterialCommunityIcons, name: 'sofa' },
-    'garden': { component: MaterialCommunityIcons, name: 'flower' },
-    'tools': { component: MaterialCommunityIcons, name: 'toolbox' },
-    'pets': { component: FontAwesome5, name: 'paw' },
-    'baby': { component: FontAwesome5, name: 'baby' },
-    'office': { component: MaterialIcons, name: 'business' },
-    'school': { component: MaterialCommunityIcons, name: 'school' },
-    'art': { component: MaterialCommunityIcons, name: 'palette' },
-    'audio': { component: Ionicons, name: 'headset-outline' },
-    'camera': { component: Ionicons, name: 'camera-outline' },
-    'computer': { component: Ionicons, name: 'laptop-outline' },
-    'mobile': { component: Ionicons, name: 'phone-portrait-outline' },
-    'watch': { component: Ionicons, name: 'watch-outline' },
-    'bags': { component: Ionicons, name: 'bag-outline' },
-    'shoes': { component: MaterialCommunityIcons, name: 'shoe-sneaker' },
-    'watches': { component: MaterialCommunityIcons, name: 'watch' },
-    'sunglasses': { component: FontAwesome5, name: 'sunglasses' },
-    'perfume': { component: MaterialCommunityIcons, name: 'perfume' },
-    'skincare': { component: MaterialCommunityIcons, name: 'spa' },
-    'haircare': { component: MaterialCommunityIcons, name: 'hair-dryer' },
-    'fitness': { component: MaterialCommunityIcons, name: 'dumbbell' },
-    'outdoor': { component: FontAwesome5, name: 'campground' },
-    'kitchen': { component: MaterialCommunityIcons, name: 'silverware-fork-knife' },
-    'dining': { component: Ionicons, name: 'restaurant-outline' },
-    'bathroom': { component: MaterialCommunityIcons, name: 'shower' },
-    'bedroom': { component: MaterialCommunityIcons, name: 'bed-queen' },
-    'decor': { component: MaterialCommunityIcons, name: 'lamp' },
-    'lighting': { component: Ionicons, name: 'bulb-outline' },
-    'stationery': { component: FontAwesome5, name: 'pen-fancy' },
-    'crafts': { component: MaterialCommunityIcons, name: 'scissors-cutting' },
-    'hardware': { component: MaterialCommunityIcons, name: 'wrench' },
-    'toiletries': { component: MaterialCommunityIcons, name: 'toothbrush' },
-    'party': { component: FontAwesome5, name: 'gift' },
-    'gifts': { component: FontAwesome5, name: 'gift' },
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// Keep the chip text and icon the same height so adding icons does not make
+// the chips any taller than they were before.
+const ICON_SIZE = 16;
+
+const DEALNUX_BLUE = '#2563EB';
+const CHIP_TEXT = '#1F2937';
+
+// One entry per category on the DealNux website, keyed by the slug the backend
+// returns (same slugs the website uses in `?category=`).
+const CATEGORY_ICONS: Record<string, IoniconName> = {
+    'all': 'apps-outline',
+    'electronics': 'hardware-chip-outline',
+    'mens-fashion': 'shirt-outline',
+    'womens-fashion': 'woman-outline',
+    'home-kitchen': 'home-outline',
+    'health-beauty': 'sparkles-outline',
+    'sports-outdoors': 'basketball-outline',
+    'baby-kids': 'balloon-outline',
+    'books-entertainment': 'book-outline',
+    'automotive': 'car-sport-outline',
+    'food-grocery': 'basket-outline',
+    'office-business': 'briefcase-outline',
+    'travel-experiences': 'airplane-outline',
+    'arts-crafts-collectibles': 'color-palette-outline',
+    'digital-products-services': 'cloud-download-outline',
+    'financial-products': 'card-outline',
+    'wedding-events': 'heart-circle-outline',
+};
+
+// Categories are managed in the backend, so new ones can appear at any time.
+// Match on a keyword in the name before falling back to a neutral tag icon.
+const KEYWORD_ICONS: [RegExp, IoniconName][] = [
+    [/phone|mobile/i, 'phone-portrait-outline'],
+    [/laptop|computer/i, 'laptop-outline'],
+    [/camera|photo/i, 'camera-outline'],
+    [/music|audio|headphone/i, 'headset-outline'],
+    [/game|gaming|toy/i, 'game-controller-outline'],
+    [/watch/i, 'watch-outline'],
+    [/shoe|footwear|sneaker/i, 'footsteps-outline'],
+    [/bag|luggage/i, 'bag-handle-outline'],
+    [/jewel|accessor/i, 'diamond-outline'],
+    [/pet|animal/i, 'paw-outline'],
+    [/garden|plant|flower/i, 'leaf-outline'],
+    [/tool|hardware|diy/i, 'construct-outline'],
+    [/furniture|decor/i, 'bed-outline'],
+    [/health|fitness|medic|pharma/i, 'fitness-outline'],
+    [/beauty|cosmetic|skin/i, 'sparkles-outline'],
+    [/fashion|cloth|apparel|wear/i, 'shirt-outline'],
+    [/food|grocer|drink|beverage/i, 'basket-outline'],
+    [/book|stationer/i, 'book-outline'],
+    [/travel|tour|flight/i, 'airplane-outline'],
+    [/car|auto|vehicle|bike/i, 'car-sport-outline'],
+    [/baby|kid|child/i, 'balloon-outline'],
+    [/office|business|work/i, 'briefcase-outline'],
+    [/finance|bank|insur|card/i, 'card-outline'],
+    [/digital|software|online|service/i, 'cloud-download-outline'],
+    [/art|craft|collect/i, 'color-palette-outline'],
+    [/wedding|event|party/i, 'heart-circle-outline'],
+    [/sport|outdoor/i, 'basketball-outline'],
+    [/home|kitchen/i, 'home-outline'],
+    [/electronic|gadget|device|tech/i, 'hardware-chip-outline'],
+];
+
+const getCategoryIcon = (cat: Category): IoniconName => {
+    const bySlug = CATEGORY_ICONS[cat.slug?.toLowerCase?.() ?? ''];
+    if (bySlug) return bySlug;
+
+    const haystack = `${cat.name ?? ''} ${cat.slug ?? ''}`;
+    for (const [pattern, icon] of KEYWORD_ICONS) {
+        if (pattern.test(haystack)) return icon;
+    }
+    return 'pricetag-outline';
 };
 
 export const CategoryScroll: React.FC<CategoryScrollProps> = ({
@@ -91,40 +109,26 @@ export const CategoryScroll: React.FC<CategoryScrollProps> = ({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
                 decelerationRate="fast"
-                snapToAlignment="center"
             >
                 {categories.map((cat) => {
                     const isActive = selectedCategory === cat.slug;
-                    const iconConfig = categoryIcons[cat.slug] || categoryIcons['all'];
-                    const IconComponent = iconConfig.component;
-
-                    // Calculate dynamic padding based on text length
-                    const textLength = cat.name.length;
-                    const horizontalPadding = textLength > 10 ? 18 : textLength > 6 ? 14 : 12;
+                    const iconName = getCategoryIcon(cat);
+                    const tint = isActive ? '#FFFFFF' : DEALNUX_BLUE;
 
                     return (
                         <TouchableOpacity
                             key={cat.id}
-                            style={[
-                                styles.categoryButton,
-                                isActive && styles.categoryButtonActive,
-                                { paddingHorizontal: horizontalPadding }
-                            ]}
+                            style={[styles.categoryButton, isActive && styles.categoryButtonActive]}
                             onPress={() => onCategoryPress(cat.slug)}
                             activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: isActive }}
+                            accessibilityLabel={cat.name}
                         >
-                            {/* <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
-                <IconComponent 
-                  name={iconConfig.name} 
-                  size={18} 
-                  color={isActive ? '#FFFFFF' : '#475569'} 
-                />
-              </View> */}
+                            <Ionicons name={iconName} size={ICON_SIZE} color={tint} />
                             <Text
                                 style={[styles.categoryText, isActive && styles.categoryTextActive]}
                                 numberOfLines={1}
-                                adjustsFontSizeToFit
-                                minimumFontScale={0.8}
                             >
                                 {cat.name}
                             </Text>
@@ -137,20 +141,19 @@ export const CategoryScroll: React.FC<CategoryScrollProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: {
-        // marginVertical: 8,
-    },
+    container: {},
     scrollContent: {
         paddingHorizontal: 16,
-        gap: 10,
+        gap: 8,
         paddingVertical: 6,
     },
     categoryButton: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 8,
+        paddingHorizontal: 12,
         borderRadius: 8,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#FFFFFF',
         borderWidth: 1.5,
         borderColor: '#E2E8F0',
         minHeight: 35,
@@ -162,34 +165,19 @@ const styles = StyleSheet.create({
         elevation: 1,
     },
     categoryButtonActive: {
-        backgroundColor: '#2563EB',
-        borderColor: '#2563EB',
-        shadowColor: '#2563EB',
+        backgroundColor: DEALNUX_BLUE,
+        borderColor: DEALNUX_BLUE,
+        shadowColor: DEALNUX_BLUE,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
         elevation: 6,
     },
-    iconContainer: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        flexShrink: 0,
-        borderWidth: 0.5,
-        borderColor: '#E2E8F0',
-    },
-    iconContainerActive: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
     categoryText: {
         fontSize: 14,
-        color: '#475569',
+        lineHeight: 18,
+        color: CHIP_TEXT,
         fontWeight: '600',
-        flexShrink: 1,
         letterSpacing: 0.2,
     },
     categoryTextActive: {

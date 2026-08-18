@@ -375,7 +375,7 @@ const ExternalProductPaywall = ({
                     : 'This product is sold by an external retailer.'}
                 {'\n\n'}
                 Subscribe to compare prices across Amazon, Walmart, Target and more.
-                DEALNUX marketplace products stay free to browse.
+                DealNux marketplace products stay free to browse.
             </Text>
 
             <TouchableOpacity style={styles.paywallButton} onPress={onSubscribe}>
@@ -899,7 +899,7 @@ const ProductDetails = () => {
 
     // ─── Subscription Gate ───────────────────────────────────────────────────
     //     External retailer products need an active plan or trial. Local
-    //     DEALNUX marketplace products are always free to view.
+    //     DealNux marketplace products are always free to view.
     //
     //     This is enforced here rather than at each caller because every entry
     //     point (home, search, deals, favourites, scan, notifications) lands on
@@ -1059,7 +1059,7 @@ const ProductDetails = () => {
                     {renderComparisonSection()}
 
                     {/* Buyer Reviews — only for "Recommended for You" products,
-                        which are the local DEALNUX marketplace items (navigated with
+                        which are the local DealNux marketplace items (navigated with
                         source === 'local'). External retailer products don't get them. */}
                     {source === 'local' && <ProductReviews productId={productId} />}
                 </View>

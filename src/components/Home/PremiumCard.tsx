@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { SCREEN_PADDING, SECTION_GAP } from '../../constants/layout';
 
 interface PremiumCardProps {
     onPress: () => void;
@@ -23,13 +24,13 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ onPress }) => {
                             <Ionicons name="star" size={14} color="#FFD700" />
                             <Text style={styles.badgeText}>PREMIUM</Text>
                         </View>
-                        {/* <Text style={styles.title}>DEALNUX PREMIUM</Text> */}
+                        {/* <Text style={styles.title}>DealNux PREMIUM</Text> */}
                     </View>
                     <Text style={styles.description}>
                         Unlock smarter savings and auto-coupons!
                     </Text>
                     <Text style={styles.subDescription}>
-                        Experience ad-free browsing and{'\n'}exclusive price drop alerts.
+                        Track price drops and unlock{'\n'}exclusive member deals.
                     </Text>
                     <TouchableOpacity style={styles.button} onPress={onPress}>
                         <Text style={styles.buttonText}>Start Free Trial</Text>
@@ -46,10 +47,10 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ onPress }) => {
 
 const styles = StyleSheet.create({
     card: {
-        marginHorizontal: 16,
+        marginHorizontal: SCREEN_PADDING,
         borderRadius: 16,
         padding: 20,
-        marginBottom: 16,
+        marginBottom: SECTION_GAP,
         minHeight: 150,
         position: 'relative',
         overflow: 'hidden',

@@ -46,6 +46,7 @@ declare module "@env" {
   export const TOTAL_SUMMERY_POST: string;
   export const DASHBOARD_API: string;
   export const VIEW_ADS: string;
+  export const BANNER_IMAGES: string;
   export const CLICK_ADS: string;
   export const GET_PRODUCT: string;
   export const UPDATE_PRODUCT: string;

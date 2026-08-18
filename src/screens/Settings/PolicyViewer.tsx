@@ -17,6 +17,7 @@ import { IPA_BASE } from '@env'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import { AuthStackParamList } from '../../Navigation/types'
+import CopyrightNote from '../../components/CopyrightNote'
 
 const PolicyViewer = () => {
   const route = useRoute<RouteProp<AuthStackParamList, 'PolicyViewer'>>()
@@ -94,6 +95,8 @@ const PolicyViewer = () => {
                 {content}
               </Text>
             </View>
+
+            <CopyrightNote />
           </ScrollView>
         )}
       </View>

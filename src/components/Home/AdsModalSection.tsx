@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SCREEN_PADDING, SECTION_GAP } from '../../constants/layout';
 
 const { width } = Dimensions.get('window');
 
@@ -49,7 +50,25 @@ export const AdsModalSection: React.FC<AdsModalSectionProps> = ({
     }
   };
 
-  if (!ads || ads.length === 0) return null;
+  // The client asked for the section to stay visible even with nothing to show,
+  // so an empty ads list renders a placeholder rather than disappearing.
+  if (!ads || ads.length === 0) {
+    return (
+      <View style={styles.previewContainer}>
+        <View style={styles.previewHeader}>
+          <View style={styles.previewTitleContainer}>
+            <MaterialIcons name="campaign" size={20} color="#2563EB" />
+            <Text style={styles.previewTitle}>Sponsored</Text>
+          </View>
+        </View>
+        <View style={styles.emptyBox}>
+          <MaterialIcons name="campaign" size={26} color="#94A3B8" />
+          <Text style={styles.emptyTitle}>No sponsored offers right now</Text>
+          <Text style={styles.emptyDesc}>Check back soon for new deals.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -171,14 +190,34 @@ export const AdsModalSection: React.FC<AdsModalSectionProps> = ({
 
 const styles = StyleSheet.create({
   previewContainer: {
-    marginVertical: 8,
-    paddingHorizontal: 20,
+    marginBottom: SECTION_GAP,
+    paddingHorizontal: SCREEN_PADDING,
   },
   previewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  emptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 22,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  emptyDesc: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
   previewTitleContainer: {
     flexDirection: 'row',

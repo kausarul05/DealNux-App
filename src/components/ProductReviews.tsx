@@ -21,7 +21,7 @@ export type ProductReview = {
     comment: string
     created_at: string
     updated_at: string
-    // Not sent by the API yet - rendered as "DEALNUX buyer" until it is.
+    // Not sent by the API yet - rendered as "DealNux buyer" until it is.
     user_name?: string | null
 }
 
@@ -148,7 +148,7 @@ const ProductReviews = ({ productId, refreshKey = 0 }: Props) => {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.reviewer}>
-                                        {review.user_name?.trim() || 'DEALNUX buyer'}
+                                        {review.user_name?.trim() || 'DealNux buyer'}
                                     </Text>
                                     <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
                                 </View>

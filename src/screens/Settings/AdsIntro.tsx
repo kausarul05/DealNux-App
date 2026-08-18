@@ -1,7 +1,7 @@
 // AdsIntro.tsx
 //
 // Shown the first time a user taps "Advertise with us" (advertiser_status ===
-// "not_applied"). Explains what advertising on DEALNUX involves before dropping
+// "not_applied"). Explains what advertising on DealNux involves before dropping
 // them into the application form.
 //
 // NOTE FOR COPY REVIEW: the steps below are deliberately free of pricing and
@@ -35,7 +35,7 @@ const STEPS: Step[] = [
     {
         icon: 'shield-checkmark-outline',
         title: '2. We review your application',
-        body: 'Our team checks that your business is a good fit for DEALNUX shoppers. You can keep using the app normally while you wait.',
+        body: 'Our team checks that your business is a good fit for DealNux shoppers. You can keep using the app normally while you wait.',
     },
     {
         icon: 'notifications-outline',
@@ -71,7 +71,7 @@ const AdsIntro = () => {
                     </View>
                     <Text style={styles.heroTitle}>Reach shoppers who are ready to buy</Text>
                     <Text style={styles.heroText}>
-                        DEALNUX users open the app to compare prices and find deals. Advertising
+                        DealNux users open the app to compare prices and find deals. Advertising
                         puts your business in front of them at the moment they are deciding where
                         to shop.
                     </Text>

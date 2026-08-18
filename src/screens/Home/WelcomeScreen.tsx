@@ -78,7 +78,7 @@ const WelcomeScreen = () => {
                 style={styles.background}
 
             />
-            <Image source={Images.Logo} />
+            <Image source={Images.Logo} style={styles.logo} resizeMode="contain" />
 
             <View className="w-16 h-16 items-center justify-center top-80 relative ">
                 {spinnerDots.map((dot, index) => {
@@ -130,6 +130,10 @@ const styles = StyleSheet.create({
         right: 0,
         top: 0,
         bottom: 0,
+    },
+    logo: {
+        width: 204,
+        height: 118,
     },
 
 });

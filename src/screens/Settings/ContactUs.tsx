@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import { useNavigation } from '@react-navigation/native'
+import CopyrightNote from '../../components/CopyrightNote'
 
 const ContactUs = () => {
   const navigation = useNavigation()
@@ -286,17 +287,6 @@ const ContactUs = () => {
                 </View>
               </View>
 
-              {/* Quick Support Info */}
-              <View className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100">
-                <Text className="text-sm text-blue-700 font-semibold mb-2">💡 Quick Support</Text>
-                <Text className="text-sm text-gray-600">
-                  Response time: Within 1 business day
-                </Text>
-                <Text className="text-sm text-gray-600">
-                  For urgent issues, please call our support team.
-                </Text>
-              </View>
-
               {/* Submit Button */}
               <TouchableOpacity
                 className="mt-6 rounded-2xl overflow-hidden"
@@ -329,6 +319,8 @@ const ContactUs = () => {
                   )}
                 </LinearGradient>
               </TouchableOpacity>
+
+              <CopyrightNote />
             </ScrollView>
           )}
         </KeyboardAvoidingView>

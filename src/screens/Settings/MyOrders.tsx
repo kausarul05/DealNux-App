@@ -893,7 +893,7 @@ const MyOrders = () => {
                                                 How was this product?
                                             </Text>
                                             <Text className="text-[13px] text-[#6B7280] mb-4">
-                                                Your review helps other DEALNUX shoppers decide.
+                                                Your review helps other DealNux shoppers decide.
                                             </Text>
                                             <TouchableOpacity
                                                 onPress={() => {
@@ -1368,7 +1368,7 @@ const MyOrders = () => {
         return (
             <LinearGradient
                 colors={['#2355B6', '#1A4D8F']}
-                className="rounded-2xl p-5 mb-4"
+                style={{ borderRadius: 16, padding: 20, marginBottom: 16 }}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
             >
