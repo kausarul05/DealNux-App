@@ -14,3 +14,6 @@ export const BRAND_TAGLINE = 'Shop Smarter. Save Bigger.'
 // Same copyright line as the website footer.
 export const COPYRIGHT_TEXT =
     'Copyright © 2026 Brightway Consult & HR/Recruiting Solutions LLC. All rights reserved.'
+
+// Mission statement — must match the website's About Us page word for word.
+export const BRAND_MISSION = 'To help people save money smarter every day.'

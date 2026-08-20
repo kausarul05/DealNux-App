@@ -19,9 +19,9 @@ import {
     Alert,
     RefreshControl,
     TextInput,
-    KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -413,10 +413,7 @@ const EditCampaignModal = ({
             onRequestClose={onClose}
         >
             <StatusBar barStyle="light-content" />
-            <KeyboardAvoidingView
-                className="flex-1 bg-black/50"
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
+            <KeyboardAvoider>
                 <View className="flex-1 mt-16 bg-white rounded-t-3xl overflow-hidden">
                     {/* Modal Header */}
                     <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -578,7 +575,7 @@ const EditCampaignModal = ({
                         />
                     )}
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </Modal>
     );
 };

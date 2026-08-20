@@ -7,7 +7,6 @@ import {
     Alert,
     Dimensions,
     Image,
-    KeyboardAvoidingView,
     Platform,
     ScrollView,
     StyleSheet,
@@ -16,11 +15,13 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import SuccessModal from '../../components/SuccessModal';
 import { Images } from '../../constants';
+import { LOGO_ASPECT } from '../../constants/layout';
 import { AuthStackParamList } from '../../Navigation/types';
 
 const { width, height } = Dimensions.get('window');
@@ -116,11 +117,8 @@ const CreateNewPassword = () => {
     return (
         // ✅ FIX 1: Added 'bottom' edge
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safe}>
-            {/* ✅ FIX 2: KeyboardAvoidingView wraps everything */}
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            {/* Keyboard handling wraps everything */}
+            <KeyboardAvoider style={{ flex: 1 }}>
                 {/* ✅ FIX 3: ScrollView so inputs scroll above keyboard */}
                 <ScrollView
                     contentContainerStyle={{ flexGrow: 1 }}
@@ -195,7 +193,7 @@ const CreateNewPassword = () => {
                         </View>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             <SuccessModal
                 visible={showSuccessModal}
@@ -222,10 +220,12 @@ const styles = StyleSheet.create({
     logoContainer: {
         alignItems: 'center',
         paddingTop: 8,
+        // Breathing room so the lockup does not sit on top of the heading.
+        paddingBottom: 18,
     },
     logoImage: {
-        width: width * 0.4,
-        height: height * 0.1,
+        width: width * 0.55,
+        height: (width * 0.55) / LOGO_ASPECT,
     },
     formContainer: {
         flex: 1,

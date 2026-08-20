@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   FlatList,
   RefreshControl,
 } from 'react-native'
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
@@ -218,7 +218,7 @@ const AppReview = () => {
   )
 
   return (
-    <SafeAreaView className="bg-[#F9F9FB] flex-1">
+    <View className="bg-[#F9F9FB] flex-1">
       <View className="px-5 flex-1">
         {/* Header */}
         <View className="flex-row items-center gap-4 py-2">
@@ -228,12 +228,10 @@ const AppReview = () => {
           />
         </View>
 
-        <KeyboardAvoidingView
-          className="flex-1"
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <KeyboardAvoider>
           <ScrollView
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 40 }}
             className="flex-1"
             refreshControl={
@@ -380,9 +378,9 @@ const AppReview = () => {
               </View>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 

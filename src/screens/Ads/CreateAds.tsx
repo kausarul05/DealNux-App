@@ -2,7 +2,6 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Image,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -15,6 +14,7 @@ import {
     Dimensions,
     StyleSheet,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -371,10 +371,7 @@ const CreateAdsInner = () => {
 
     return (
         <View style={styles.safeArea}>
-            <KeyboardAvoidingView
-                style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
+            <KeyboardAvoider style={styles.container}>
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.headerContent}>
@@ -600,7 +597,7 @@ const CreateAdsInner = () => {
                         </LinearGradient>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             {/* ─── Target Modal ──────────────────────────────────────────────── */}
             <Modal

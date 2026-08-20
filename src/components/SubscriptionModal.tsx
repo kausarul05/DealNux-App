@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLowestPlanPrice } from '../hooks/useLowestPlanPrice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,6 +34,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     productSeller = 'External Store',
     productPrice = 0,
 }) => {
+    const lowestPrice = useLowestPlanPrice(visible);
     const slideAnim = useRef(new Animated.Value(height)).current;
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -160,9 +162,14 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
                         {/* Price & Buttons */}
                         <View style={styles.footer}>
-                            <Text style={styles.priceText}>
-                                14 Days Free, then <Text style={styles.priceHighlight}>$7.99/mo</Text>
-                            </Text>
+                            {lowestPrice !== null && (
+                                <Text style={styles.priceText}>
+                                    14 Days Free, then{' '}
+                                    <Text style={styles.priceHighlight}>
+                                        ${lowestPrice.toFixed(2)}/mo
+                                    </Text>
+                                </Text>
+                            )}
 
                             <TouchableOpacity
                                 style={styles.subscribeButton}

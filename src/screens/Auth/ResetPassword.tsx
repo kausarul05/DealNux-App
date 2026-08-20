@@ -8,7 +8,6 @@ import {
     Alert,
     Dimensions,
     Image,
-    KeyboardAvoidingView,
     Platform,
     ScrollView,
     StyleSheet,
@@ -17,10 +16,12 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import { Images } from '../../constants';
+import { LOGO_ASPECT } from '../../constants/layout';
 import { AuthStackParamList } from '../../Navigation/types';
 
 const { width, height } = Dimensions.get('window');
@@ -63,11 +64,8 @@ const ResetPassword = () => {
     return (
         // ✅ FIX 1: Added 'bottom' edge
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.container}>
-            {/* ✅ FIX 2: Wrap with KeyboardAvoidingView */}
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            {/* Keyboard handling wraps everything */}
+            <KeyboardAvoider style={{ flex: 1 }}>
                 {/* ✅ FIX 3: ScrollView so button stays visible above keyboard */}
                 <ScrollView
                     contentContainerStyle={{ flexGrow: 1 }}
@@ -126,7 +124,7 @@ const ResetPassword = () => {
                         </View>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </SafeAreaView>
     );
 };
@@ -147,10 +145,12 @@ const styles = StyleSheet.create({
     logoWrapper: {
         alignItems: 'center',
         marginTop: 10,
+        // Breathing room so the lockup does not sit on top of the heading.
+        marginBottom: 20,
     },
     logo: {
-        width: width * 0.34,
-        height: 150,
+        width: width * 0.55,
+        height: (width * 0.55) / LOGO_ASPECT,
     },
     content: {
         flex: 1,

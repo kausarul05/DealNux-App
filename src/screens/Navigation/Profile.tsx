@@ -19,6 +19,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthStackParamList } from "../../Navigation/types";
 import { Toast, useToast } from "../../components/useToost";
 import { COPYRIGHT_TEXT } from "../../constants/brand";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import DeleteAccountModal from "../../components/DeleteAccountModal";
 
 // Every legal/policy tab from the DealNux website. `slug` maps to the backend
 // `policy/{slug}/` endpoint; all open in the shared PolicyViewer screen.
@@ -134,10 +136,12 @@ const API_BASE_URL = IPA_BASE;
 const END_POINTS = PROFILE;
 
 const Profile = () => {
+    const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
     const toast = useToast();
     const [user, setUser] = useState<UserProfile | null>(null);
     const [payOpen, setPayOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     useFocusEffect(
@@ -246,7 +250,10 @@ const Profile = () => {
                 <View className="items-center my-2">
                     <Text className="text-lg font-bold text-[#2D2D2D]">My Profile</Text>
                 </View>
-                <ScrollView className="mb-28" showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
+                >
                     {/* Avatar */}
                     <View className="items-center">
                         <View className="w-32 h-32 rounded-full bg-white items-center justify-center shadow-sm shadow-black/10 overflow-hidden">
@@ -443,13 +450,30 @@ const Profile = () => {
                     {/* Logout */}
                     <TouchableOpacity
                         activeOpacity={0.85}
-                        className="mt-5 bg-white rounded-2xl px-4 py-4 flex-row items-center gap-3 shadow-sm shadow-black/10 mb-8"
+                        className="mt-5 bg-white rounded-2xl px-4 py-4 flex-row items-center gap-3 shadow-sm shadow-black/10"
                         onPress={() => setPayOpen(true)}
                     >
                         <View className="w-9 h-9 rounded-full bg-[#FEE2E2] items-center justify-center">
                             <MaterialCommunityIcons name="logout" size={18} color="#EF4444" />
                         </View>
                         <Text className="text-[15px] font-bold text-[#EF4444]">Logout</Text>
+                    </TouchableOpacity>
+
+                    {/* Delete account — permanent, so it sits apart from Logout */}
+                    <TouchableOpacity
+                        activeOpacity={0.85}
+                        className="mt-3 bg-white rounded-2xl px-4 py-4 flex-row items-center gap-3 shadow-sm shadow-black/10 mb-8"
+                        onPress={() => setDeleteOpen(true)}
+                    >
+                        <View className="w-9 h-9 rounded-full bg-[#FEE2E2] items-center justify-center">
+                            <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
+                        </View>
+                        <View className="flex-1">
+                            <Text className="text-[15px] font-bold text-[#EF4444]">Delete Account</Text>
+                            <Text className="text-[12px] text-gray-400 mt-0.5">
+                                Permanently remove your account and data
+                            </Text>
+                        </View>
                     </TouchableOpacity>
 
                     {/* Copyright — same line as the website footer */}
@@ -465,6 +489,16 @@ const Profile = () => {
                 onClose={() => setPayOpen(false)}
                 onAddCard={() => setPayOpen(false)}
                 onConfirm={handleLogout} // ✅ This calls the logout handler
+            />
+
+            <DeleteAccountModal
+                visible={deleteOpen}
+                email={user?.email}
+                onClose={() => setDeleteOpen(false)}
+                onDeleted={() => {
+                    setDeleteOpen(false);
+                    navigation.reset({ index: 0, routes: [{ name: "SignIn" }] });
+                }}
             />
 
             <Toast

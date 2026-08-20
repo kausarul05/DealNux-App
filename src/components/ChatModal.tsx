@@ -2,7 +2,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import {
     Dimensions,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     ScrollView,
@@ -18,6 +17,7 @@ import {
 } from 'react-native'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useKeyboardHeight } from '../hooks/useKeyboardHeight'
 import { useChat } from '../hooks/useChat'
 import SuggestedReplies from './chat/SuggestedReplies'
 import { WebView } from 'react-native-webview'
@@ -41,6 +41,9 @@ interface ChatBotModalProps {
 
 const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
     const insets = useSafeAreaInsets()
+    // A Modal is its own window, so Android's adjustResize never shrinks it.
+    // Measure the keyboard and lift the sheet by exactly that much instead.
+    const keyboardHeight = useKeyboardHeight()
     const [inputText, setInputText] = useState('')
     const scrollViewRef = useRef<ScrollView>(null)
     const initializedRef = useRef(false)
@@ -76,7 +79,9 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                 scrollViewRef.current?.scrollToEnd({ animated: true })
             }, 200)
         }
-    }, [messages])
+        // Re-runs when the keyboard opens too: the list just got shorter, so the
+        // newest message would otherwise be left above the fold.
+    }, [messages, keyboardHeight])
 
     const handleSend = () => {
         if (inputText.trim()) {
@@ -301,14 +306,19 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                {/* Fixed-height container — no longer a KeyboardAvoidingView,
-                    so opening the keyboard can no longer shrink/collapse the
-                    whole modal. Only the input row below reacts to the
-                    keyboard. */}
+                {/* The sheet is lifted and capped by the measured keyboard
+                    height below, so the input row stays above the keyboard and
+                    the message list simply gets shorter. */}
                 <View
                     style={[
                         styles.modalContainer,
-                        { paddingBottom: insets.bottom },
+                        {
+                            // Sit directly on top of the keyboard, and shrink so the
+                            // header and the input row both stay on screen.
+                            marginBottom: keyboardHeight,
+                            maxHeight: height - keyboardHeight - insets.top,
+                            paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom,
+                        },
                     ]}
                 >
                     {/* Header */}
@@ -390,11 +400,9 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                         )}
                     </ScrollView>
 
-                    {/* Input Area — only this part reacts to the keyboard now */}
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom : 0}
-                    >
+                    {/* Input Area — the sheet above is lifted by the measured
+                        keyboard height, so this row is always visible. */}
+                    <View>
                         <View style={styles.inputContainer}>
                             <TextInput
                                 style={styles.input}
@@ -418,7 +426,7 @@ const ChatModal = ({ visible, onClose }: ChatBotModalProps) => {
                                 />
                             </TouchableOpacity>
                         </View>
-                    </KeyboardAvoidingView>
+                    </View>
                 </View>
             </View>
 

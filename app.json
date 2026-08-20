@@ -9,10 +9,10 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.dealnux.app",
-      "buildNumber": "5",
+      "buildNumber": "12",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs camera access to scan product barcodes and QR codes.",
         "NSPhotoLibraryUsageDescription": "This app needs photo library access to upload product images.",
@@ -21,8 +21,8 @@
     },
     "android": {
       "package": "com.dealnux.app",
-      "versionCode": 6,
-      "softwareKeyboardLayoutMode": "pan",
+      "versionCode": 12,
+      "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -46,7 +46,7 @@
       [
         "@react-native-google-signin/google-signin",
         {
-          "iosUrlScheme": "com.googleusercontent.apps.678612451976-eadlb0anmkjoint1pqv72pfe4589m31m"
+          "iosUrlScheme": "com.googleusercontent.apps.447604871402-ud0nv5833fq67hebv6vd8m7eub9k6lca"
         }
       ],
       [
@@ -83,8 +83,14 @@
         {
           "ios": {
             "extraPods": [
-              { "name": "GoogleUtilities", "modular_headers": true },
-              { "name": "RecaptchaInterop", "modular_headers": true }
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              },
+              {
+                "name": "RecaptchaInterop",
+                "modular_headers": true
+              }
             ]
           }
         }

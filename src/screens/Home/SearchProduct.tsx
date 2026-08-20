@@ -500,7 +500,7 @@ const SearchProduct = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <LinearGradient
                 colors={['#FFFFFF', '#F8FAFC']}
                 style={styles.headerGradient}
@@ -582,7 +582,7 @@ const SearchProduct = () => {
                 buttons={toast.buttons}
                 onHide={toast.hide}
             />
-        </SafeAreaView>
+        </View>
     )
 }
 

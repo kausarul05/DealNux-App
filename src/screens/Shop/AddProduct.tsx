@@ -12,7 +12,6 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
     Image,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -24,6 +23,7 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '../../components/AppHeader';
@@ -685,10 +685,7 @@ const AddProduct = () => {
 
     return (
         <View className="flex-1 bg-[#F7F7FA]">
-            <KeyboardAvoidingView
-                className="flex-1"
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
+            <KeyboardAvoider>
                 <View className="px-5 py-2">
                     <View className="flex-row items-center">
                         <View className="w-10">
@@ -952,7 +949,7 @@ const AddProduct = () => {
                         </Pressable>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             <Modal
                 transparent

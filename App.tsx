@@ -1,4 +1,5 @@
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import "./global.css";
@@ -114,11 +115,15 @@ function AuthStack() {
 
 export default function App() {
   return (
-    <NotificationProvider>
-      <NavigationContainer ref={navigationRef}>
-        <StatusBar style='auto' />
-        <AuthStack />
-      </NavigationContainer>
-    </NotificationProvider>
+    // SafeAreaProvider is required for useSafeAreaInsets(); the Android tab bar
+    // needs the bottom inset so it is not clipped by the system navigation bar.
+    <SafeAreaProvider>
+      <NotificationProvider>
+        <NavigationContainer ref={navigationRef}>
+          <StatusBar style='auto' />
+          <AuthStack />
+        </NavigationContainer>
+      </NotificationProvider>
+    </SafeAreaProvider>
   );
 }

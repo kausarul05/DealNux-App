@@ -43,7 +43,7 @@ export const useAppleAuth = () => {
 
       // Send token to your backend
       const response = await axios.post(
-        `${IPA_BASE}auth/apple/`,
+        `${IPA_BASE}account/apple/`,
         {
           identity_token: identityToken,
           email: credential.email || '',

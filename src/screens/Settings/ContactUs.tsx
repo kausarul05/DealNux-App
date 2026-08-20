@@ -8,9 +8,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
@@ -138,10 +138,7 @@ const ContactUs = () => {
           />
         </View>
 
-        <KeyboardAvoidingView
-          className="flex-1"
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <KeyboardAvoider>
           {success ? (
             // Success View
             <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
@@ -323,7 +320,7 @@ const ContactUs = () => {
               <CopyrightNote />
             </ScrollView>
           )}
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
       </View>
     </View>
   )

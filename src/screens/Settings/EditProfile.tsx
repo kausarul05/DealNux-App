@@ -14,7 +14,6 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Image,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     ScrollView,
@@ -24,6 +23,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppHeader from "../../components/AppHeader";
 import BackButton from "../../components/BackButton";
@@ -339,10 +339,7 @@ const EditProfile = () => {
                         middle={() => <Text className="text-lg font-semibold">Edit Profile</Text>}
                     />
                 </View>
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-                >
+                <KeyboardAvoider keyboardVerticalOffset={80}>
                     <ScrollView
                         contentContainerStyle={{ paddingBottom: 30 }}
                         keyboardShouldPersistTaps="handled"
@@ -552,7 +549,7 @@ const EditProfile = () => {
                         </TouchableOpacity>
 
                     </ScrollView>
-                </KeyboardAvoidingView>
+                </KeyboardAvoider>
             </View>
             
             {/* ─── Success Modal ────────────────────────────────────────────────── */}

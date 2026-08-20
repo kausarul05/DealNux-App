@@ -46,6 +46,7 @@ import { Toast, useToast } from '../../components/useToost'
 import { Images } from '../../constants'
 import { AuthStackParamList } from '../../Navigation/types'
 import { useSubscriptionAccess } from '../../hooks/useSubscriptionAccess'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const { width } = Dimensions.get('window')
 const API_BASE_URL = IPA_BASE
@@ -150,6 +151,9 @@ const WebViewModal = ({
     title?: string;
 }) => {
     const [loading, setLoading] = useState(true);
+    // The modal is full screen, so without the top inset the header sits under
+    // the status bar / notch.
+    const insets = useSafeAreaInsets();
 
     if (!url) return null;
 
@@ -160,7 +164,7 @@ const WebViewModal = ({
             onRequestClose={onClose}
             presentationStyle="fullScreen"
         >
-            <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF', paddingTop: insets.top }}>
                 <View style={styles.webViewHeader}>
                     <TouchableOpacity onPress={onClose} style={styles.webViewClose}>
                         <Ionicons name="close" size={28} color="#1F2937" />

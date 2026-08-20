@@ -47,6 +47,8 @@ declare module "@env" {
   export const DASHBOARD_API: string;
   export const VIEW_ADS: string;
   export const BANNER_IMAGES: string;
+  export const DELETE_ACCOUNT_SEND_OTP: string;
+  export const DELETE_ACCOUNT: string;
   export const CLICK_ADS: string;
   export const GET_PRODUCT: string;
   export const UPDATE_PRODUCT: string;

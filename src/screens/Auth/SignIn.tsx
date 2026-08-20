@@ -12,7 +12,6 @@ import {
     Alert,
     Dimensions,
     Image,
-    KeyboardAvoidingView,
     Platform,
     ScrollView,
     StyleSheet,
@@ -22,12 +21,15 @@ import {
     View,
     ActivityIndicator,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppleButtonSvg from '../../components/Apple';
 import GoogleButtonSvg from '../../components/Google';
 import SuccessModal from '../../components/SuccessModal';
 import { Images } from '../../constants';
+import { LOGO_ASPECT } from '../../constants/layout';
+import { AUTH, AUTH_BUTTON_SHADOW, AUTH_INPUT_FOCUS_SHADOW } from '../../constants/authTheme';
 import { AuthStackParamList } from '../../Navigation/types';
 
 const { width, height } = Dimensions.get('window');
@@ -45,6 +47,8 @@ const SignIn = () => {
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    // Which field is focused, so its border and icon can highlight.
+    const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [appleLoading, setAppleLoading] = useState(false);
@@ -292,59 +296,69 @@ const SignIn = () => {
 
     return (
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safe}>
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-            >
+            <KeyboardAvoider style={{ flex: 1 }}>
                 <View style={styles.page}>
-                    <View style={styles.logoContainer}>
-                        <Image source={Images.Logo} style={styles.logoImage} resizeMode="contain" />
-                    </View>
-
                     <ScrollView
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
                         contentContainerStyle={styles.scrollContent}
                         bounces={false}
                     >
+                        <View style={styles.logoContainer}>
+                            <Image source={Images.Logo} style={styles.logoImage} resizeMode="contain" />
+                        </View>
+
                         <Text style={[styles.title, { textAlign: 'center' }]}>Welcome to DealNux!</Text>
                         <Text style={[styles.subTitle, { textAlign: 'center' }]}>Sign in to track prices and save money.</Text>
 
                         <Text style={styles.label}>Email address</Text>
-                        <View style={[styles.inputRow, styles.inputBorder]}>
-                            <MaterialIcons name="email" size={24} color="#334155" style={styles.iconMr} />
+                        <View style={[styles.inputRow, focusedField === 'email' && styles.inputRowFocused]}>
+                            <MaterialIcons
+                                name="email"
+                                size={20}
+                                color={focusedField === 'email' ? AUTH.primary : AUTH.faint}
+                                style={styles.iconMr}
+                            />
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="Your email ex: yourmail@gmail.com"
-                                placeholderTextColor="#A0A0A0"
+                                placeholder="Enter your email"
+                                placeholderTextColor={AUTH.placeholder}
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
+                                onFocus={() => setFocusedField('email')}
+                                onBlur={() => setFocusedField(null)}
                             />
                         </View>
 
                         <Text style={styles.label}>Password</Text>
-                        <View style={[styles.inputRow, styles.inputBorder]}>
-                            <Entypo name="lock" size={24} color="#334155" style={styles.iconMr} />
+                        <View style={[styles.inputRow, focusedField === 'password' && styles.inputRowFocused]}>
+                            <Entypo
+                                name="lock"
+                                size={20}
+                                color={focusedField === 'password' ? AUTH.primary : AUTH.faint}
+                                style={styles.iconMr}
+                            />
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="****************"
-                                placeholderTextColor="#A0A0A0"
+                                placeholder="Enter your password"
+                                placeholderTextColor={AUTH.placeholder}
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
                                 autoCapitalize="none"
                                 autoCorrect={false}
+                                onFocus={() => setFocusedField('password')}
+                                onBlur={() => setFocusedField(null)}
                             />
                             <TouchableOpacity onPress={() => setShowPassword(!showPassword)} hitSlop={10}>
-                                {showPassword ? (
-                                    <Ionicons name="eye-outline" size={24} color="black" />
-                                ) : (
-                                    <Ionicons name="eye-off-outline" size={24} color="black" />
-                                )}
+                                <Ionicons
+                                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                                    size={20}
+                                    color={AUTH.faint}
+                                />
                             </TouchableOpacity>
                         </View>
 
@@ -390,7 +404,7 @@ const SignIn = () => {
                                     activeOpacity={0.8}
                                 >
                                     {googleLoading ? (
-                                        <ActivityIndicator size="small" color="#2355B6" />
+                                        <ActivityIndicator size="small" color={AUTH.primary} />
                                     ) : (
                                         <GoogleButtonSvg />
                                     )}
@@ -406,7 +420,7 @@ const SignIn = () => {
                                     activeOpacity={0.8}
                                 >
                                     {appleLoading ? (
-                                        <ActivityIndicator size="small" color="#2355B6" />
+                                        <ActivityIndicator size="small" color={AUTH.primary} />
                                     ) : (
                                         <AppleButtonSvg />
                                     )}
@@ -422,7 +436,7 @@ const SignIn = () => {
                         </View>
                     </ScrollView>
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             <SuccessModal
                 visible={showSuccessModal}
@@ -447,53 +461,64 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingBottom: 40,
+        // Centres the form in whatever space is left under the logo. Content
+        // taller than the screen still scrolls normally.
         flexGrow: 1,
+        justifyContent: 'center',
     },
     logoContainer: {
         alignItems: 'center',
-        paddingTop: height * 0.02,
+        // Clear of the status bar above, with a light gap to the heading below.
+        paddingTop: 24,
+        paddingBottom: 12,
     },
     logoImage: {
-        width: width * 0.6,
-        height: height * 0.15,
+        width: width * 0.62,
+        height: (width * 0.62) / LOGO_ASPECT,
     },
     title: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: '800',
-        color: '#111827',
+        color: AUTH.heading,
+        letterSpacing: -0.4,
     },
     subTitle: {
-        fontSize: 16,
-        color: '#636F85',
+        fontSize: 15,
+        color: AUTH.muted,
+        lineHeight: 22,
         marginVertical: 16,
     },
     label: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '600',
-        color: '#636F85',
+        color: AUTH.body,
         marginBottom: 8,
         marginTop: 16,
     },
+    // White fields read as cards on the off-white page; the old grey-on-grey
+    // fill made them look disabled.
     inputRow: {
-        backgroundColor: '#F5F5F5',
-        borderRadius: 12,
+        backgroundColor: AUTH.surface,
+        borderRadius: AUTH.radius,
+        borderWidth: 1,
+        borderColor: AUTH.border,
         paddingHorizontal: 16,
         paddingVertical: Platform.OS === 'ios' ? 14 : 12,
         flexDirection: 'row',
         alignItems: 'center',
     },
-    inputBorder: {
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
+    inputRowFocused: {
+        borderColor: AUTH.borderFocus,
+        ...AUTH_INPUT_FOCUS_SHADOW,
     },
     iconMr: {
-        marginRight: 16,
+        marginRight: 12,
     },
     textInput: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 15,
         paddingVertical: Platform.OS === 'ios' ? 0 : 2,
-        color: '#111827',
+        color: AUTH.heading,
     },
     optionsRow: {
         flexDirection: 'row',
@@ -507,23 +532,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     rememberMeText: {
-        fontSize: 16,
-        color: '#666666',
+        fontSize: 14,
+        color: AUTH.body,
     },
     forgotPassword: {
-        fontSize: 16,
-        color: '#E74C3C',
+        fontSize: 14,
+        fontWeight: '600',
+        color: AUTH.primary,
     },
     mainButton: {
-        backgroundColor: '#2355B6',
-        borderRadius: 12,
+        backgroundColor: AUTH.primary,
+        borderRadius: AUTH.radius,
         paddingVertical: 18,
         alignItems: 'center',
+        ...AUTH_BUTTON_SHADOW,
     },
     mainButtonText: {
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#FFFFFF',
+        letterSpacing: 0.2,
     },
     dividerContainer: {
         flexDirection: 'row',
@@ -533,11 +561,11 @@ const styles = StyleSheet.create({
     divider: {
         flex: 1,
         height: 1,
-        backgroundColor: '#E0E0E0',
+        backgroundColor: AUTH.divider,
     },
     orText: {
-        fontSize: 16,
-        color: '#666666',
+        fontSize: 13,
+        color: AUTH.faint,
         marginHorizontal: 16,
     },
     checkboxSquare: {
@@ -545,14 +573,15 @@ const styles = StyleSheet.create({
         height: 22,
         borderRadius: 6,
         borderWidth: 2,
-        borderColor: '#1A4D5C',
+        borderColor: '#CBD5E1',
         marginRight: 10,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: AUTH.surface,
     },
     checkboxSquareChecked: {
-        backgroundColor: '#2355B6',
-        borderColor: '#2355B6',
+        backgroundColor: AUTH.primary,
+        borderColor: AUTH.primary,
     },
     checkmark: {
         color: '#FFFFFF',
@@ -566,12 +595,12 @@ const styles = StyleSheet.create({
     },
     socialBtn: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AUTH.surface,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 16,
+        borderColor: AUTH.border,
+        borderRadius: AUTH.radius,
         paddingHorizontal: 24,
-        paddingVertical: 16,
+        paddingVertical: 14,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -587,12 +616,12 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     signupText: {
-        fontSize: 18,
-        color: '#111827',
+        fontSize: 15,
+        color: AUTH.muted,
     },
     signupLink: {
-        fontSize: 18,
-        color: 'red',
+        fontSize: 15,
+        color: AUTH.primary,
         fontWeight: '700',
     },
 });

@@ -229,7 +229,7 @@ const CurrentPlanCard = ({ subscription }: { subscription: SubscriptionStatus | 
           </View>
           <View>
             <Text style={styles.statLabel}>Clicks Remaining</Text>
-            <Text style={styles.statValue}>{subscription.clicks_left} / day</Text>
+            <Text style={styles.statValue}>{subscription.clicks_left ?? "—"} / day</Text>
           </View>
         </View>
       </View>
@@ -271,6 +271,10 @@ const PlanCard = ({
   hasUsedTrial?: boolean;
 }) => {
   const free = isFree(plan.plan_type);
+  // Declared before the free-plan branch below, which also reads it. It used
+  // to be declared only after that branch returned, so the free card fell
+  // through to the yearly (amber) button styling instead of the blue one.
+  const isMonthlyPlan = isMonthly(plan.plan_type);
   const yearly = isYearly(plan.plan_type);
   const badge = planBadgeLabel(plan.plan_type);
   const isLoading = subscribingId === plan.id;
@@ -354,8 +358,6 @@ const PlanCard = ({
   }
 
   // Pro/Paid plans
-  const isMonthlyPlan = isMonthly(plan.plan_type);
-
   return (
     <View style={[
       styles.proCard,
@@ -687,9 +689,14 @@ const SubscriptionInner = () => {
     };
   }, []);
 
+  // Someone already paying has nothing to gain from the trial card, so it is
+  // hidden while a paid plan is active and comes back once that plan lapses.
+  // A trial that is itself the current plan still shows (price is 0 there).
+  const onPaidPlan = subscription?.is_active === true && Number(subscription.price) > 0;
+
   // ── Filter plans by tab ────────────────────────────────────────────────────
   const filteredPlans = plans.filter((p) => {
-    if (isFree(p.plan_type)) return true;
+    if (isFree(p.plan_type)) return !onPaidPlan;
     if (tab === "monthly") return isMonthly(p.plan_type);
     return isYearly(p.plan_type);
   });
@@ -708,7 +715,11 @@ const SubscriptionInner = () => {
 
       // ── iOS: Apple In-App Purchase (StoreKit). The Android Stripe flow below
       //    is unchanged — it only runs on Android. ──
-      if (Platform.OS === "ios") {
+      //    The free trial is deliberately excluded: it costs nothing, so it has
+      //    no StoreKit product and used to dead-end on a "not available on iOS"
+      //    alert. It falls through to the same backend activation Android uses.
+      const paidOnIos = !isFree(plan.plan_type) && Number(plan.price) > 0;
+      if (Platform.OS === "ios" && paidOnIos) {
         pendingPlanNameRef.current = plan.name;
         const sku = IOS_PRODUCT_IDS[plan.plan_type];
         if (!sku) {
@@ -744,6 +755,30 @@ const SubscriptionInner = () => {
 
       console.log("✅ Subscribe response:", res.data);
       const data: SubscribeResponse = res.data;
+
+      // The free trial costs nothing, so there is no payment to take. Skip
+      // Stripe and confirm from the status endpoint that it actually started,
+      // rather than assuming the subscribe call was enough.
+      if (isFree(plan.plan_type) || Number(plan.price) <= 0) {
+        await fetchSubscriptionStatus();
+        const check = await axios
+          .get(`${API_BASE_URL}${SUBSCRIPTION_STATUS_ENDPOINT}`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          })
+          .catch(() => null);
+        const active = check?.data?.data?.is_active === true;
+
+        if (active) {
+          setSuccessPlanName(plan.name);
+          setSuccessVisible(true);
+        } else {
+          Alert.alert(
+            "Trial Not Available",
+            "Your free trial could not be started. It may have already been used on this account. Please choose one of the paid plans."
+          );
+        }
+        return;
+      }
 
       if (!data.payment_intent_client_secret) {
         Alert.alert("Error", "Could not initialize payment. Please try again.");

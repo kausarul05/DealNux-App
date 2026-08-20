@@ -9,7 +9,6 @@ import React, { useState } from 'react';
 import {
     Alert,
     Image,
-    KeyboardAvoidingView,
     Platform,
     ScrollView,
     StyleSheet,
@@ -18,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
@@ -194,11 +194,7 @@ const ProfileSetup = () => {
 
     return (
         <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-            >
+            <KeyboardAvoider style={{ flex: 1 }} keyboardVerticalOffset={10}>
                 <View style={styles.page}>
                     <View style={styles.headerRow}>
                         <AppHeader left={() => <BackButton />} />
@@ -402,7 +398,7 @@ const ProfileSetup = () => {
                     description="Your profile has been set up successfully."
                     onClose={() => setShowSuccessModal(false)}
                 />
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </SafeAreaView>
     );
 };

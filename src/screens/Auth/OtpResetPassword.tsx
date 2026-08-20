@@ -19,6 +19,7 @@ import { AuthStackParamList } from '../../Navigation/types';
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import { Images } from '../../constants';
+import { LOGO_ASPECT } from '../../constants/layout';
 
 const { width, height } = Dimensions.get('window');
 
@@ -251,10 +252,12 @@ const styles = StyleSheet.create({
     logoContainer: {
         alignItems: 'center',
         paddingTop: height * 0,
+        // Breathing room so the lockup does not sit on top of the heading.
+        paddingBottom: 18,
     },
     logoImage: {
-        width: width * 0.4,
-        height: height * 0.1,
+        width: width * 0.55,
+        height: (width * 0.55) / LOGO_ASPECT,
     },
     otpInput: {
         width: 64,

@@ -6,6 +6,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from "axios";
 import { IPA_BASE, CART_PRODUCT } from "@env";
 import Cart from "./Cart";
@@ -71,6 +72,10 @@ const CartIconWithBadge = ({ focused, color, size, cartCount }: any) => {
 
 // ─── Main Tab Navigator ──────────────────────────────────────────────────────
 export default function MainTabs() {
+    // The app is edge-to-edge on Android, so the tab bar sits underneath the
+    // system navigation bar. Without the inset the labels get clipped.
+    const insets = useSafeAreaInsets();
+    const bottomInset = Platform.OS === 'android' ? insets.bottom : 0;
     const [cartCount, setCartCount] = useState(0);
     const cartUpdateRef = useRef<(count: number) => void>();
 
@@ -136,7 +141,8 @@ export default function MainTabs() {
                 headerShown: false,
                 tabBarStyle: {
                     ...styles.tabBar,
-                    height: Platform.OS === 'ios' ? 95 : 80,
+                    height: (Platform.OS === 'ios' ? 95 : 80) + bottomInset,
+                    paddingBottom: (Platform.OS === 'ios' ? 28 : 12) + bottomInset,
                 },
                 tabBarShowLabel: true,
                 tabBarLabelPosition: 'below-icon',

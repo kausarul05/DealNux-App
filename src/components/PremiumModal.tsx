@@ -12,6 +12,7 @@ import {
     View
 } from 'react-native'
 import { Images } from '../constants'
+import { useLowestPlanPrice } from '../hooks/useLowestPlanPrice'
 
 const { height } = Dimensions.get('window')
 
@@ -21,6 +22,7 @@ interface PremiumModalProps {
 }
 
 const PremiumModal = ({ visible, onClose }: PremiumModalProps) => {
+    const lowestPrice = useLowestPlanPrice(visible)
     const features = [
         {
             id: '1',
@@ -123,9 +125,11 @@ const PremiumModal = ({ visible, onClose }: PremiumModalProps) => {
                             </View>
 
                             {/* Pricing */}
-                            <Text style={styles.pricingText}>
-                                7 Days Free, then $4.99/mo
-                            </Text>
+                            {lowestPrice !== null && (
+                                <Text style={styles.pricingText}>
+                                    7 Days Free, then ${lowestPrice.toFixed(2)}/mo
+                                </Text>
+                            )}
 
                             {/* Start Trial Button */}
                             <TouchableOpacity style={styles.trialButton}>

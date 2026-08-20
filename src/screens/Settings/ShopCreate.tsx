@@ -17,10 +17,10 @@ import {
     TouchableOpacity,
     View,
     Alert,
-    KeyboardAvoidingView,
     Platform,
     Dimensions,
 } from 'react-native'
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { LinearGradient } from 'expo-linear-gradient'
 import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
@@ -1453,7 +1453,7 @@ const ShopCreate = () => {
 
     return (
         <View style={styles.safeArea}>
-            <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <KeyboardAvoider style={styles.container}>
                 <View style={styles.header}>
                     <View style={styles.headerRow}>
                         <AppHeader left={() => <BackButton onPress={handleBackPress} />} />
@@ -1465,6 +1465,7 @@ const ShopCreate = () => {
 
                 <ScrollView
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
                 >
@@ -1489,7 +1490,7 @@ const ShopCreate = () => {
                         </TouchableOpacity>
                     </View>
                 )}
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             <Toast
                 style={toast.style}

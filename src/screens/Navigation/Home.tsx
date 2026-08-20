@@ -692,12 +692,12 @@ const Home = () => {
                 onCategoryPress={handleCategoryPress}
             />
 
+            {/* Website promo banners — shown to every user, free or subscribed. */}
+            <WebsiteBanners />
+
             {!isSubscriptionActive && (
                 <PremiumCard onPress={() => setSubscriptionModalVisible(true)} />
             )}
-
-            {/* Website promo banners — shown to every user, free or subscribed. */}
-            <WebsiteBanners />
 
             {recommendedProducts.length > 0 && (
                 <View style={styles.recommendedSection}>

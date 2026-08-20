@@ -20,7 +20,9 @@ import AppHeader from '../../components/AppHeader'
 import BackButton from '../../components/BackButton'
 import { useNavigation } from '@react-navigation/native'
 import CopyrightNote from '../../components/CopyrightNote'
-import { BRAND_TAGLINE } from '../../constants/brand'
+import { BRAND_MISSION, BRAND_TAGLINE } from '../../constants/brand'
+import { Images } from '../../constants'
+import { LOGO_ASPECT } from '../../constants/layout'
 
 const AboutUs = () => {
   const [loading, setLoading] = useState(true)
@@ -99,13 +101,15 @@ const AboutUs = () => {
             contentContainerStyle={{ paddingBottom: 40 }}
             className="flex-1"
           >
-            {/* Logo / Brand Section */}
+            {/* Logo / Brand Section — the supplied brand lockup, which already
+                carries the wordmark, in place of the old stand-in storefront icon */}
             <View className="items-center mb-6 mt-2">
-              <View className="w-24 h-24 rounded-full bg-blue-50 items-center justify-center border-2 border-blue-100">
-                <Ionicons name="storefront" size={48} color="#2563EB" />
-              </View>
-              <Text className="text-2xl font-bold text-[#1F2937] mt-3">DealNux</Text>
-              <Text className="text-sm text-gray-500">{BRAND_TAGLINE}</Text>
+              <Image
+                source={Images.Logo}
+                style={{ width: 220, height: 220 / LOGO_ASPECT }}
+                resizeMode="contain"
+              />
+              <Text className="text-sm text-gray-500 mt-2">{BRAND_TAGLINE}</Text>
             </View>
 
             {/* Last Updated */}
@@ -133,8 +137,7 @@ const AboutUs = () => {
                 <Text className="text-lg font-bold text-[#1F2937]">Our Mission</Text>
               </View>
               <Text className="text-sm text-gray-600 leading-6">
-                To empower shoppers with intelligent price comparison and deal discovery, 
-                making smart shopping accessible to everyone.
+                {BRAND_MISSION}
               </Text>
             </View>
 

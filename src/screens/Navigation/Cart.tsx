@@ -26,10 +26,10 @@ import {
   Modal,
   ActivityIndicator,
   StyleSheet,
-  KeyboardAvoidingView,
   Switch,
   FlatList
 } from 'react-native'
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { StripeProvider, useStripe } from '@stripe/stripe-react-native'
@@ -246,11 +246,7 @@ const ShippingAddressModal = ({
       transparent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
+      <KeyboardAvoider style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { maxHeight: '92%' }]}>
             <View style={styles.modalHandle} />
@@ -387,7 +383,7 @@ const ShippingAddressModal = ({
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </Modal>
   )
 }

@@ -14,13 +14,15 @@ Apple ID (no shared API key), test the In-App Purchases on the iPhone via TestFl
 the free **Transporter** app + the `.ipa`.
 
 ## 📦 THE iOS BUILD
-- Built via EAS (production profile), version **1.0.0**, buildNumber **1**, includes ALL
-  the fixes below.
-- **Direct `.ipa` download (CURRENT — includes the login/session fix):**
-  `https://expo.dev/artifacts/eas/vzAWMLbENtv2EUeD4HJgysnyZxn6fqto-AvdyZ8Dc24.ipa`
-  (Earlier `.ipa`s predate the session fix — do not use them.)
-- Build page: `https://expo.dev/accounts/kausarul/projects/savvy-shopper/builds/b2a450b7-d18b-4f75-aacb-2b501eab5eca`
-  (If a newer iOS build exists, use `eas build:list --platform ios` and take the latest finished one.)
+- Built via EAS (production profile), version **1.0.0**, buildNumber **12**.
+- **Direct `.ipa` download (CURRENT — 1.0.0 build 12, 2026-08-20):**
+  `https://expo.dev/artifacts/eas/y3yRrbRURiHw_K2LLtE5FC1R2IQdt5ejF6JGY8jbAfE.ipa`
+- Build page:
+  `https://expo.dev/accounts/kausarul/projects/savvy-shopper/builds/69dcecc6-89e1-49fd-8045-3fdfb27ed973`
+- Every earlier `.ipa` is out of date — do not use them. Builds 5 and 7 are already
+  consumed in App Store Connect, which is why this one is 12.
+- If a newer iOS build exists, run `eas build:list --platform ios` and take the
+  latest finished one instead.
 
 ## 📲 MAC STEPS (do this with the user, live)
 1. **Transporter** — install from the Mac App Store (free, by Apple).
@@ -92,7 +94,9 @@ All in git on `main`. The iOS build + Android v4 build both include these:
   add the **512×512 store icon** (`appstore-assets/playstore_icon_512.png`) under Store presence →
   Main store listing → ensure store-listing text is the compliant version → Send for review.
 - Version config: `eas.json` uses `appVersionSource: local`; Android versionCode lives in
-  `app.json` (`android.versionCode`), iOS in `app.json` (`ios.buildNumber`). Bump manually per release.
+  `app.json` — `android.versionCode` and `ios.buildNumber`. `android/app/build.gradle` now
+  READS those from app.json, so app.json is the single source of truth and survives
+  `expo prebuild`. Bump both with `npm run bump` before a store build.
 - Android production is signed with the **local `release.jks`** (SHA1 `1FB9ACC1…`, the Play upload
   key) forced via `credentialsSource: local` + `credentials.json` (gitignored). Keep release.jks safe.
 
@@ -109,3 +113,34 @@ All in git on `main`. The iOS build + Android v4 build both include these:
 - `.claude/postman/frontend_ios_iap_guideline 1.md` — backend contract (4 subscription products).
 - 4 subscription products already created in App Store Connect (group "DealNux Premium", app Apple ID
   6800175439): pro.monthly $5.99, ultimate.monthly $24.99, promax.yearly $69.99, ultimania.yearly $179.99.
+
+---
+
+## iOS state as of 2026-08-19
+
+- **Apple Team ID is `X9R5QB5JBJ`** (read from EAS/Apple). An earlier note said
+  `X9R5Q85J8J` — that mis-read the two `B`s as `8`s. The wrong value was entered in the
+  Google Cloud iOS OAuth client's optional Team ID field; harmless for Google Sign-In,
+  but worth correcting.
+- **iPad support is OFF** (`ios.supportsTablet: false`) — the app was never tested on
+  iPad, so shipping iPhone-only avoids the 13-inch screenshot requirement and an
+  iPad-layout rejection. Only iPhone screenshots are needed.
+- **Google Sign-In now uses the client's Cloud project** `dealnux-8ced2` (project number
+  447604871402), consent screen published to production, four OAuth clients (Web,
+  iOS, Android upload key, Android Play app-signing key).
+- **Apple login endpoint is `account/apple/`.** `useAppleAuth.ts` pointed at
+  `auth/apple/` (404) but is unused; SignIn/SignUp always used the right path.
+- **Backend Apple endpoints are live:** `payment/apple/verify/` (401) and
+  `payment/apple/notifications/` (400).
+- **Stripe is LIVE** — `pk_live_51TG3reB3f…`, a different Stripe account from the old
+  test key. iOS subscriptions go through Apple IAP, not Stripe.
+
+### Blocking the App Store submission
+1. Enable **Sign in with Apple** on App ID `com.dealnux.app`.
+2. Each of the 4 subscription products needs a **review screenshot** — this is what
+   blocked the previous submission. A screenshot of the app's Subscription screen is
+   enough; it is internal to review and never shown publicly.
+3. Set the **Server Notifications V2** URL once the backend provides it.
+4. Create a **Sandbox test account** and supply **reviewer login** details.
+5. About Us still shows Lorem Ipsum — content lives in the admin panel, not the app.
+   Do not screenshot that screen.

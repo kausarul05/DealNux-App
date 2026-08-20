@@ -33,6 +33,9 @@ const BANNERS_PATH = BANNER_IMAGES || 'banners/images/';
 // fresh copy is fetched in the background.
 const CACHE_KEY = 'bannersCache';
 
+// The carousel advances on its own, like the website's banner does.
+const AUTO_ADVANCE_MS = 10000;
+
 const H_PADDING = SCREEN_PADDING;   // matches the Premium card, so the edges line up
 
 const CONTENT_WIDTH = SCREEN_WIDTH - H_PADDING * 2;
@@ -53,6 +56,8 @@ export const WebsiteBanners: React.FC = () => {
     const [banners, setBanners] = useState<MainBanner[]>([]);
     const [activeIndex, setActiveIndex] = useState(0);
     const mounted = useRef(true);
+    const listRef = useRef<FlatList<MainBanner>>(null);
+    const indexRef = useRef(0);
 
     useEffect(() => {
         mounted.current = true;
@@ -108,8 +113,23 @@ export const WebsiteBanners: React.FC = () => {
     }, [apply]);
 
     const onCarouselScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / CONTENT_WIDTH));
+        const i = Math.round(e.nativeEvent.contentOffset.x / CONTENT_WIDTH);
+        indexRef.current = i;
+        setActiveIndex(i);
     };
+
+    // Step to the next banner every few seconds, wrapping at the end. Swiping by
+    // hand still works — the timer simply picks up from wherever the user left it.
+    useEffect(() => {
+        if (banners.length < 2) return;
+        const id = setInterval(() => {
+            const next = (indexRef.current + 1) % banners.length;
+            indexRef.current = next;
+            setActiveIndex(next);
+            listRef.current?.scrollToOffset({ offset: next * CONTENT_WIDTH, animated: true });
+        }, AUTO_ADVANCE_MS);
+        return () => clearInterval(id);
+    }, [banners.length]);
 
     // Nothing to show yet: stay out of the layout rather than holding the screen
     // behind a spinner. Once the banners arrive they simply appear.
@@ -118,6 +138,7 @@ export const WebsiteBanners: React.FC = () => {
     return (
         <View style={styles.container}>
             <FlatList
+                ref={listRef}
                 horizontal
                 pagingEnabled
                 data={banners}
@@ -152,6 +173,7 @@ export const WebsiteBanners: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         paddingHorizontal: H_PADDING,
+        marginTop: 5,
         marginBottom: SECTION_GAP,
     },
     banner: {

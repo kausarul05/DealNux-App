@@ -15,7 +15,6 @@ import React, { useEffect, useState } from 'react';
 import {
     Alert,
     Image,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -25,6 +24,7 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 
 import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
@@ -744,10 +744,7 @@ const EditProduct = () => {
 
     return (
         <View className="flex-1 bg-[#F7F7FA]">
-            <KeyboardAvoidingView
-                className="flex-1"
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
+            <KeyboardAvoider>
                 <View className="px-5 py-2">
                     <View className="flex-row items-center">
                         <View className="w-10">
@@ -1013,7 +1010,7 @@ const EditProduct = () => {
                         </Pressable>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             <Modal
                 transparent

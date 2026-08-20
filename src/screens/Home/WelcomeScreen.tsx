@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Toast, useToast } from '../../components/useToost';
 import { Images } from '../../constants';
+import { LOGO_ASPECT } from '../../constants/layout';
 import { AuthStackParamList } from '../../Navigation/types';
 
 
@@ -132,8 +133,8 @@ const styles = StyleSheet.create({
         bottom: 0,
     },
     logo: {
-        width: 204,
-        height: 118,
+        width: 260,
+        height: 260 / LOGO_ASPECT,
     },
 
 });

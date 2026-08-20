@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useNotification } from '../context/NotificationContext';
+import { LOGO_ASPECT } from '../constants/layout';
 // import logo from "../../assets/logo.png";
 
 interface BrandHeaderProps {
@@ -73,11 +74,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 10,
-    // paddingBottom: 10,
+    // Without this the logo sat flush against the header's bottom border.
+    paddingBottom: 10,
   },
   containerCompact: {
     paddingTop: 8,
-    // paddingBottom: 8,
+    paddingBottom: 8,
   },
   brandRow: {
     flexDirection: 'row',
@@ -85,12 +87,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logo: {
-    width: 28,
-    height: 28,
+    width: 178,
+    height: 178 / LOGO_ASPECT,
   },
   logoCompact: {
-    width: 50,
-    height: 50,
+    width: 166,
+    height: 166 / LOGO_ASPECT,
   },
   wordmark: {
     fontSize: 18,

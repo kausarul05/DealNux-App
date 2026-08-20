@@ -5,7 +5,6 @@ import {
     Alert,
     Dimensions,
     Image,
-    KeyboardAvoidingView,
     Platform,
     ScrollView,
     StyleSheet,
@@ -14,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IPA_BASE, OTP_AUTH } from '@env';
@@ -23,6 +23,7 @@ import AppHeader from '../../components/AppHeader';
 import BackButton from '../../components/BackButton';
 import SuccessModal from '../../components/SuccessModal';
 import { Images } from '../../constants';
+import { LOGO_ASPECT } from '../../constants/layout';
 
 const API_BASE_URL = IPA_BASE;
 const END_POINTS = OTP_AUTH;
@@ -143,11 +144,7 @@ const OtpAuth = () => {
         // ✅ FIX 1: Added 'bottom' edge
         <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safe}>
             {/* ✅ FIX 2: 'height' for Android */}
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-            >
+            <KeyboardAvoider style={{ flex: 1 }}>
                 {/* ✅ FIX 3: Wrap in ScrollView so content scrolls above keyboard */}
                 <ScrollView
                     contentContainerStyle={{ flexGrow: 1 }}
@@ -230,7 +227,7 @@ const OtpAuth = () => {
                         </View>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
             <SuccessModal
                 visible={showSuccessModal}
@@ -257,10 +254,12 @@ const styles = StyleSheet.create({
     logoContainer: {
         alignItems: 'center',
         paddingTop: 0,
+        // Breathing room so the lockup does not sit on top of the heading.
+        paddingBottom: 18,
     },
     logoImage: {
-        width: width * 0.4,
-        height: height * 0.1,
+        width: width * 0.55,
+        height: (width * 0.55) / LOGO_ASPECT,
     },
     content: {
         marginTop: 24,
